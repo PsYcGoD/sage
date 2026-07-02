@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("doctor", help="Check local setup.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
+    sub.add_parser("gui", help="Launch SAGE Desktop GUI.")
 
     return parser
 
@@ -147,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "init":
         return init_project()
+
+    if args.command_name == "gui":
+        return gui_command()
 
     parser.print_help()
     return 2
@@ -458,4 +462,16 @@ def init_project() -> int:
     print(f"Created {path}")
     print("Tell local assistant or terminal agent: read SAGE.md before running terminal commands.")
     return 0
+
+
+def gui_command() -> int:
+    """Launch SAGE Desktop GUI."""
+    try:
+        from .gui.app import main
+        main()
+        return 0
+    except ImportError as e:
+        print(f"Error: {e}")
+        print("Install GUI dependencies: pip install customtkinter pillow psutil")
+        return 1
 

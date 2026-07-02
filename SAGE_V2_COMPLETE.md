@@ -38,7 +38,7 @@ Transform SAGE from a simple terminal command wrapper into a **complete AI-power
 
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/sage.git
+git clone https://github.com/PsYcGoD/sage.git
 cd sage
 
 # Install in development mode
@@ -778,7 +778,7 @@ Phase 3: Global Intelligence
 
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/sage.git
+git clone https://github.com/PsYcGoD/sage.git
 cd sage
 
 # Install in development mode
@@ -1287,8 +1287,8 @@ SOFTWARE.
 ## ðŸ“ž SUPPORT
 
 **Documentation**: See this file  
-**Issues**: https://github.com/YOUR_USERNAME/sage/issues  
-**Discussions**: https://github.com/YOUR_USERNAME/sage/discussions  
+**Issues**: https://github.com/PsYcGoD/sage/issues  
+**Discussions**: https://github.com/PsYcGoD/sage/discussions  
 **Email**: sage@example.com *(update with actual contact)*
 
 ---
@@ -1376,9 +1376,9 @@ Jul 2026  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ
 
 ## ðŸ”— QUICK LINKS
 
-- **Repository**: https://github.com/YOUR_USERNAME/sage
-- **Issues**: https://github.com/YOUR_USERNAME/sage/issues
-- **Releases**: https://github.com/YOUR_USERNAME/sage/releases
+- **Repository**: https://github.com/PsYcGoD/sage
+- **Issues**: https://github.com/PsYcGoD/sage/issues
+- **Releases**: https://github.com/PsYcGoD/sage/releases
 - **Documentation**: This file (SAGE_V2_COMPLETE.md)
 - **License**: MIT License (see above)
 

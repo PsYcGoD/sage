@@ -13,23 +13,72 @@ from ...store import connect
 if APIRouter:
     router = APIRouter()
 
+    @router.get("/metrics")
+    async def get_all_metrics():
+        """Get all metrics for dashboard."""
+        with connect() as conn:
+            # Command stats
+            cmd_result = conn.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN exit_code = 0 THEN 1 ELSE 0 END) as successful
+                FROM runs
+                """
+            ).fetchone()
+
+            # Token stats
+            token_result = conn.execute(
+                """
+                SELECT
+                    SUM(estimated_tokens) as total_estimated,
+                    SUM(compressed_tokens) as total_compressed,
+                    SUM(estimated_tokens - compressed_tokens) as total_saved
+                FROM token_usage
+                """
+            ).fetchone()
+
+            # Agent stats
+            agent_result = conn.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'idle' THEN 1 ELSE 0 END) as idle,
+                    SUM(CASE WHEN status = 'busy' THEN 1 ELSE 0 END) as busy
+                FROM agents
+                """
+            ).fetchone()
+
+            total = cmd_result["total"] or 0
+            successful = cmd_result["successful"] or 0
+
+            return {
+                "total_commands": total,
+                "successful": successful,
+                "failed": total - successful,
+                "success_rate": (successful / total) if total > 0 else 0,
+                "total_tokens_saved": token_result["total_saved"] or 0,
+                "active_agents": agent_result["busy"] or 0,
+                "total_agents": agent_result["total"] or 0,
+            }
+
     @router.get("/metrics/success-rate")
     async def get_success_rate():
         """Get command success rate."""
         with connect() as conn:
             result = conn.execute(
                 """
-                SELECT 
+                SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN exit_code = 0 THEN 1 ELSE 0 END) as successful
                 FROM runs
                 """
             ).fetchone()
-            
+
             total = result["total"] or 0
             successful = result["successful"] or 0
             rate = (successful / total * 100) if total > 0 else 0
-            
+
             return {
                 "total_commands": total,
                 "successful": successful,

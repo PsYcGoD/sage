@@ -13,9 +13,25 @@ from ...store import connect, recent_runs
 if APIRouter:
     router = APIRouter()
 
+    @router.get("/commands")
+    async def get_commands(limit: int = 20):
+        """Get recent commands (main endpoint for dashboard)."""
+        records = recent_runs(limit=limit)
+        return [
+            {
+                "id": r.id,
+                "command": r.command,
+                "exit_code": r.exit_code,
+                "duration_ms": r.duration_ms,
+                "timestamp": r.created_at,
+                "summary": r.summary,
+            }
+            for r in records
+        ]
+
     @router.get("/commands/recent")
     async def get_recent_commands(limit: int = 20):
-        """Get recent commands."""
+        """Get recent commands (legacy endpoint)."""
         records = recent_runs(limit=limit)
         return {
             "commands": [

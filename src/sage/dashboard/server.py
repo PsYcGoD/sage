@@ -46,9 +46,11 @@ class DashboardServer:
         """Setup API routes."""
         from .api.commands import router as commands_router
         from .api.metrics import router as metrics_router
+        from .api.agents import router as agents_router
 
         self.app.include_router(commands_router, prefix="/api/v1")
         self.app.include_router(metrics_router, prefix="/api/v1")
+        self.app.include_router(agents_router, prefix="/api/v1")
 
         # Mount static files (HTML frontend)
         static_dir = Path(__file__).parent / "static"

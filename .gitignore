@@ -12,3 +12,4 @@ dist/
 htmlcov/
 .DS_Store
 SAGE.md
+human_touch.md

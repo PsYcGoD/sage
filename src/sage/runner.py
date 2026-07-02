@@ -10,7 +10,7 @@ from .store import save_run
 
 def run_command(command_parts: list[str]) -> int:
     if not command_parts:
-        print("No command was provided. Example: signaldeck run -- python --version")
+        print("No command was provided. Example: sage run -- python --version")
         return 2
 
     command_text = subprocess.list2cmdline(command_parts)
@@ -41,8 +41,8 @@ def run_command(command_parts: list[str]) -> int:
         print(completed.stderr, end="")
 
     print()
-    print(f"[signaldeck] saved run #{run_id} exit={completed.returncode} time={duration_ms}ms")
-    print("[signaldeck] summary:")
+    print(f"[sage] saved run #{run_id} exit={completed.returncode} time={duration_ms}ms")
+    print("[sage] summary:")
     print(summary)
 
     return completed.returncode

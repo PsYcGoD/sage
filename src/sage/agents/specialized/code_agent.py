@@ -22,7 +22,7 @@ class CodeAgent(BaseAgent):
         print(f"[CodeAgent {self.name}] Executing: {task.description}")
         
         # Placeholder for actual AI implementation
-        # In reality, this would call Claude API or similar
+        # In reality, this would call local assistant API or similar
         result = {
             "status": "completed",
             "task_id": task.id,
@@ -31,3 +31,4 @@ class CodeAgent(BaseAgent):
         }
         
         return result
+

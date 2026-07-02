@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sage"
 version = "0.1.0"
-description = "Smart Agent Guidance Engine for AI coding assistants."
+description = "Smart Agent Guidance Engine for developer automation tools."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
   { name = "PsYcGoD" }
 ]
-keywords = ["ai", "cli", "terminal", "debugging", "claude", "codex"]
+keywords = ["ai", "cli", "terminal", "debugging", "local assistant", "terminal agent"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -27,3 +27,4 @@ sage = "sage.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 
@@ -50,7 +50,7 @@ def suggest_next_steps(record: RunRecord | None) -> str:
     else:
         steps.append("Read the important output above and identify the first error line.")
         steps.append("Run the command again with a narrower target if possible.")
-        steps.append("Ask Claude or Codex to inspect the file mentioned in the first error.")
+        steps.append("Ask local assistant or terminal agent to inspect the file mentioned in the first error.")
 
     return "\n".join(f"- {step}" for step in steps)
 
@@ -60,3 +60,4 @@ def _extract_missing_python_package(text: str) -> str | None:
     if not match:
         return None
     return match.group(1).split(".")[0].replace("-", "_")
+

@@ -34,7 +34,7 @@ class ContextManager:
         Process command output for context efficiency.
         
         Returns dict with:
-        - summary: Short summary for Claude
+        - summary: Short summary for local assistant
         - full_output: Original output (stored in DB)
         - compressed_output: Context-efficient version
         - token_estimate: Estimated tokens saved
@@ -144,13 +144,13 @@ class ContextManager:
 
         return suggestions
 
-    def compress_for_claude(
+    def compress_for_client(
         self,
         text: str,
         max_tokens: int = 1000,
     ) -> str:
         """
-        Compress text specifically for Claude context.
+        Compress text specifically for client context.
         
         Target a specific token budget.
         """
@@ -172,3 +172,5 @@ class ContextManager:
         compressed_lines.extend(lines[-(keep_lines // 2):])
 
         return "\n".join(compressed_lines)
+
+

@@ -1,0 +1,15 @@
+﻿{
+  "name": "sage",
+  "version": "2.0.0",
+  "description": "Smart Agent Guidance Engine - MCP Server",
+  "command": "python",
+  "args": ["-m", "sage.mcp.server"],
+  "tools": [
+    "sage_run_command",
+    "sage_explain_error",
+    "sage_suggest_fix",
+    "sage_spawn_agent",
+    "sage_run_workflow",
+    "sage_get_history"
+  ]
+}

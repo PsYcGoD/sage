@@ -54,6 +54,72 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+
+    # Auto-fix knowledge base
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS fixes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            error_pattern TEXT NOT NULL,
+            fix_template TEXT NOT NULL,
+            language TEXT,
+            confidence REAL DEFAULT 0.5,
+            success_rate REAL DEFAULT 0.0,
+            times_applied INTEGER DEFAULT 0,
+            times_succeeded INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+    # Agent tracking
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            status TEXT DEFAULT 'idle',
+            capabilities TEXT,
+            created_at TEXT NOT NULL,
+            last_active TEXT
+        )
+        """
+    )
+
+    # Agent tasks
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agent_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER,
+            task_description TEXT,
+            status TEXT DEFAULT 'pending',
+            result TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        )
+        """
+    )
+
+    # Workflow executions
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS workflow_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workflow_name TEXT NOT NULL,
+            status TEXT DEFAULT 'running',
+            steps_total INTEGER,
+            steps_completed INTEGER DEFAULT 0,
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            error_message TEXT
+        )
+        """
+    )
+
     conn.commit()
 
 

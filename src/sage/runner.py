@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .detectors import summarize_output
 from .store import save_run
+from .context import ContextManager
 
 
 def run_command(command_parts: list[str]) -> int:
@@ -35,6 +36,15 @@ def run_command(command_parts: list[str]) -> int:
         summary=summary,
     )
 
+    # Process output through context manager
+    context_mgr = ContextManager()
+    result = context_mgr.process_command_output(
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+        exit_code=completed.returncode,
+        run_id=run_id,
+    )
+
     if completed.stdout:
         print(completed.stdout, end="")
     if completed.stderr:
@@ -42,6 +52,11 @@ def run_command(command_parts: list[str]) -> int:
 
     print()
     print(f"[sage] saved run #{run_id} exit={completed.returncode} time={duration_ms}ms")
+
+    # Show token savings
+    if result['token_savings'] > 0:
+        print(f"[sage] context: saved {result['token_savings']} tokens ({result['compression_ratio']} compression)")
+
     print("[sage] summary:")
     print(summary)
 

@@ -39,10 +39,22 @@ Explain the most recent command:
 sage explain
 ```
 
+Explain the most recent failed command:
+
+```powershell
+sage explain --failed
+```
+
 Suggest what to try next:
 
 ```powershell
 sage suggest
+```
+
+Suggest what to try for the most recent failed command:
+
+```powershell
+sage suggest --failed
 ```
 
 Show recent command history:
@@ -77,6 +89,13 @@ Use this rhythm when working with an AI coding assistant:
 sage run -- <the command>
 sage explain
 sage suggest
+```
+
+For an older failure, use:
+
+```powershell
+sage explain --failed
+sage suggest --failed
 ```
 
 The assistant gets a clean explanation and a practical next step instead of a

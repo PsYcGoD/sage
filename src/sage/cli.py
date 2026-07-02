@@ -23,7 +23,7 @@ Examples:
 - `sage suggest`
 - `sage history`
 
-After a failed command, run `sage explain` and `sage suggest` before guessing at the fix.
+After a failed command, run `sage explain --failed` and `sage suggest --failed` before guessing at the fix.
 S.A.G.E stores command summaries locally and helps keep AI context small.
 """
 
@@ -40,8 +40,19 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="Run a command and remember the important output.")
     run.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --")
 
-    sub.add_parser("explain", help="Explain the most recent command failure.")
-    sub.add_parser("suggest", help="Suggest the next practical step after a command failure.")
+    explain_parser = sub.add_parser("explain", help="Explain the most recent command.")
+    explain_parser.add_argument(
+        "--failed",
+        action="store_true",
+        help="Explain the most recent failed command instead.",
+    )
+
+    suggest_parser = sub.add_parser("suggest", help="Suggest the next practical step.")
+    suggest_parser.add_argument(
+        "--failed",
+        action="store_true",
+        help="Suggest next steps for the most recent failed command instead.",
+    )
 
     history = sub.add_parser("history", help="Show recent remembered commands.")
     history.add_argument("--limit", type=int, default=10)
@@ -63,10 +74,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_command(command)
 
     if args.command_name == "explain":
-        return explain()
+        return explain(only_failed=args.failed)
 
     if args.command_name == "suggest":
-        return suggest()
+        return suggest(only_failed=args.failed)
 
     if args.command_name == "history":
         return history(args.limit)
@@ -81,10 +92,11 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-def explain() -> int:
-    record = latest_run(only_failures=True) or latest_run()
+def explain(only_failed: bool = False) -> int:
+    record = latest_run(only_failures=only_failed)
     if record is None:
-        print("S.A.G.E has no command history yet.")
+        kind = "failed command history" if only_failed else "command history"
+        print(f"S.A.G.E has no {kind} yet.")
         print("Try: sage run -- python --version")
         return 0
 
@@ -99,8 +111,8 @@ def explain() -> int:
     return 0
 
 
-def suggest() -> int:
-    record = latest_run(only_failures=True) or latest_run()
+def suggest(only_failed: bool = False) -> int:
+    record = latest_run(only_failures=only_failed)
     if record is not None:
         print(f"Suggestions for run #{record.id}: {record.command}")
         print()

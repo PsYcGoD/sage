@@ -1,0 +1,16 @@
+﻿name: CI Workflow
+version: 1.0
+
+env:
+  CI: true
+
+pipeline:
+  - name: Install Dependencies
+    run: pip install -e .
+    
+  - name: Run Tests
+    run: python -m unittest discover
+    
+  - name: Check Style
+    run: echo "Style check placeholder"
+    continue_on_fail: true

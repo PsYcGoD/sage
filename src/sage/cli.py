@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import shutil
@@ -32,7 +32,7 @@ S.A.G.E stores command summaries locally and helps keep AI context small.
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sage",
-        description="Smart Agent Guidance Engine for AI coding assistants.",
+        description="Smart Agent Guidance Engine for developer automation tools.",
     )
     parser.add_argument("--version", action="version", version=f"sage {__version__}")
 
@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     context_sub.add_parser("optimize", help="Get context optimization suggestions.")
 
     sub.add_parser("doctor", help="Check local setup.")
-    sub.add_parser("init", help="Create S.A.G.E instructions for AI assistants.")
+    sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
 
     return parser
 
@@ -235,7 +235,7 @@ def fix_command(apply: bool = False, min_confidence: float = 0.8) -> int:
         print(f"Suggested fix: {result.fix_applied}")
 
     if result.success:
-        print("\n✓ Fix applied successfully!")
+        print("\nâœ“ Fix applied successfully!")
     elif result.error_message:
         print(f"\n{result.error_message}")
 
@@ -361,8 +361,9 @@ def mcp_command(args) -> int:
         return 1
 
     if args.mcp_command == "install":
-        # Install MCP server config to Claude Code settings
-        config_path = Path.home() / ".claude" / "mcp-servers.json"
+        # Write a generic MCP server config. Users can copy this into their
+        # local MCP-compatible client settings when needed.
+        config_path = Path(os.getenv("SAGE_MCP_CONFIG_PATH", str(Path.home() / ".sage" / "mcp-servers.json")))
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
         sage_config = {
@@ -382,8 +383,8 @@ def mcp_command(args) -> int:
         with open(config_path, 'w') as f:
             json.dump(sage_config, f, indent=2)
 
-        print(f"[OK] MCP server config installed to {config_path}")
-        print("Restart Claude Code to use SAGE tools")
+        print(f"[OK] MCP server config written to {config_path}")
+        print("Copy this config into your MCP-compatible client if needed.")
         return 0
 
     if args.mcp_command == "start":
@@ -455,5 +456,6 @@ def init_project() -> int:
     path = Path.cwd() / "SAGE.md"
     path.write_text(ASSISTANT_INSTRUCTIONS, encoding="utf-8")
     print(f"Created {path}")
-    print("Tell Claude or Codex: read SAGE.md before running terminal commands.")
+    print("Tell local assistant or terminal agent: read SAGE.md before running terminal commands.")
     return 0
+

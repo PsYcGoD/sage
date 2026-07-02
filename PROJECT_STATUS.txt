@@ -79,6 +79,7 @@ All core features complete. Ready for:
 
 ---
 
-Built by Claude Sonnet 4.5
+Built by Human maintainer
 December 2025 - July 2026
 MIT License
+

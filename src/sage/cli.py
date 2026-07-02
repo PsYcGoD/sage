@@ -361,9 +361,9 @@ def mcp_command(args) -> int:
         return 1
 
     if args.mcp_command == "install":
-        # Write a generic MCP server config. Users can copy this into their
-        # local MCP-compatible client settings when needed.
-        config_path = Path(os.getenv("SAGE_MCP_CONFIG_PATH", str(Path.home() / ".sage" / "mcp-servers.json")))
+        # Default to the local MCP client config path. Override with
+        # SAGE_MCP_CONFIG_PATH when a different location is needed.
+        config_path = Path(os.getenv("SAGE_MCP_CONFIG_PATH", str(Path.home() / ".claude" / "mcp-servers.json")))
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
         sage_config = {
@@ -383,8 +383,8 @@ def mcp_command(args) -> int:
         with open(config_path, 'w') as f:
             json.dump(sage_config, f, indent=2)
 
-        print(f"[OK] MCP server config written to {config_path}")
-        print("Copy this config into your MCP-compatible client if needed.")
+        print(f"[OK] MCP server config installed to {config_path}")
+        print("Restart your MCP-compatible client to use SAGE tools.")
         return 0
 
     if args.mcp_command == "start":

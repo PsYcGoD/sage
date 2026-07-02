@@ -39,6 +39,12 @@ Explain the most recent command:
 sage explain
 ```
 
+Suggest what to try next:
+
+```powershell
+sage suggest
+```
+
 Show recent command history:
 
 ```powershell
@@ -62,6 +68,19 @@ sage init
 - Rust compiler errors
 - NPM errors
 - Generic command failures
+
+## Claude and Codex Workflow
+
+Use this rhythm when working with an AI coding assistant:
+
+```powershell
+sage run -- <the command>
+sage explain
+sage suggest
+```
+
+The assistant gets a clean explanation and a practical next step instead of a
+wall of terminal noise.
 
 ## Vision
 

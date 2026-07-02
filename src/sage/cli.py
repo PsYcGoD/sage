@@ -7,6 +7,7 @@ from pathlib import Path
 from . import __version__
 from .runner import run_command
 from .store import db_path, latest_run, recent_runs
+from .suggestions import suggest_next_steps
 
 
 ASSISTANT_INSTRUCTIONS = """# S.A.G.E Instructions
@@ -19,9 +20,10 @@ Examples:
 - `sage run -- npm test`
 - `sage run -- pytest`
 - `sage explain`
+- `sage suggest`
 - `sage history`
 
-After a failed command, run `sage explain` before guessing at the fix.
+After a failed command, run `sage explain` and `sage suggest` before guessing at the fix.
 S.A.G.E stores command summaries locally and helps keep AI context small.
 """
 
@@ -39,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --")
 
     sub.add_parser("explain", help="Explain the most recent command failure.")
+    sub.add_parser("suggest", help="Suggest the next practical step after a command failure.")
 
     history = sub.add_parser("history", help="Show recent remembered commands.")
     history.add_argument("--limit", type=int, default=10)
@@ -61,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "explain":
         return explain()
+
+    if args.command_name == "suggest":
+        return suggest()
 
     if args.command_name == "history":
         return history(args.limit)
@@ -90,6 +96,15 @@ def explain() -> int:
     print(f"Duration: {record.duration_ms}ms")
     print()
     print(record.summary)
+    return 0
+
+
+def suggest() -> int:
+    record = latest_run(only_failures=True) or latest_run()
+    if record is not None:
+        print(f"Suggestions for run #{record.id}: {record.command}")
+        print()
+    print(suggest_next_steps(record))
     return 0
 
 

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-  { name = "Your Name" }
+  { name = "PsYcGoD" }
 ]
 keywords = ["ai", "cli", "terminal", "debugging", "claude", "codex"]
 classifiers = [

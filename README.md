@@ -125,3 +125,11 @@ Run tests:
 ```powershell
 python -m unittest
 ```
+
+## License
+
+S.A.G.E is released under the MIT License.
+
+That means the code can be used, copied, modified, and shared freely, as long as the license notice is included. The software is provided without warranty.
+
+See [LICENSE](LICENSE) for details.

@@ -13,7 +13,7 @@
 **Testing**: âœ… Comprehensive (All features tested)  
 **License**: MIT  
 **Lead Developer**: Human maintainer  
-**Repository**: https://github.com/YOUR_USERNAME/sage *(update with actual repo)*
+**Repository**: https://github.com/PsYcGoD/sage
 
 ---
 

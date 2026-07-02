@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S.A.G.E Dashboard - V2.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-change {
+            font-size: 0.85em;
+            opacity: 0.7;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .panel-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .command-list {
+            list-style: none;
+        }
+
+        .command-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid;
+        }
+
+        .command-item.success {
+            border-left-color: #10b981;
+        }
+
+        .command-item.failure {
+            border-left-color: #ef4444;
+        }
+
+        .command-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .command-text {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .agent-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .agent-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .agent-status {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            background: rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-success {
+            background: #10b981;
+        }
+
+        .status-error {
+            background: #ef4444;
+        }
+
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            opacity: 0.7;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 S.A.G.E Dashboard</h1>
+            <p class="subtitle">Smart Agent Guidance Engine V2.0 - Live Monitoring</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Commands</div>
+                <div class="stat-value" id="total-commands">-</div>
+                <div class="stat-change">All time</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Token Savings</div>
+                <div class="stat-value" id="token-savings">-</div>
+                <div class="stat-change">99.3% compression</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Active Agents</div>
+                <div class="stat-value" id="active-agents">-</div>
+                <div class="stat-change">Running now</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Success Rate</div>
+                <div class="stat-value" id="success-rate">-</div>
+                <div class="stat-change">Last 100 commands</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 class="panel-title">Recent Commands</h2>
+                    <button class="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+                </div>
+                <ul class="command-list" id="command-list">
+                    <li class="loading">Loading commands...</li>
+                </ul>
+            </div>
+
+            <div class="panel">
+                <h2 class="panel-title">Active Agents</h2>
+                <div id="agent-list">
+                    <div class="loading">Loading agents...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Features Active</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <strong>Context Manager</strong>
+                    <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">99.3% compression</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔧</div>
+                    <strong>Auto-Fix Engine</strong>
+                    <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">ML-powered fixes</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <strong>Multi-Agent</strong>
+                    <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">Parallel execution</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📋</div>
+                    <strong>Workflows</strong>
+                    <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">YAML automation</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔌</div>
+                    <strong>MCP Integration</strong>
+                    <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">Claude Code ready</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎲</div>
+                    <strong>ML Prediction</strong>
+                    <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">Failure detection</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                // Load metrics
+                const metricsRes = await fetch('/api/v1/metrics');
+                const metrics = await metricsRes.json();
+
+                document.getElementById('total-commands').textContent = metrics.total_commands || 0;
+                document.getElementById('token-savings').textContent =
+                    (metrics.total_tokens_saved || 0).toLocaleString() + ' tokens';
+                document.getElementById('active-agents').textContent = metrics.active_agents || 0;
+                document.getElementById('success-rate').textContent =
+                    Math.round((metrics.success_rate || 0) * 100) + '%';
+
+                // Load commands
+                const commandsRes = await fetch('/api/v1/commands?limit=10');
+                const commands = await commandsRes.json();
+
+                const commandList = document.getElementById('command-list');
+                if (commands.length === 0) {
+                    commandList.innerHTML = '<li class="loading">No commands yet. Run: sage run -- python --version</li>';
+                } else {
+                    commandList.innerHTML = commands.map(cmd => `
+                        <li class="command-item ${cmd.exit_code === 0 ? 'success' : 'failure'}">
+                            <div class="command-header">
+                                <span><strong>#${cmd.id}</strong> - ${new Date(cmd.timestamp * 1000).toLocaleTimeString()}</span>
+                                <span class="status-badge ${cmd.exit_code === 0 ? 'status-success' : 'status-error'}">
+                                    ${cmd.exit_code === 0 ? 'SUCCESS' : 'FAILED'}
+                                </span>
+                            </div>
+                            <div class="command-text">${escapeHtml(cmd.command)}</div>
+                            <div style="font-size: 0.85em; opacity: 0.7; margin-top: 5px;">
+                                Duration: ${cmd.duration_ms}ms | Exit: ${cmd.exit_code}
+                            </div>
+                        </li>
+                    `).join('');
+                }
+
+                // Load agents
+                const agentsRes = await fetch('/api/v1/agents');
+                const agents = await agentsRes.json();
+
+                const agentList = document.getElementById('agent-list');
+                if (agents.length === 0) {
+                    agentList.innerHTML = '<div class="loading">No agents running</div>';
+                } else {
+                    agentList.innerHTML = agents.map(agent => `
+                        <div class="agent-item">
+                            <div class="agent-name">${agent.name}</div>
+                            <div style="font-size: 0.9em; opacity: 0.8; margin-bottom: 8px;">${agent.type}</div>
+                            <span class="agent-status">${agent.status}</span>
+                        </div>
+                    `).join('');
+                }
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('command-list').innerHTML =
+                    '<li class="loading">Error loading data. Is the SAGE API running?</li>';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load data on page load
+        loadData();
+
+        // Refresh every 5 seconds
+        setInterval(loadData, 5000);
+    </script>
+</body>
+</html>

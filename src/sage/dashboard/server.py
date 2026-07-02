@@ -50,13 +50,25 @@ class DashboardServer:
         self.app.include_router(commands_router, prefix="/api/v1")
         self.app.include_router(metrics_router, prefix="/api/v1")
 
-        @self.app.get("/")
-        async def root():
-            return {
-                "name": "SAGE Dashboard API",
-                "version": "2.0",
-                "status": "running"
-            }
+        # Mount static files (HTML frontend)
+        static_dir = Path(__file__).parent / "static"
+        if static_dir.exists():
+            from fastapi.staticfiles import StaticFiles
+            from fastapi.responses import FileResponse
+
+            self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+            @self.app.get("/")
+            async def root():
+                return FileResponse(str(static_dir / "index.html"))
+        else:
+            @self.app.get("/")
+            async def root():
+                return {
+                    "name": "SAGE Dashboard API",
+                    "version": "2.0",
+                    "status": "running"
+                }
 
     def start(self, open_browser: bool = True):
         """Start the dashboard server."""

@@ -120,7 +120,7 @@ S.A.G.E provides a complete AI orchestration layer with:
 ### Quick Install
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/sage.git
+git clone https://github.com/PsYcGoD/sage.git
 cd sage
 
 # Install in development mode
@@ -503,7 +503,7 @@ We welcome contributions! Here's how:
 ### Development Setup
 ```bash
 # Clone and install
-git clone https://github.com/YOUR_USERNAME/sage.git
+git clone https://github.com/PsYcGoD/sage.git
 cd sage
 pip install -e ".[dev]"
 
@@ -665,14 +665,14 @@ Built with â¤ï¸ using:
 
 ## ðŸ“ž Contact & Support
 
-- **GitHub**: [https://github.com/YOUR_USERNAME/sage](https://github.com/YOUR_USERNAME/sage)
-- **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/sage/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/sage/discussions)
+- **GitHub**: [https://github.com/PsYcGoD/sage](https://github.com/PsYcGoD/sage)
+- **Issues**: [GitHub Issues](https://github.com/PsYcGoD/sage/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/PsYcGoD/sage/discussions)
 
 ### Enterprise Support
 For enterprise inquiries, custom development, or consulting:
-- Email: your-email@example.com
-- LinkedIn: your-linkedin-profile
+- GitHub: [@PsYcGoD](https://github.com/PsYcGoD)
+- Repository: [SAGE](https://github.com/PsYcGoD/sage)
 
 ---
 
@@ -682,7 +682,7 @@ If SAGE helps your development workflow, please â­ star the repository!
 
 ```bash
 # Check out the project
-git clone https://github.com/YOUR_USERNAME/sage.git
+git clone https://github.com/PsYcGoD/sage.git
 
 # Start using it today
 cd sage && pip install -e .

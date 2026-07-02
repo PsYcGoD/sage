@@ -9,29 +9,29 @@ from .runner import run_command
 from .store import db_path, latest_run, recent_runs
 
 
-ASSISTANT_INSTRUCTIONS = """# SignalDeck Instructions
+ASSISTANT_INSTRUCTIONS = """# S.A.G.E Instructions
 
-When working in this project, prefer running noisy terminal commands through SignalDeck.
+When working in this project, prefer running noisy terminal commands through S.A.G.E.
 
 Examples:
 
-- `signaldeck run -- python -m unittest`
-- `signaldeck run -- npm test`
-- `signaldeck run -- pytest`
-- `signaldeck explain`
-- `signaldeck history`
+- `sage run -- python -m unittest`
+- `sage run -- npm test`
+- `sage run -- pytest`
+- `sage explain`
+- `sage history`
 
-After a failed command, run `signaldeck explain` before guessing at the fix.
-SignalDeck stores command summaries locally and helps keep AI context small.
+After a failed command, run `sage explain` before guessing at the fix.
+S.A.G.E stores command summaries locally and helps keep AI context small.
 """
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="signaldeck",
-        description="Local terminal intelligence for AI coding assistants.",
+        prog="sage",
+        description="Smart Agent Guidance Engine for AI coding assistants.",
     )
-    parser.add_argument("--version", action="version", version=f"signaldeck {__version__}")
+    parser.add_argument("--version", action="version", version=f"sage {__version__}")
 
     sub = parser.add_subparsers(dest="command_name", required=True)
 
@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     history.add_argument("--limit", type=int, default=10)
 
     sub.add_parser("doctor", help="Check local setup.")
-    sub.add_parser("init", help="Create SignalDeck instructions for AI assistants.")
+    sub.add_parser("init", help="Create S.A.G.E instructions for AI assistants.")
 
     return parser
 
@@ -78,8 +78,8 @@ def main(argv: list[str] | None = None) -> int:
 def explain() -> int:
     record = latest_run(only_failures=True) or latest_run()
     if record is None:
-        print("SignalDeck has no command history yet.")
-        print("Try: signaldeck run -- python --version")
+        print("S.A.G.E has no command history yet.")
+        print("Try: sage run -- python --version")
         return 0
 
     status = "failed" if record.exit_code != 0 else "succeeded"
@@ -106,7 +106,7 @@ def history(limit: int) -> int:
 
 
 def doctor() -> int:
-    print("SignalDeck doctor")
+    print("S.A.G.E doctor")
     print(f"Database: {db_path()}")
     for name in ["python", "git", "node", "npm"]:
         found = shutil.which(name)
@@ -115,8 +115,8 @@ def doctor() -> int:
 
 
 def init_project() -> int:
-    path = Path.cwd() / "SIGNALDECK.md"
+    path = Path.cwd() / "SAGE.md"
     path.write_text(ASSISTANT_INSTRUCTIONS, encoding="utf-8")
     print(f"Created {path}")
-    print("Tell Claude or Codex: read SIGNALDECK.md before running terminal commands.")
+    print("Tell Claude or Codex: read SAGE.md before running terminal commands.")
     return 0

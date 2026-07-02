@@ -21,12 +21,12 @@ class RunRecord:
 def data_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA")
     if base:
-        return Path(base) / "SignalDeck"
-    return Path.home() / ".signaldeck"
+        return Path(base) / "SAGE"
+    return Path.home() / ".sage"
 
 
 def db_path() -> Path:
-    return data_dir() / "signaldeck.db"
+    return data_dir() / "sage.db"
 
 
 def connect() -> sqlite3.Connection:

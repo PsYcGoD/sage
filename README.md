@@ -1,6 +1,8 @@
-# SignalDeck
+# S.A.G.E
 
-SignalDeck is a local terminal intelligence layer for AI coding assistants.
+**Smart Agent Guidance Engine**
+
+S.A.G.E is a local terminal intelligence layer for AI coding assistants.
 
 It runs shell commands, keeps the useful parts of the output, remembers failures
 in a local SQLite database, and gives Claude, Codex, or another assistant a
@@ -11,7 +13,7 @@ clean explanation of what happened.
 AI coding tools often run commands that produce huge logs. Huge logs waste
 context and make it harder for the assistant to see the real problem.
 
-SignalDeck turns noisy command output into a smaller signal:
+S.A.G.E turns noisy command output into a smaller signal:
 
 ```text
 command -> output -> important errors -> local memory -> clean explanation
@@ -19,34 +21,34 @@ command -> output -> important errors -> local memory -> clean explanation
 
 ## First Commands
 
-Run a command through SignalDeck:
+Run a command through S.A.G.E:
 
 ```powershell
-signaldeck run -- python --version
+sage run -- python --version
 ```
 
 Run tests in a project:
 
 ```powershell
-signaldeck run -- python -m unittest
+sage run -- python -m unittest
 ```
 
 Explain the most recent command:
 
 ```powershell
-signaldeck explain
+sage explain
 ```
 
 Show recent command history:
 
 ```powershell
-signaldeck history
+sage history
 ```
 
 Create an instruction file for AI assistants:
 
 ```powershell
-signaldeck init
+sage init
 ```
 
 ## What It Detects Today
@@ -63,7 +65,7 @@ signaldeck init
 
 ## Vision
 
-SignalDeck is not only a token saver. The goal is to become a local memory and
+S.A.G.E is not only a token saver. The goal is to become a local memory and
 diagnosis layer for AI coding:
 
 - remember recurring failures

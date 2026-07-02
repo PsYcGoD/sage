@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "signaldeck"
+name = "sage"
 version = "0.1.0"
-description = "Local terminal intelligence for AI coding assistants."
+description = "Smart Agent Guidance Engine for AI coding assistants."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 [project.scripts]
-signaldeck = "signaldeck.cli:main"
+sage = "sage.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

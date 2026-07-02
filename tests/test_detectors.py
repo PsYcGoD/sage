@@ -1,6 +1,6 @@
 import unittest
 
-from signaldeck.detectors import detect_findings, summarize_output
+from sage.detectors import detect_findings, summarize_output
 
 
 class DetectorTests(unittest.TestCase):

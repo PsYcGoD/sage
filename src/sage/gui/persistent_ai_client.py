@@ -1,0 +1,544 @@
+"""
+Persistent AI Client - REAL conversation sessions that maintain context.
+
+This replaces one-shot subprocess calls with persistent SDK-backed sessions.
+that keep conversation history and don't burn credits on repeated context.
+"""
+
+import json
+import os
+import queue
+import shutil
+import subprocess
+import threading
+import tempfile
+from pathlib import Path
+from typing import Optional, Generator, Tuple
+from datetime import datetime
+
+
+class PersistentAIClient:
+    """Maintains a persistent conversation session with an AI provider."""
+
+    def __init__(self, ai_name: str, system_prompts: list[str] | None = None, permission_mode: str = "ask"):
+        self.ai_name = ai_name.lower()
+        self.system_prompts = system_prompts or []
+        self.permission_mode = permission_mode
+        self.conversation_history = []
+        self.session_active = False
+        self.codex_has_session = False
+        self._lock = threading.Lock()
+
+    def _compact_text(self, text: str, max_chars: int = 4000) -> str:
+        text = str(text or "")
+        if len(text) <= max_chars:
+            return text
+        half = max_chars // 2
+        return text[:half] + "\n[Middle trimmed for persistent session speed]\n" + text[-half:]
+
+    def _add_history(self, role: str, content: str) -> None:
+        self.conversation_history.append({
+            "role": role,
+            "content": self._compact_text(content),
+        })
+        self.conversation_history = self.conversation_history[-8:]
+
+    def start_session(self) -> bool:
+        """Initialize persistent session with the AI."""
+        if self.session_active:
+            return True
+
+        try:
+            if self.ai_name == "claude":
+                return self._start_claude_session()
+            elif self.ai_name == "codex":
+                return self._start_codex_session()
+            elif self.ai_name == "ollama":
+                return self._start_ollama_session()
+            else:
+                return self._start_generic_session()
+        except Exception as e:
+            print(f"[ERROR] Failed to start {self.ai_name} session: {e}")
+            return False
+
+    def _start_claude_session(self) -> bool:
+        """Start persistent Claude session using AWS Bedrock or Anthropic API."""
+        try:
+            import anthropic
+
+            # AUTO-DETECT: Bedrock if AWS creds exist, else direct API
+            aws_region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+            has_aws_creds = bool(os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_PROFILE"))
+
+            # Check AWS credentials location
+            aws_creds_file = Path.home() / ".aws" / "credentials"
+            if not has_aws_creds and aws_creds_file.exists():
+                has_aws_creds = True
+
+            # Default to Bedrock if AWS is configured
+            use_bedrock = has_aws_creds or os.getenv("USE_BEDROCK", "").lower() in ("true", "1", "yes")
+
+            print(f"[INFO] AWS region: {aws_region}")
+            print(f"[INFO] Use Bedrock: {use_bedrock}")
+
+            # Create client - match Claude Code's exact setup
+            try:
+                api_key = os.getenv("ANTHROPIC_API_KEY")
+                base_url = os.getenv("ANTHROPIC_BASE_URL")
+
+                if use_bedrock or os.getenv("CLAUDE_CODE_USE_BEDROCK") == "1":
+                    # AWS Bedrock client - uses boto3 credentials
+                    print(f"[INFO] Creating Bedrock client in {aws_region}...")
+                    self.client = anthropic.AnthropicBedrock(aws_region=aws_region)
+                    print(f"[OK] AWS Bedrock client created (region: {aws_region})")
+                    self.is_bedrock = True
+                elif base_url:
+                    # Custom base URL (like cc.freemodel.dev proxy)
+                    print(f"[INFO] Using custom base URL: {base_url}")
+                    self.client = anthropic.Anthropic(api_key=api_key, base_url=base_url)
+                    print(f"[OK] Custom API client created")
+                    self.is_bedrock = False
+                else:
+                    # Direct Anthropic API
+                    if not api_key:
+                        # Try Claude CLI auth
+                        try:
+                            result = subprocess.run(
+                                "claude auth status",
+                                shell=True,
+                                capture_output=True,
+                                text=True,
+                                timeout=5,
+                                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+                            )
+                            if '"loggedin": true' not in result.stdout.lower():
+                                print("[ERROR] No API key and Claude CLI not logged in")
+                                return False
+                        except Exception:
+                            print("[ERROR] Could not verify Claude CLI auth")
+                            return False
+
+                    self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
+                    print("[OK] Anthropic API client created")
+                    self.is_bedrock = False
+
+            except Exception as e:
+                print(f"[ERROR] Failed to create client: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+
+            # Verify client
+            if not self.client:
+                print("[ERROR] Client is None after creation")
+                return False
+
+            self.conversation_history = []
+
+            # Build system prompt from files
+            system_content = []
+            for prompt_file in self.system_prompts:
+                p = Path(prompt_file)
+                if p.exists():
+                    try:
+                        content = p.read_text(encoding="utf-8")
+                        system_content.append(content)
+                        print(f"[OK] Loaded system prompt: {p.name} ({len(content)} chars)")
+                    except Exception as e:
+                        print(f"[WARN] Could not read {prompt_file}: {e}")
+
+            self.system_message = "\n\n".join(system_content) if system_content else None
+            self.session_active = True
+
+            print(f"[OK] Session started with {len(system_content)} system prompts")
+            return True
+
+        except ImportError as e:
+            print(f"[ERROR] Missing package: {e}")
+            print("[FIX] Run: pip install anthropic boto3")
+            return False
+        except Exception as e:
+            print(f"[ERROR] Claude session failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _start_codex_session(self) -> bool:
+        """Start a CLI-backed Codex session using the user's `codex login` auth."""
+        try:
+            if not shutil.which("codex"):
+                print("[ERROR] codex CLI not installed")
+                return False
+
+            env = self._codex_cli_env()
+            # CRITICAL FIX: Run codex directly, NOT through sage run - prevents cmd.exe spawn
+            result = subprocess.run(
+                ["codex", "login", "status"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+            combined_output = f"{result.stdout}\n{result.stderr}"
+            if result.returncode != 0 or "Logged in" not in combined_output:
+                print("[ERROR] Codex CLI is not logged in. Run: codex login")
+                return False
+
+            self.conversation_history = []
+            self.codex_has_session = False
+            self.session_active = True
+            return True
+
+        except Exception as e:
+            print(f"[ERROR] Codex session failed: {e}")
+            return False
+
+    def _codex_cli_env(self) -> dict:
+        """Return an environment that forces Codex CLI auth instead of env API keys."""
+        env = os.environ.copy()
+        env.pop("OPENAI_API_KEY", None)
+        return env
+
+    def _start_ollama_session(self) -> bool:
+        """Start persistent Ollama session."""
+        try:
+            # Ollama runs locally via HTTP API
+            import requests
+
+            # Test Ollama connection
+            response = requests.get("http://localhost:11434/api/tags", timeout=2)
+            if response.status_code != 200:
+                return False
+
+            self.conversation_history = []
+            self.session_active = True
+            self.ollama_model = "qwen2.5-coder:7b"
+            return True
+
+        except Exception as e:
+            print(f"[ERROR] Ollama session failed: {e}")
+            return False
+
+    def _start_generic_session(self) -> bool:
+        """Fallback for other AIs."""
+        self.conversation_history = []
+        self.session_active = True
+        return True
+
+    def send_message(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
+        """
+        Send message and stream response while maintaining conversation history.
+
+        Yields: (event_type, content) tuples
+        - ("thinking", text) - reasoning/thinking content
+        - ("text", text) - actual response text
+        - ("error", text) - error messages
+        - ("complete", "") - response finished
+        """
+        if not self.session_active:
+            yield ("error", "Session not active. Call start_session() first.")
+            return
+
+        with self._lock:
+            try:
+                if self.ai_name == "claude":
+                    yield from self._stream_claude(prompt)
+                elif self.ai_name == "codex":
+                    yield from self._stream_codex(prompt)
+                elif self.ai_name == "ollama":
+                    yield from self._stream_ollama(prompt)
+                else:
+                    yield from self._stream_generic(prompt)
+            except Exception as e:
+                yield ("error", f"Error: {str(e)}")
+
+    def _stream_claude(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
+        """Stream Claude response with conversation history."""
+        try:
+            # Add user message to history
+            self._add_history("user", prompt)
+
+            # Use env-specified model IDs if available (Claude Code style)
+            if hasattr(self, 'is_bedrock') and self.is_bedrock:
+                # AWS Bedrock - use env defaults or fallback
+                model = os.getenv("ANTHROPIC_DEFAULT_SONNET_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+            else:
+                # Direct Anthropic API
+                model = "claude-sonnet-4-20250514"
+
+            print(f"[DEBUG] Using model: {model}")
+
+            # Prepare system message (Bedrock requires list format)
+            system_param = None
+            if self.system_message:
+                if hasattr(self, 'is_bedrock') and self.is_bedrock:
+                    # Bedrock requires list format
+                    system_param = [{"type": "text", "text": self.system_message}]
+                else:
+                    # Direct API accepts string
+                    system_param = self.system_message
+
+            # Call Claude API with full conversation history
+            kwargs = {
+                "model": model,
+                "max_tokens": 8192,
+                "messages": self.conversation_history[-8:]
+            }
+            if system_param:
+                kwargs["system"] = system_param
+
+            with self.client.messages.stream(**kwargs) as stream:
+                assistant_text = []
+
+                for event in stream:
+                    if hasattr(event, 'type'):
+                        if event.type == 'content_block_start':
+                            block = getattr(event, 'content_block', None)
+                            if block and hasattr(block, 'type'):
+                                if block.type == 'thinking':
+                                    yield ("thinking", "[Thinking...]\n")
+
+                        elif event.type == 'content_block_delta':
+                            delta = getattr(event, 'delta', None)
+                            if delta:
+                                if hasattr(delta, 'type'):
+                                    if delta.type == 'thinking_delta':
+                                        text = getattr(delta, 'thinking', '')
+                                        if text:
+                                            yield ("thinking", text)
+                                    elif delta.type == 'text_delta':
+                                        text = getattr(delta, 'text', '')
+                                        if text:
+                                            assistant_text.append(text)
+                                            yield ("text", text)
+
+                # Save assistant response to history
+                full_response = "".join(assistant_text)
+                self._add_history("assistant", full_response)
+
+                yield ("complete", "")
+
+        except Exception as e:
+            yield ("error", f"Claude API error: {str(e)}")
+
+    def _stream_codex(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
+        """Stream Codex through its CLI so it uses `codex login` credentials."""
+        try:
+            output_path = Path(tempfile.gettempdir()) / f"sage-codex-last-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.txt"
+            if self.codex_has_session:
+                cmd = self._codex_command(resume=True, output_path=output_path)
+                cli_prompt = prompt
+            else:
+                cmd = self._codex_command(resume=False, output_path=output_path)
+                cli_prompt = self._build_initial_codex_prompt(prompt)
+
+            self._add_history("user", prompt)
+            assistant_text = []
+            visible_started = False
+            suppress_rest = False
+
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+                env=self._codex_cli_env(),
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+
+            if process.stdin:
+                process.stdin.write(cli_prompt)
+                process.stdin.close()
+
+            output_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
+
+            def read_stream(stream, stream_name: str):
+                try:
+                    for line in iter(stream.readline, ""):
+                        output_queue.put((stream_name, line))
+                finally:
+                    output_queue.put((stream_name, None))
+
+            stdout_thread = threading.Thread(target=read_stream, args=(process.stdout, "stdout"), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(process.stderr, "stderr"), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            streams_done = {"stdout": False, "stderr": False}
+            while not all(streams_done.values()):
+                stream_name, line = output_queue.get()
+                if line is None:
+                    streams_done[stream_name] = True
+                    continue
+
+                visible = self._filter_codex_line(line, stream_name, visible_started, suppress_rest)
+                visible_started = visible_started or visible == "__START__"
+                suppress_rest = suppress_rest or visible == "__STOP__"
+
+                if visible and visible not in {"__START__", "__STOP__"}:
+                    assistant_text.append(visible)
+                    yield ("text", visible)
+
+            exit_code = process.wait()
+            if exit_code != 0:
+                yield ("error", f"Codex CLI exited with code {exit_code}")
+                return
+
+            self.codex_has_session = True
+            if not assistant_text and output_path.exists():
+                final_text = output_path.read_text(encoding="utf-8", errors="replace").strip()
+                if final_text:
+                    assistant_text.append(final_text + "\n")
+                    yield ("text", final_text + "\n")
+
+            full_response = "".join(assistant_text)
+            self._add_history("assistant", full_response)
+
+            yield ("complete", "")
+
+        except Exception as e:
+            yield ("error", f"Codex CLI error: {str(e)}")
+
+    def _build_initial_codex_prompt(self, prompt: str) -> str:
+        """Return the user's prompt without injecting large system files."""
+        return prompt
+
+    def _codex_command(self, *, resume: bool, output_path: Path) -> list[str]:
+        # CRITICAL FIX: Run codex directly to prevent cmd.exe spawn
+        cmd = ["codex", "exec"]
+        if resume:
+            cmd.extend(["resume", "--last"])
+
+        cmd.extend(["--skip-git-repo-check", "-o", str(output_path)])
+
+        mode = self.permission_mode if self.permission_mode in {"ask", "approve", "full"} else "ask"
+        if mode == "full":
+            cmd.append("--dangerously-bypass-approvals-and-sandbox")
+        elif mode == "approve":
+            cmd.extend(["-c", 'approval_policy="never"', "-c", 'sandbox_mode="workspace-write"'])
+        else:
+            cmd.extend(["-c", 'approval_policy="on-request"', "-c", 'sandbox_mode="workspace-write"'])
+
+        cmd.append("-")
+        return cmd
+
+    def _filter_codex_line(
+        self,
+        line: str,
+        stream_name: str,
+        visible_started: bool,
+        suppress_rest: bool,
+    ) -> str | None:
+        """Hide Codex transcript/header noise without suppressing useful output."""
+        if stream_name != "stdout":
+            stripped_err = line.strip()
+            if stripped_err.lower().startswith(("error", "[error]", "codex api error")):
+                return line
+            return None
+
+        stripped = line.strip()
+        if not stripped:
+            return "\n" if visible_started and not suppress_rest else None
+
+        lowered = stripped.lower()
+        if lowered == "codex":
+            return "__START__"
+        if lowered.startswith("tokens used"):
+            return "__STOP__"
+        if suppress_rest:
+            return None
+
+        # KEEP reasoning/thinking output visible - only hide connection metadata
+        header_prefixes = (
+            "openaI codex",
+            "openai codex",
+            "workdir:",
+            "model:",
+            "provider:",
+            "approval:",
+            "sandbox:",
+            "session id:",
+        )
+        if lowered == "--------" or any(lowered.startswith(prefix.lower()) for prefix in header_prefixes):
+            return None
+        if lowered in {"user", "assistant"}:
+            return "__START__" if lowered == "assistant" else None
+
+        # Older Codex CLI builds printed a literal "codex" marker before the
+        # assistant text. Newer builds may not, so show non-header lines rather
+        # than leaving the GUI blank until the final output file is written.
+        if not visible_started:
+            return line
+        return line
+
+    def _stream_ollama(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
+        """Stream Ollama response with conversation history."""
+        try:
+            import requests
+
+            self._add_history("user", prompt)
+
+            # Build context from history
+            context_messages = []
+            for msg in self.conversation_history[-8:]:
+                context_messages.append(f"{msg['role']}: {msg['content']}")
+
+            full_prompt = "\n\n".join(context_messages)
+
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": self.ollama_model,
+                    "prompt": full_prompt,
+                    "stream": True
+                },
+                stream=True,
+                timeout=120
+            )
+
+            assistant_text = []
+            for line in response.iter_lines():
+                if line:
+                    data = json.loads(line)
+                    if "response" in data:
+                        text = data["response"]
+                        assistant_text.append(text)
+                        yield ("text", text)
+
+            full_response = "".join(assistant_text)
+            self._add_history("assistant", full_response)
+
+            yield ("complete", "")
+
+        except Exception as e:
+            yield ("error", f"Ollama error: {str(e)}")
+
+    def _stream_generic(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
+        """Fallback to subprocess for unsupported AIs."""
+        yield ("error", "Generic streaming not implemented - using subprocess fallback")
+
+    def clear_history(self):
+        """Clear conversation history and start fresh."""
+        with self._lock:
+            self.conversation_history = []
+            self.codex_has_session = False
+
+    def get_history_summary(self) -> str:
+        """Get a summary of conversation history."""
+        return f"{len(self.conversation_history)} messages in history"
+
+    def stop_session(self):
+        """Clean up session resources."""
+        self.session_active = False
+        self.conversation_history = []
+
+    def stop(self):
+        """Stop the active persistent session from the GUI cancel path."""
+        self.stop_session()

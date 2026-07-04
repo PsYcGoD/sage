@@ -34,13 +34,17 @@ class BaseAgent:
         self.agent_type = agent_type
         self.capabilities = capabilities
         self.status = "idle"
-        self.task_queue: asyncio.Queue[Task] = asyncio.Queue()
+        self.task_queue: Optional[asyncio.Queue[Task]] = None
         self.db_id: Optional[int] = None
 
     async def start(self) -> None:
         """Start the agent."""
         from ..store import connect
-        
+
+        # Create Queue in the current event loop (lazy initialization)
+        if self.task_queue is None:
+            self.task_queue = asyncio.Queue()
+
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with connect() as conn:
             cursor = conn.execute(
@@ -86,16 +90,20 @@ class BaseAgent:
 
     async def run(self) -> None:
         """Main agent loop - process tasks from queue."""
+        # Ensure queue is initialized
+        if self.task_queue is None:
+            self.task_queue = asyncio.Queue()
+
         while True:
             try:
                 task = await self.task_queue.get()
                 await self.update_status("busy")
-                
+
                 result = await self.execute_task(task)
-                
+
                 # Save task result
                 await self._save_task_result(task, result)
-                
+
                 await self.update_status("idle")
                 self.task_queue.task_done()
             except Exception as e:

@@ -11,5 +11,16 @@ dist/
 .coverage
 htmlcov/
 .DS_Store
+*.db
+*.db-*
+recovery/
 SAGE.md
 human_touch.md
+
+# Local Cloudflare/Wrangler state and private visitor exports
+.wrangler/
+cloudflare/**/.wrangler/
+sage-api-visitors*.json
+sage-api-visitors*.txt
+visitor-stats*.json
+visitor-stats*.txt

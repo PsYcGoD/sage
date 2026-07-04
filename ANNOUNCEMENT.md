@@ -10,6 +10,24 @@ After 7 months of intensive development (December 2025 - July 2026), we're thril
 
 ## ✨ What Makes SAGE V2.0 Revolutionary?
 
+### ⚡ **Two Ways to Use SAGE**
+
+Use the built-in GUI when you want the full command center:
+
+```bash
+sage gui
+```
+
+Or install once in editable mode and let AI coding agents route shell commands through SAGE:
+
+```bash
+pip install -e .
+```
+
+From there, commands run through `sage run --`, terminal output is compressed before it burns context, raw logs stay local, and every run can trigger the 24-agent specialist layer.
+
+**Want early access? Comment or DM for early access.**
+
 ### 💰 **99.3% Token Compression - Save Your Context & Costs**
 Never run out of context with AI coding assistants again! SAGE compresses command outputs by up to 99.3%, letting you run **100x more commands** before hitting limits.
 
@@ -45,12 +63,12 @@ Simply install SAGE with:
 pip install -e .
 ```
 
-**That's it!** 🎊 All AI agents (Claude Code, GPT, Codex, etc.) will **automatically** use the SAGE wrapper and start saving tokens immediately. No manual configuration, no extra setup - just install and watch your productivity soar!
+**That's it!** 🎊 AI coding agents can follow the installed SAGE instructions, route shell commands through `sage run --`, and start saving tokens immediately. No extra dashboard setup, no repeated manual wrapper reminders - just install and keep working.
 
 **How It Works:**
 1. Install SAGE: `pip install -e .`
-2. AI agents detect SAGE automatically
-3. All commands route through `sage run --`
+2. AI agents receive the SAGE routing instructions
+3. Shell commands route through `sage run --`
 4. Token compression happens transparently
 5. You get 99.3% token savings without changing your workflow! 💪
 
@@ -67,13 +85,14 @@ sage fix --apply --confidence 0.9
 - Historical pattern learning from past fixes
 - Confidence scoring (0.0-1.0) for safety
 
-### 🤖 **Multi-Agent Orchestration**
-Coordinate multiple AI agents working in parallel:
+### 🤖 **Real 24-Agent Orchestration**
+Every SAGE run can fan out across the full specialist roster:
 
-- **24 built-in agent types** (CodeAgent, TestAgent, DebugAgent, SecurityAgent, etc.)
-- Async task queue with priority scheduling
-- Inter-agent communication protocol
-- Health monitoring and automatic recovery
+- **24 built-in agent types**: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, and auditor
+- **Real fan-out by default**: SAGE stores each agent task instead of showing fake decorative cards
+- **Specialist skill profiles**: frontend/design covers taste, layout, accessibility, animation craft, and Motion/Framer Motion patterns; security covers auth, secrets, and permissions; test covers regression risk; auditor ranks evidence
+- **Visible proof**: the GUI and CLI show queued/running/latest-run progress, completed task counts, and agent output
+- **Configurable workers**: use `SAGE_AGENT_WORKERS` if you want to tune concurrency
 
 ### 📊 **Live Public Proof Dashboard**
 See the real-time savings in action:
@@ -371,9 +390,11 @@ sage gui
 
 *99.3% token compression | Zero configuration | Production ready | Privacy first*
 
+**Early access:** comment or DM and I will help you try the GUI, editable install, and 24-agent fan-out.
+
 ---
 
-**✨ By PsYcGoD AI & ML - Building the Future of AI-Powered Development ✨**
+**✨ By PsYc+GoD AI & ML - Building the Future of AI-Powered Development ✨**
 
 ---
 

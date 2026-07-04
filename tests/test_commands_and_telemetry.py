@@ -161,10 +161,10 @@ def test_artifact_prune_preview_and_apply(tmp_path, monkeypatch):
 
     monkeypatch.setattr(artifacts, "data_dir", lambda: tmp_path)
     artifacts.store_raw_output(999_993, "y" * 100_000, "")
-    preview = artifacts.prune_artifacts(days=0, apply=False)
+    preview = artifacts.prune_artifacts(max_bytes=0, apply=False)
     assert preview["pruned"] == 1 and preview["applied"] == 0
     assert list(tmp_path.glob("artifacts/run-*-raw.json"))  # still there
-    applied = artifacts.prune_artifacts(days=0, apply=True)
+    applied = artifacts.prune_artifacts(max_bytes=0, apply=True)
     assert applied["applied"] == 1
     assert not list(tmp_path.glob("artifacts/run-*-raw.json"))
 

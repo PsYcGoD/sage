@@ -267,3 +267,50 @@ def test_sync_all_refreshes_snapshot_when_queue_remains(isolated_telemetry, monk
 
     assert calls["snapshot"] == 1
     assert result["snapshot"] == {"ok": True}
+
+
+def test_background_sender_publishes_snapshot_before_batch(monkeypatch):
+    from pathlib import Path
+    import tempfile
+
+    from sage import telemetry
+    from sage import telemetry_sender
+
+    calls = []
+
+    monkeypatch.setattr(telemetry, "load_config", lambda: {
+        "api_endpoint": "https://example.test/v1/telemetry",
+        "api_key": "key",
+    })
+    monkeypatch.setattr(telemetry, "send_proof_snapshot", lambda: calls.append("snapshot") or {"ok": True})
+    monkeypatch.setattr(telemetry, "send_queued", lambda *, dry_run, limit: calls.append(("send", dry_run, limit)) or {"sent": 1, "queued": 0})
+    monkeypatch.setattr(telemetry, "data_dir", lambda: Path(tempfile.gettempdir()))
+
+    telemetry_sender.send_batch_background(limit=123)
+
+    assert calls[:2] == ["snapshot", ("send", False, 123)]
+    assert calls[-1] == "snapshot"
+
+
+def test_run_command_spawns_sender_when_output_is_captured(monkeypatch, tmp_path):
+    from sage import runner
+    from sage import telemetry
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("SAGE_SUPPRESS_FOOTER", "1")
+    monkeypatch.setenv("SAGE_DISABLE_AGENTS", "1")
+    monkeypatch.setenv("SAGE_AUTO_SEND_TELEMETRY", "1")
+
+    calls = {"spawn": 0}
+
+    def fake_spawn():
+        calls["spawn"] += 1
+        return True
+
+    monkeypatch.setattr(telemetry, "queue_event", lambda run_id: {"queued": run_id})
+    monkeypatch.setattr("sage.telemetry_sender.spawn_background_sender", fake_spawn)
+
+    exit_code = runner.run_command(["python", "-c", "print('sync probe')"])
+
+    assert exit_code == 0
+    assert calls["spawn"] == 1

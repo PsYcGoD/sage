@@ -289,7 +289,7 @@ function hasForbiddenRawFields(body) {
   return forbidden.some((key) => Object.prototype.hasOwnProperty.call(body || {}, key));
 }
 
-async function requireKey(env, request) {
+async function requireKey(env, request, options = {}) {
   const header = request.headers.get("Authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const match = token.match(/^sage_live_(key_[A-Za-z0-9]+)_([a-fA-F0-9]+)$/);
@@ -310,42 +310,43 @@ async function requireKey(env, request) {
     return { error: error("API key expired", 401) };
   }
 
-  // ?? SECURITY: Rate limiting (1000 requests per hour per key)
-  const hourAgo = new Date(Date.now() - 3600000).toISOString();
-  const recentRequests = await env.DB.prepare(
-    "SELECT COUNT(*) as count FROM telemetry_events WHERE key_id = ? AND received_at > ?"
-  ).bind(keyId, hourAgo).first();
+  if (!options.skipRateLimit) {
+    // Security: rate limit telemetry ingestion, but do not let telemetry backfill
+    // block proof snapshots. Existing keys get the newer 10k/hour floor.
+    const hourAgo = new Date(Date.now() - 3600000).toISOString();
+    const recentRequests = await env.DB.prepare(
+      "SELECT COUNT(*) as count FROM telemetry_events WHERE key_id = ? AND received_at > ?"
+    ).bind(keyId, hourAgo).first();
 
-  const maxRequests = key.rate_limit_per_hour || 1000;
-  const requestCount = Number(recentRequests?.count || 0);
+    const maxRequests = Math.max(Number(key.rate_limit_per_hour || 0), 10000);
+    const requestCount = Number(recentRequests?.count || 0);
 
-  if (requestCount >= maxRequests) {
-    return { error: error("Rate limit exceeded (max " + maxRequests + " requests/hour)", 429) };
-  }
+    if (requestCount >= maxRequests) {
+      return { error: error("Rate limit exceeded (max " + maxRequests + " requests/hour)", 429) };
+    }
 
-  // ?? SECURITY: Anomaly detection (automatic spike detection)
-  // Check if this key has sudden 5x spike in last 15 minutes vs historical average
-  const fifteenMinAgo = new Date(Date.now() - 900000).toISOString();
-  const recentBurst = await env.DB.prepare(
-    "SELECT COUNT(*) as count FROM telemetry_events WHERE key_id = ? AND received_at > ?"
-  ).bind(keyId, fifteenMinAgo).first();
+    // Security: anomaly detection catches sudden telemetry spikes.
+    const fifteenMinAgo = new Date(Date.now() - 900000).toISOString();
+    const recentBurst = await env.DB.prepare(
+      "SELECT COUNT(*) as count FROM telemetry_events WHERE key_id = ? AND received_at > ?"
+    ).bind(keyId, fifteenMinAgo).first();
 
-  const burstCount = Number(recentBurst?.count || 0);
-  const normalRate = requestCount / 4; // Historical hourly rate normalized to 15-min window
+    const burstCount = Number(recentBurst?.count || 0);
+    const normalRate = requestCount / 4; // Historical hourly rate normalized to 15-min window
 
-  if (burstCount > normalRate * 5 && burstCount > 50) {
-    // Detected anomaly: 5x spike in 15 min
-    const anomalyId = newId("anom");
-    await env.DB.prepare(
-      `INSERT INTO api_key_anomalies (id, key_id, detected_at, anomaly_type, description, severity, auto_action)
-       VALUES (?, ?, ?, 'rate_spike', ?, 'medium', 'throttle')`
-    ).bind(
-      anomalyId,
-      keyId,
-      now,
-      `Detected ${burstCount} requests in 15 min (5x normal rate of ${normalRate.toFixed(0)})`
-    ).run();
-    console.log(`?? Anomaly detected: ${anomalyId} for key ${keyId}`);
+    if (burstCount > normalRate * 5 && burstCount > 50) {
+      const anomalyId = newId("anom");
+      await env.DB.prepare(
+        `INSERT INTO api_key_anomalies (id, key_id, detected_at, anomaly_type, description, severity, auto_action)
+         VALUES (?, ?, ?, 'rate_spike', ?, 'medium', 'throttle')`
+      ).bind(
+        anomalyId,
+        keyId,
+        now,
+        `Detected ${burstCount} requests in 15 min (5x normal rate of ${normalRate.toFixed(0)})`
+      ).run();
+      console.log(`Anomaly detected: ${anomalyId} for key ${keyId}`);
+    }
   }
 
   await env.DB.prepare("UPDATE api_keys SET last_used_at = ? WHERE key_id = ?").bind(now, keyId).run();
@@ -525,7 +526,7 @@ async function handleGitHubLogin(env, request) {
   const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
 
   // Rate limiting
-  const rateLimitPerHour = 1000; // Default for GitHub users
+  const rateLimitPerHour = 10000; // Default for GitHub users and telemetry backfills
 
   const publicProfile = body.public_profile === true || body.public_profile === 1 ? 1 : 0;
 
@@ -596,7 +597,7 @@ async function handleCreateKey(env, request) {
   const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
 
   // ?? SECURITY: Rate limiting per key (default 1000/hour)
-  const rateLimitPerHour = clampInt(body.rate_limit_per_hour, 100, 10000, 1000);
+  const rateLimitPerHour = clampInt(body.rate_limit_per_hour, 100, 10000, 10000);
 
   const displayName = textValue(body.display_name || body.profile_name || body.name, 80);
   const username = textValue(body.username || body.handle, 80);
@@ -851,7 +852,7 @@ async function handleProof(env) {
 }
 
 async function handleProofSnapshot(env, request) {
-  const auth = await requireKey(env, request);
+  const auth = await requireKey(env, request, { skipRateLimit: true });
   if (auth.error) return auth.error;
   let body;
   try {

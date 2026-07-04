@@ -45,6 +45,44 @@ DEFAULT_AGENT_SPECS: tuple[AgentSpec, ...] = (
     AgentSpec("auditor", "Auditor Agent", ("synthesis", "priorities", "evidence"), ("audit", "auditor", "evidence", "priority", "risk assessment"), "Synthesizes findings into prioritized evidence."),
 )
 
+AGENT_SKILL_PROFILES: dict[str, tuple[str, ...]] = {
+    "code": ("repo pattern reading", "scoped implementation", "safe edits", "focused verification"),
+    "debug": ("root-cause tracing", "first-error isolation", "failure reproduction", "fix planning"),
+    "test": ("regression design", "pytest/unittest/jest signals", "coverage risk", "narrow reruns"),
+    "research": ("primary-source evidence", "current-fact checks", "comparison", "source synthesis"),
+    "security": ("secrets handling", "auth review", "dependency risk", "permission boundaries"),
+    "performance": ("baseline measurement", "bottleneck detection", "benchmark discipline", "latency signals"),
+    "docs": ("claim verification", "release notes", "user-facing clarity", "README accuracy"),
+    "dependency": ("package managers", "environment diagnosis", "version pinning", "install failures"),
+    "workflow": ("CI steps", "YAML validation", "automation safety", "pipeline debugging"),
+    "database": ("SQLite/schema safety", "migration review", "query compatibility", "data preservation"),
+    "frontend": ("interface taste", "layout polish", "accessibility", "animation craft", "Framer Motion/Motion patterns"),
+    "release": ("packaging", "version readiness", "metadata checks", "shipping risk"),
+    "architecture": ("module boundaries", "contracts", "system design", "ownership lines"),
+    "review": ("bug finding", "behavioral regression", "missing tests", "risk prioritization"),
+    "refactor": ("deduplication", "behavior preservation", "migration sequencing", "simplification"),
+    "devops": ("runtime environment", "ports/services", "deployment assumptions", "ops checks"),
+    "api": ("HTTP contracts", "JSON/schema shape", "client compatibility", "status semantics"),
+    "ml": ("feature validation", "model thresholds", "prediction quality", "training data hygiene"),
+    "memory": ("session persistence", "context reuse", "history hydration", "token waste control"),
+    "telemetry": ("proof counters", "privacy-safe metrics", "queue behavior", "sync reliability"),
+    "privacy": ("redaction", "retention", "local-only guarantees", "PII minimization"),
+    "redteam": ("abuse paths", "prompt injection", "exploit thinking", "attacker-controlled inputs"),
+    "blueteam": ("mitigation", "hardening", "least privilege", "control verification"),
+    "auditor": ("evidence synthesis", "severity ranking", "assumption separation", "final triage"),
+}
+
+_UNIVERSAL_PRIORITY = {
+    "code": 24,
+    "debug": 23,
+    "test": 22,
+    "review": 21,
+    "auditor": 20,
+    "architecture": 19,
+    "security": 18,
+    "frontend": 17,
+}
+
 
 def ensure_default_agents() -> int:
     """Ensure all built-in agents exist as idle DB records."""
@@ -81,22 +119,29 @@ def list_default_agent_specs() -> list[dict]:
             "capabilities": list(spec.capabilities),
             "triggers": list(spec.triggers),
             "description": spec.description,
+            "skill_profile": list(agent_skill_profile(spec.type)),
         }
         for spec in DEFAULT_AGENT_SPECS
     ]
 
 
-def select_agents_for_command(command: str, limit: int = 4) -> list[AgentSpec]:
-    """Pick the most relevant agents for a command or user request."""
+def agent_skill_profile(agent_type: str) -> tuple[str, ...]:
+    """Return the built-in specialist training profile for an agent type."""
+    return AGENT_SKILL_PROFILES.get(agent_type, ())
+
+
+def select_agents_for_command(command: str, limit: int | None = None) -> list[AgentSpec]:
+    """Return all agents, relevance-sorted, so every run gets full fan-out."""
     text = command.lower()
     scored: list[tuple[int, AgentSpec]] = []
     for spec in DEFAULT_AGENT_SPECS:
-        score = sum(1 for trigger in spec.triggers if trigger in text)
-        if score:
-            scored.append((score, spec))
-
-    if not scored:
-        scored = [(1, DEFAULT_AGENT_SPECS[0]), (1, DEFAULT_AGENT_SPECS[1])]
+        trigger_score = sum(100 for trigger in spec.triggers if trigger in text)
+        capability_score = sum(3 for capability in spec.capabilities if capability.replace("_", " ") in text)
+        skill_score = sum(2 for skill in agent_skill_profile(spec.type) if skill.lower() in text)
+        score = trigger_score + capability_score + skill_score + _UNIVERSAL_PRIORITY.get(spec.type, 0)
+        scored.append((score, spec))
 
     scored.sort(key=lambda item: (-item[0], item[1].type))
+    if limit is None or limit <= 0:
+        limit = len(DEFAULT_AGENT_SPECS)
     return [spec for _, spec in scored[:limit]]

@@ -33,6 +33,12 @@ Raw commands, outputs, file paths, and logs stay local by default. Public proof 
 
 S.A.G.E is a **production-ready AI development orchestration platform** that transforms how developer automation tools work with your terminal commands. It's not just a command wrapper—it's an intelligent system that learns, predicts, fixes, and optimizes your entire development workflow.
 
+You can use S.A.G.E in two simple ways:
+- **🖥️ Built-in GUI:** run `sage gui` for the desktop command center with token dashboards, agent activity, settings, history, and live proof.
+- **⚡ Editable install:** run `pip install -e .` once, then AI coding agents can auto-route shell commands through `sage run --` and start saving tokens without changing your workflow.
+
+Want early access or help trying it? **Comment or DM for early access.**
+
 ### **The Problem**
 - developer tools (local assistant, LLM tools, editor assistants) run out of context quickly with large terminal outputs
 - Noisy logs waste tokens and hide real errors
@@ -43,7 +49,7 @@ S.A.G.E is a **production-ready AI development orchestration platform** that tra
 ### **The Solution**
 S.A.G.E provides a complete AI orchestration layer with:
 - **🖥️ Beautiful Desktop GUI** - Modern interface with zero configuration required (`sage gui`)
-- **🎯 Auto-Integration** - Install once (`pip install -e .`) and all AI agents automatically use SAGE
+- **🎯 Auto-Integration** - Install once (`pip install -e .`) so AI coding agents can route commands through `sage run --`
 - **💰 99.3% token compression** - Automatic output optimization solving local assistant's context exhaustion
 - **🔧 Auto-fix engine** - ML-powered error detection and automatic fixes with confidence scoring
 - **🤖 Multi-agent coordination** - Parallel AI agents handling complex tasks simultaneously
@@ -78,13 +84,12 @@ S.A.G.E provides a complete AI orchestration layer with:
 - **Commands**: `sage fix`, `sage fix --apply --confidence 0.9`
 
 #### 3. **Multi-Agent Orchestration** 🤖
-*Parallel Task Execution*
-- Async agent coordination with task queues
-- 24 built-in agent roles with concurrent execution support
-- Inter-agent communication protocol
-- Status tracking and health monitoring
-- Built-in agent families: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, auditor
-- **Commands**: `sage agents list`, `sage agents status`
+*24 specialist agents on every SAGE run*
+- Full 24-agent fan-out by default: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, and auditor
+- Each agent stores a specialist brief and skill profile, so results are traceable instead of decorative
+- Frontend/design review covers interface taste, layout polish, accessibility, animation craft, and Motion/Framer Motion patterns
+- Agent status, latest-run progress, and completed task counts are visible in the GUI and CLI
+- **Commands**: `sage agents list`, `sage agents status`, `sage agents tasks`
 
 #### 4. **Workflow Automation** 📋
 *YAML-Based CI/CD*
@@ -151,7 +156,7 @@ pip install -e .
 sage --version
 ```
 
-**🎉 That's it!** After installation, **all AI agents** (Claude Code, GPT, Codex, etc.) will **automatically use SAGE** and start saving tokens immediately. No configuration needed - just install and go!
+**🎉 That's it!** After installation, AI coding agents can follow the installed SAGE instructions and route shell commands through `sage run --`, so command output is compressed, saved locally, and summarized before it burns context. No extra dashboard setup is required.
 
 ### 🖥️ Launch the Desktop GUI
 ```bash
@@ -162,12 +167,14 @@ The beautiful desktop app provides:
 - 📊 Real-time command history and visual timeline
 - 💾 Token usage analytics and savings dashboard  
 - 🔧 One-click auto-fix with confidence scoring
-- 🤖 Agent status monitoring and coordination
+- 🤖 24-agent activity card with queued/running/latest-run progress
 - ⚙️ Visual settings management with GitHub OAuth
 - 🌐 Live performance metrics and compression stats
 - 🎨 Modern design with light/dark themes
 
 **Zero configuration required** - just run `sage gui` and everything works!
+
+**Early access:** comment or DM if you want help testing the GUI, auto-integration, or the 24-agent fan-out.
 
 ### Requirements
 - Python 3.9+

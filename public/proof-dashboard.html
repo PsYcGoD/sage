@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAGE Public Proof - Live Token Compression Statistics</title>
+    <meta name="description" content="Real-time proof of SAGE's token compression performance">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding: 40px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 3.5em;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+            text-shadow: 0 0 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1.3em;
+            opacity: 0.85;
+            margin-bottom: 20px;
+        }
+
+        .live-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            background: rgba(16, 185, 129, 0.2);
+            border: 2px solid #10b981;
+            border-radius: 30px;
+            font-size: 0.9em;
+            font-weight: 600;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .hero-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 35px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .hero-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+
+        .stat-label {
+            font-size: 1em;
+            opacity: 0.75;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 3.5em;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-sublabel {
+            font-size: 0.9em;
+            opacity: 0.6;
+            font-weight: 400;
+        }
+
+        .compression-visual {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .compression-title {
+            font-size: 1.8em;
+            margin-bottom: 25px;
+            font-weight: 700;
+        }
+
+        .compression-bar-container {
+            width: 100%;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .compression-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            transition: width 1s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 20px;
+            font-weight: 700;
+            font-size: 1.2em;
+        }
+
+        .compression-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            opacity: 0.7;
+        }
+
+        .prediction-section {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .section-title {
+            font-size: 2em;
+            margin-bottom: 30px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .prediction-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .prediction-card {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .refresh-section {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 15px 40px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.5);
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            font-size: 1.2em;
+            opacity: 0.7;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.6;
+            font-size: 0.9em;
+        }
+
+        .api-endpoint {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin-top: 20px;
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 S.A.G.E Public Proof</h1>
+            <p class="subtitle">Real-time Token Compression Performance</p>
+            <div class="live-badge">
+                <span class="live-indicator"></span>
+                LIVE DATA
+            </div>
+            <div class="api-endpoint">
+                📡 API Endpoint: <strong>https://sage.api.marketingstudios.in/v1/proof</strong>
+            </div>
+        </header>
+
+        <div id="loading-state" class="loading">
+            <div class="spinner"></div>
+            Loading live data from SAGE API...
+        </div>
+
+        <div id="error-state" style="display: none;"></div>
+
+        <div id="dashboard-content" style="display: none;">
+            <div class="hero-stats">
+                <div class="hero-card">
+                    <div class="stat-label">Total Runs</div>
+                    <div class="stat-value" id="total-runs">-</div>
+                    <div class="stat-sublabel">Commands executed</div>
+                </div>
+
+                <div class="hero-card">
+                    <div class="stat-label">Tokens Saved</div>
+                    <div class="stat-value" id="tokens-saved">-</div>
+                    <div class="stat-sublabel" id="tokens-processed-label">-</div>
+                </div>
+
+                <div class="hero-card">
+                    <div class="stat-label">Compression Rate</div>
+                    <div class="stat-value" id="compression-rate">-</div>
+                    <div class="stat-sublabel">Average across all runs</div>
+                </div>
+
+                <div class="hero-card">
+                    <div class="stat-label">Success Rate</div>
+                    <div class="stat-value" id="success-rate">-</div>
+                    <div class="stat-sublabel" id="success-label">-</div>
+                </div>
+            </div>
+
+            <div class="compression-visual">
+                <h2 class="compression-title">📊 Compression Performance</h2>
+                <div class="compression-bar-container">
+                    <div class="compression-bar" id="compression-bar">0%</div>
+                </div>
+                <div class="compression-labels">
+                    <span>Original: <strong id="original-tokens">-</strong> tokens</span>
+                    <span>Compressed: <strong id="compressed-tokens">-</strong> tokens</span>
+                </div>
+            </div>
+
+            <div class="prediction-section">
+                <h2 class="section-title">🎯 ML Prediction Performance</h2>
+                <div class="prediction-stats">
+                    <div class="prediction-card">
+                        <div class="stat-label">Events with Prediction</div>
+                        <div class="stat-value" id="events-predicted">-</div>
+                        <div class="stat-sublabel">Commands analyzed</div>
+                    </div>
+                    <div class="prediction-card">
+                        <div class="stat-label">Avg Prediction Score</div>
+                        <div class="stat-value" id="avg-prediction">-</div>
+                        <div class="stat-sublabel">Confidence level</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="refresh-section">
+                <button class="refresh-btn" onclick="loadProofData()">🔄 Refresh Data</button>
+                <p style="margin-top: 15px; opacity: 0.7;">
+                    Last updated: <strong id="last-updated">-</strong>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p><strong>S.A.G.E V2.0</strong> - Smart Agent Guidance Engine</p>
+        <p>Privacy-first token compression for AI development</p>
+        <p style="margin-top: 10px;">
+            <a href="https://github.com/psycgod/sage" style="color: #667eea; text-decoration: none;">GitHub</a> •
+            <a href="https://sage.api.marketingstudios.in/v1/proof" style="color: #667eea; text-decoration: none;">Raw API</a>
+        </p>
+    </footer>
+
+    <script>
+        const API_ENDPOINT = 'https://sage.api.marketingstudios.in/v1/proof';
+
+        async function loadProofData() {
+            const loadingState = document.getElementById('loading-state');
+            const errorState = document.getElementById('error-state');
+            const dashboardContent = document.getElementById('dashboard-content');
+
+            try {
+                loadingState.style.display = 'block';
+                errorState.style.display = 'none';
+                dashboardContent.style.display = 'none';
+
+                const response = await fetch(API_ENDPOINT);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.ok) {
+                    throw new Error('API returned error response');
+                }
+
+                // Update hero stats
+                document.getElementById('total-runs').textContent =
+                    data.totals.total_runs.toLocaleString();
+
+                document.getElementById('tokens-saved').textContent =
+                    formatNumber(data.totals.tokens_saved);
+
+                document.getElementById('tokens-processed-label').textContent =
+                    `${formatNumber(data.totals.tokens_processed)} processed`;
+
+                document.getElementById('compression-rate').textContent =
+                    `${data.totals.compression_percent.toFixed(1)}%`;
+
+                document.getElementById('success-rate').textContent =
+                    `${data.totals.success_rate.toFixed(1)}%`;
+
+                document.getElementById('success-label').textContent =
+                    `${data.totals.successful_runs}/${data.totals.total_runs} successful`;
+
+                // Update compression bar
+                const compressionBar = document.getElementById('compression-bar');
+                compressionBar.style.width = `${data.totals.compression_percent}%`;
+                compressionBar.textContent = `${data.totals.compression_percent.toFixed(1)}%`;
+
+                document.getElementById('original-tokens').textContent =
+                    formatNumber(data.totals.tokens_processed);
+                document.getElementById('compressed-tokens').textContent =
+                    formatNumber(data.totals.tokens_compressed);
+
+                // Update prediction stats
+                const predStats = data.totals.failure_prediction_stats;
+                document.getElementById('events-predicted').textContent =
+                    predStats.events_with_prediction.toLocaleString();
+                document.getElementById('avg-prediction').textContent =
+                    (predStats.avg_prediction_score * 100).toFixed(1) + '%';
+
+                // Update timestamp
+                document.getElementById('last-updated').textContent =
+                    new Date(data.generated_at).toLocaleString();
+
+                // Show dashboard
+                loadingState.style.display = 'none';
+                dashboardContent.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading proof data:', error);
+                loadingState.style.display = 'none';
+                dashboardContent.style.display = 'none';
+                errorState.style.display = 'block';
+                errorState.innerHTML = `
+                    <div class="error-message">
+                        <h3>⚠️ Failed to Load Data</h3>
+                        <p>${escapeHtml(error.message)}</p>
+                        <p style="margin-top: 10px; opacity: 0.8;">
+                            Please check your internet connection or try again later.
+                        </p>
+                        <button class="refresh-btn" style="margin-top: 20px;" onclick="loadProofData()">
+                            Retry
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toLocaleString();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load data on page load
+        loadProofData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadProofData, 30000);
+    </script>
+</body>
+</html>

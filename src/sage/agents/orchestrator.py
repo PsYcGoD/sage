@@ -6,6 +6,7 @@ import asyncio
 from typing import Any, Optional
 
 from .base_agent import BaseAgent, Task
+from .registry import select_agents_for_command
 
 
 class Orchestrator:
@@ -84,6 +85,18 @@ class Orchestrator:
             if capability in agent.capabilities and agent.status == "idle":
                 return agent
         return None
+
+    def plan_for_command(self, command: str) -> list[dict[str, Any]]:
+        """Return agent roles that should participate in a command."""
+        return [
+            {
+                "type": spec.type,
+                "name": spec.name,
+                "capabilities": list(spec.capabilities),
+                "description": spec.description,
+            }
+            for spec in select_agents_for_command(command)
+        ]
 
     async def shutdown(self) -> None:
         """Shutdown all agents."""

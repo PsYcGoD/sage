@@ -1,0 +1,2 @@
+<frozen runpy>:128: RuntimeWarning: 'sage.gui.app' found in sys.modules after import of package 'sage.gui', but prior to execution of 'sage.gui.app'; this may result in unpredictable behaviour
+[GUI] Session baseline: 25 runs, 1303 context tokens kept, 0 saved

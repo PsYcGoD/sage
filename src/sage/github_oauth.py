@@ -9,8 +9,9 @@ import threading
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
+from typing import Any, Callable
 from urllib import parse as urllib_parse
+from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 
@@ -167,6 +168,116 @@ def github_oauth_flow() -> dict[str, Any]:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def github_device_flow(
+    *,
+    status_callback: Callable[[str], None] | None = None,
+    scope: str = "user:email",
+) -> dict[str, Any]:
+    """Run GitHub device flow and return an access token.
+
+    This is the no-GitHub-CLI path for the desktop GUI. It requires Device Flow
+    to be enabled on the GitHub OAuth app, but it does not require a client
+    secret on the user's PC.
+    """
+
+    def emit(message: str) -> None:
+        if status_callback:
+            status_callback(message)
+
+    data = urllib_parse.urlencode({
+        "client_id": GITHUB_CLIENT_ID,
+        "scope": scope,
+    }).encode("utf-8")
+    request = urllib_request.Request(
+        "https://github.com/login/device/code",
+        data=data,
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "SAGE-Desktop/0.1",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib_request.urlopen(request, timeout=20) as response:
+            device = json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            device = json.loads(body or "{}")
+        except json.JSONDecodeError:
+            device = {"error": f"HTTP {exc.code}", "error_description": body or str(exc)}
+
+    if device.get("error"):
+        detail = device.get("error_description") or device.get("error")
+        raise RuntimeError(f"GitHub device login failed: {detail}")
+
+    device_code = str(device.get("device_code") or "")
+    user_code = str(device.get("user_code") or "")
+    verification_uri = str(device.get("verification_uri") or "https://github.com/login/device")
+    expires_in = int(device.get("expires_in") or 900)
+    interval = max(5, int(device.get("interval") or 5))
+
+    if not device_code or not user_code:
+        raise RuntimeError("GitHub device login did not return a device code.")
+
+    emit(f"GitHub login code: {user_code}\nOpening {verification_uri}")
+    webbrowser.open(verification_uri)
+
+    deadline = time.time() + expires_in
+    while time.time() < deadline:
+        emit(f"Waiting for GitHub approval. Enter code {user_code}")
+        time.sleep(interval)
+
+        poll_data = urllib_parse.urlencode({
+            "client_id": GITHUB_CLIENT_ID,
+            "device_code": device_code,
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+        }).encode("utf-8")
+        poll_request = urllib_request.Request(
+            "https://github.com/login/oauth/access_token",
+            data=poll_data,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "SAGE-Desktop/0.1",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib_request.urlopen(poll_request, timeout=20) as poll_response:
+                token_data = json.loads(poll_response.read().decode("utf-8"))
+        except urllib_error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            try:
+                token_data = json.loads(body or "{}")
+            except json.JSONDecodeError:
+                token_data = {"error": f"HTTP {exc.code}", "error_description": body or str(exc)}
+
+        access_token = str(token_data.get("access_token") or "")
+        if access_token:
+            emit("GitHub approved. Creating SAGE API key...")
+            return {
+                "access_token": access_token,
+                "scope": token_data.get("scope", ""),
+                "token_type": token_data.get("token_type", "bearer"),
+            }
+
+        error = token_data.get("error")
+        if error == "authorization_pending":
+            continue
+        if error == "slow_down":
+            interval += 5
+            continue
+
+        detail = token_data.get("error_description") or error or "unknown error"
+        raise RuntimeError(f"GitHub device login failed: {detail}")
+
+    raise RuntimeError("GitHub device login timed out.")
 
 
 def validate_github_token(access_token: str) -> dict[str, Any]:

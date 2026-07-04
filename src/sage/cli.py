@@ -337,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Gate command execution behind API connection, while still allowing the
     # first-run GUI and account/status commands needed to connect.
-    ALLOWED_WITHOUT_API = ["connect", "login", "whoami", "logout", "doctor", "gui", "api"]
+    ALLOWED_WITHOUT_API = ["connect", "login", "whoami", "logout", "doctor", "gui", "api", "db"]
 
     if args.command_name not in ALLOWED_WITHOUT_API:
         from . import telemetry

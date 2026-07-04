@@ -1216,6 +1216,7 @@ def connect_command(args) -> int:
 
         result = telemetry.api_github_login(
             auth_code=oauth_result["auth_code"],
+            redirect_uri=oauth_result.get("redirect_uri", ""),
             display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
             public_profile=args.public_profile if hasattr(args, "public_profile") else False,
             expiry_days=args.expiry_days if hasattr(args, "expiry_days") else 30,
@@ -1265,6 +1266,7 @@ def rotate_key_command(args) -> int:
 
         result = telemetry.api_github_login(
             auth_code=oauth_result["auth_code"],
+            redirect_uri=oauth_result.get("redirect_uri", ""),
             display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
             public_profile=(
                 args.public_profile

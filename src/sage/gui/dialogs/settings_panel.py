@@ -340,7 +340,6 @@ class SettingsPanel(ctk.CTkToplevel):
 
                 # Backfill telemetry
                 backfill = telemetry.queue_all_runs()
-                backfill = telemetry.queue_all_runs()
                 try:
                     from sage.telemetry_sender import spawn_background_sender
 

@@ -59,9 +59,12 @@ else
 fi
 
 # Master key (for legacy login)
-MASTER_KEY="sage_master_2026_psycgod_ai_ml_secure_key_generation_v1"
-echo "$MASTER_KEY" | wrangler secret put MASTER_KEY_SECRET
-echo "✅ Set MASTER_KEY_SECRET"
+MASTER_KEY="${SAGE_MASTER_KEY_SECRET:-}"
+if [ -n "$MASTER_KEY" ]; then
+    echo "$MASTER_KEY" | wrangler secret put MASTER_KEY_SECRET
+else
+    echo "Skipping MASTER_KEY_SECRET; GitHub OAuth is the public key path"
+fi
 
 # Run database migration
 echo ""

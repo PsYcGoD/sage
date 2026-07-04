@@ -3,7 +3,30 @@
 import pytest
 import subprocess
 import sys
+import os
+import json
 from pathlib import Path
+
+
+def _connected_env(tmp_path):
+    env = os.environ.copy()
+    env["LOCALAPPDATA"] = str(tmp_path)
+    sage_dir = tmp_path / "SAGE"
+    sage_dir.mkdir(parents=True, exist_ok=True)
+    (sage_dir / "telemetry.json").write_text(
+        json.dumps(
+            {
+                "telemetry_level": 0,
+                "api_base_url": "https://sage.api.local.test",
+                "api_endpoint": "https://sage.api.local.test/v1/telemetry",
+                "api_key": "sage_live_test_key_secret",
+                "api_key_id": "key_test",
+                "api_profile": {"display_name": "Test User", "username": "test-user"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return env
 
 
 class TestBasicCLI:
@@ -46,27 +69,77 @@ class TestBasicCLI:
 class TestSageRun:
     """Test sage run command"""
 
-    def test_sage_run_echo(self):
+    def test_sage_run_echo(self, tmp_path):
         """Test: sage run executes simple command"""
         result = subprocess.run(
             [sys.executable, "-m", "sage", "run", "--", "echo", "hello"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
+            env=_connected_env(tmp_path),
         )
         assert result.returncode == 0
         assert "hello" in result.stdout.lower()
 
-    def test_sage_run_python(self):
+    def test_sage_run_python(self, tmp_path):
         """Test: sage run works with python commands"""
         result = subprocess.run(
             [sys.executable, "-m", "sage", "run", "--", "python", "-c", "print(42)"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
+            env=_connected_env(tmp_path),
         )
         assert result.returncode == 0
         assert "42" in result.stdout
+
+    def test_sage_run_requires_api_on_clean_machine(self, tmp_path):
+        """A fresh install should ask the user to connect before running commands."""
+        env = os.environ.copy()
+        env["LOCALAPPDATA"] = str(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "sage", "run", "--", "echo", "blocked"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+        assert result.returncode == 1
+        assert "requires API connection" in result.stdout
+        assert "sage gui" in result.stdout
+
+    def test_api_status_allowed_before_connect(self, tmp_path):
+        """Users need account/status commands before the first OAuth connection."""
+        env = os.environ.copy()
+        env["LOCALAPPDATA"] = str(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "sage", "api", "status"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+        assert result.returncode == 0
+        assert "Connected: False" in result.stdout
+
+
+class TestAgentInstall:
+    """Test first-run agent prompt installation."""
+
+    def test_system_wide_install_adds_codex_agents_file(self, tmp_path, monkeypatch):
+        from sage import install
+
+        monkeypatch.setattr(install.Path, "home", staticmethod(lambda: tmp_path))
+        results = install.install_sage_system_wide()
+
+        codex_agents = tmp_path / ".codex" / "AGENTS.md"
+        assert results["codex"] is True
+        assert codex_agents.exists()
+        content = codex_agents.read_text(encoding="utf-8")
+        assert "SAGE MANAGED BLOCK START" in content
+        assert "sage run -- <command>" in content
+        assert "ð" not in content
+        assert "â" not in content
 
 
 class TestDatabase:

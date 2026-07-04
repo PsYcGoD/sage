@@ -79,7 +79,7 @@ npm install -g wrangler
 
 **What it does:**
 - Loads OAuth credentials from `.sage-secrets/oauth.env`
-- Sets Cloudflare secrets (GITHUB_CLIENT_SECRET, MASTER_KEY_SECRET)
+- Sets Cloudflare secrets (`GITHUB_CLIENT_SECRET`; optional admin `MASTER_KEY_SECRET` only if provided)
 - Runs database migration
 - Deploys worker
 
@@ -123,7 +123,7 @@ sage run -- pytest
 
 ### What Goes to Cloudflare:
 - `GITHUB_CLIENT_SECRET` - OAuth secret (environment variable)
-- `MASTER_KEY_SECRET` - Legacy login key (environment variable)
+- `MASTER_KEY_SECRET` - Optional admin-only key for private `/v1/keys` maintenance calls
 
 ### What Goes in Code:
 - `GITHUB_CLIENT_ID` - Public OAuth client ID (not secret)
@@ -144,7 +144,7 @@ wrangler secret put GITHUB_CLIENT_SECRET
 # Paste new secret
 ```
 
-### Rotate Master Key:
+### Optional Admin Master Key:
 ```bash
 # Generate new key:
 openssl rand -hex 32
@@ -152,9 +152,7 @@ openssl rand -hex 32
 # Update Cloudflare:
 wrangler secret put MASTER_KEY_SECRET
 
-# Update code:
-# src/sage/telemetry.py - line 33
-# Change MASTER_KEY_SECRET value
+# Do not put this value in client code or public docs.
 ```
 
 ---

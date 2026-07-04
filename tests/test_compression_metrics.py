@@ -51,6 +51,7 @@ class TestCompressionMetrics:
                 assert saved > 0, "Should have saved tokens if records exist"
                 assert compression_rate > 0, "Should have positive compression rate"
 
+    @pytest.mark.gui
     def test_format_large_numbers(self):
         """Test: Large token counts format correctly"""
         from sage.gui.app import SAGEApp

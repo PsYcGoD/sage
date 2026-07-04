@@ -75,9 +75,10 @@ def run_command(
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
+    use_shell = sys.platform.startswith("win")
     process = subprocess.Popen(
-        command_text,
-        shell=True,
+        command_text if use_shell else command_parts,
+        shell=use_shell,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

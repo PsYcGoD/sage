@@ -167,7 +167,8 @@ def account_status() -> dict[str, Any]:
 
 def api_github_login(
     *,
-    auth_code: str,
+    auth_code: str = "",
+    github_access_token: str = "",
     redirect_uri: str = "",
     display_name: str | None = None,
     public_profile: bool = False,
@@ -189,6 +190,7 @@ def api_github_login(
     """
     payload = {
         "github_auth_code": auth_code,
+        "github_access_token": github_access_token,
         "redirect_uri": redirect_uri,
         "display_name": display_name,
         "public_profile": bool(public_profile),
@@ -213,6 +215,14 @@ def api_github_login(
             with urllib_request.urlopen(request, timeout=30) as http_response:
                 body = http_response.read().decode("utf-8")
             response = json.loads(body or "{}")
+        except urllib_error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+                parsed = json.loads(body or "{}")
+                detail = parsed.get("detail") or parsed.get("error") or body
+            except Exception:
+                detail = str(exc)
+            raise RuntimeError(f"SAGE API rejected GitHub login: HTTP {exc.code}: {detail}") from exc
         except OSError as exc:
             last_error = str(exc)
             continue

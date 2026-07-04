@@ -362,6 +362,19 @@ class SettingsPanel(ctk.CTkToplevel):
                     public_profile=public_profile,
                     expiry_days=expiry_days,
                 )
+            except Exception as oauth_exc:
+                self.after(0, lambda: self.sage_api_status.configure(
+                    text="Browser OAuth was rejected. Trying GitHub CLI login...",
+                    text_color="gray65",
+                ))
+                result = self._connect_sage_api_with_gh_token(
+                    display_name=display_name,
+                    public_profile=public_profile,
+                    expiry_days=expiry_days,
+                    original_error=oauth_exc,
+                )
+
+            try:
                 profile_name = result.get("display_name") or result.get("username") or ""
                 if profile_name:
                     self.config.set("profile_name", profile_name)
@@ -386,6 +399,40 @@ class SettingsPanel(ctk.CTkToplevel):
                 self.after(0, lambda: self._finish_sage_api_connect(message, ok=False))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _connect_sage_api_with_gh_token(
+        self,
+        *,
+        display_name: str | None,
+        public_profile: bool,
+        expiry_days: int,
+        original_error: Exception,
+    ) -> dict:
+        from sage import telemetry
+
+        result = subprocess.run(
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        )
+        token = result.stdout.strip()
+        if result.returncode != 0 or not token:
+            details = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                "Browser OAuth failed and GitHub CLI fallback is not available. "
+                f"OAuth error: {original_error}. gh output: {details or 'no token returned'}"
+            )
+
+        return telemetry.api_github_login(
+            github_access_token=token,
+            display_name=display_name,
+            public_profile=public_profile,
+            expiry_days=expiry_days,
+        )
 
     def _sync_sage_api_after_connect(self):
         try:

@@ -1,18 +1,17 @@
 # 🚀 SAGE API Deployment Instructions
 
-## Step 1: Set Master Key Secret (REQUIRED)
+## Step 1: Set GitHub OAuth Secret (REQUIRED)
 
 **This prevents random people from generating API keys.**
 
 ```bash
-# Set the master key secret in Cloudflare environment
-wrangler secret put MASTER_KEY_SECRET
-# When prompted, paste: sage_master_2026_psycgod_ai_ml_secure_key_generation_v1
+# Set the GitHub OAuth app client secret in Cloudflare
+wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
 **What this does:**
 - Only requests with this master key can generate new API keys
-- Your SAGE GUI has this key built-in
+- Your SAGE GUI uses GitHub OAuth instead of a built-in secret
 - Public repo users do NOT have this key → Cannot generate keys
 
 ---
@@ -53,7 +52,7 @@ wrangler deploy
 
 ```bash
 # Try connecting from SAGE GUI
-sage login --display-name "Test User"
+sage connect --display-name "Test User"
 
 # Should succeed with: ✅ SAGE API connected
 
@@ -69,7 +68,7 @@ curl -X POST https://sage.api.marketingstudios.in/v1/keys \
 
 ## 🔒 Security Checklist
 
-- [ ] Master key set in Cloudflare environment (`MASTER_KEY_SECRET`)
+- [ ] GitHub OAuth secret set in Cloudflare (`GITHUB_CLIENT_SECRET`)
 - [ ] Database migration applied (`security_hardening.sql`)
 - [ ] Worker deployed (`wrangler deploy`)
 - [ ] CORS origins verified in `worker.js`
@@ -80,18 +79,18 @@ curl -X POST https://sage.api.marketingstudios.in/v1/keys \
 
 ## 🔑 Master Key Management
 
-**Current Master Key**: `sage_master_2026_psycgod_ai_ml_secure_key_generation_v1`
+**Current Master Key**: not stored in the repository.
 
 **If compromised**:
 1. Generate new master key: `openssl rand -hex 32`
 2. Update Cloudflare: `wrangler secret put MASTER_KEY_SECRET`
-3. Update `src/sage/telemetry.py`: Change `MASTER_KEY_SECRET` value
-4. Rebuild and redistribute SAGE GUI
+3. Keep it out of client code and public docs
+4. Redeploy the Worker
 
 **Distribution Strategy**:
-- Master key is IN the Python source code (not in git history, but in distributed package)
-- Acceptable because:
-  - You can rotate it anytime in Cloudflare
+- Public clients use GitHub OAuth through `/v1/github-login`.
+- The optional master key must stay only in Cloudflare/private admin environments.
+- Never put the master key in Python client code, docs, screenshots, or public scripts.
   - Even if leaked, old keys remain valid (only NEW key generation blocked)
   - Rate limiting + expiration still protect existing keys
 

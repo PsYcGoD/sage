@@ -194,9 +194,12 @@ try {
 
     # Set Master Key
     Write-Host "🔒 Setting MASTER_KEY_SECRET..." -ForegroundColor Cyan
-    $MASTER_KEY = "sage_master_2026_psycgod_ai_ml_secure_key_generation_v1"
-    $MASTER_KEY | wrangler secret put MASTER_KEY_SECRET
-    Write-Host "✅ MASTER_KEY_SECRET set" -ForegroundColor Green
+    $MASTER_KEY = $env:SAGE_MASTER_KEY_SECRET
+    if ($MASTER_KEY) {
+        $MASTER_KEY | wrangler secret put MASTER_KEY_SECRET
+    } else {
+        Write-Host "Skipping MASTER_KEY_SECRET; GitHub OAuth is the public key path" -ForegroundColor Yellow
+    }
 
     # Run database migration
     Write-Host ""

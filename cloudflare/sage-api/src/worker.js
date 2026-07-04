@@ -428,7 +428,7 @@ async function handleVisitorStats(env, request) {
 }
 
 async function handleGitHubLogin(env, request) {
-  // ?? SECURITY: GitHub OAuth login (1 account = 1 API key)
+  // GitHub OAuth login. One GitHub account has one active SAGE API key.
   let body;
   try {
     body = await readJson(request);
@@ -491,30 +491,25 @@ async function handleGitHubLogin(env, request) {
   const githubId = String(githubUser.id);
   const githubUsername = githubUser.login;
   const displayName = textValue(body.display_name || githubUser.name || githubUsername, 80);
+  const createdAt = nowIso();
 
-  // Check if this GitHub user already has a key
+  // Check if this GitHub user already has a key. Because full API keys are
+  // stored only as hashes, reconnecting must rotate/reissue instead of trying
+  // to return the old secret.
   const existingKey = await env.DB.prepare(
     "SELECT * FROM api_keys WHERE github_id = ? AND revoked_at = ''"
   ).bind(githubId).first();
 
   if (existingKey) {
-    // Return existing key info (but not the actual key - security)
-    return json({
-      ok: true,
-      key_id: existingKey.key_id,
-      github_username: githubUsername,
-      github_id: parseInt(githubId, 10),
-      display_name: existingKey.display_name,
-      expires_at: existingKey.expires_at,
-      message: "GitHub account already connected. Use 'sage api rotate' to generate new key.",
-    }, 200);
+    await env.DB.prepare(
+      "UPDATE api_keys SET revoked_at = ? WHERE key_id = ? AND revoked_at = ''"
+    ).bind(createdAt, existingKey.key_id).run();
   }
 
   // Generate new API key
   const keyId = newId("key");
   const secret = randomHex(32);
   const token = `sage_live_${keyId}_${secret}`;
-  const createdAt = nowIso();
 
   // Key expiration
   const expiryDays = clampInt(body.expiry_days, 1, 365, 30);
@@ -563,8 +558,9 @@ async function handleGitHubLogin(env, request) {
       username: githubUsername,
       public_profile: !!publicProfile,
     },
+    rotated_from: existingKey ? existingKey.key_id : "",
     warning: "This key is shown once. Store it locally; SAGE stores only the hash.",
-  }, 201);
+  }, existingKey ? 200 : 201);
 }
 
 async function handleCreateKey(env, request) {
@@ -648,7 +644,7 @@ async function handleTelemetry(env, request) {
   }
 
   // ?? SECURITY: Timestamp validation (prevents replay attacks)
-  const timestamp = body.timestamp || request.headers.get("X-SAGE-Timestamp");
+  const timestamp = request.headers.get("X-SAGE-Timestamp") || body.request_timestamp || body.timestamp;
   if (timestamp) {
     const requestTime = new Date(timestamp).getTime();
     const now = Date.now();
@@ -715,7 +711,7 @@ async function handleTelemetry(env, request) {
       body.prediction_score === undefined ? null : numberValue(body.prediction_score, null),
       clampInt(body.agent_count ?? metrics.agent_count, 0, 100000, 0),
       privacyLevel,
-      textValue(body.timestamp || body.created_at, 80),
+      textValue(body.client_created_at || body.created_at || body.timestamp, 80),
       receivedAt,
       JSON.stringify({
         schema_version: textValue(body.schema_version || "1.0", 20),
@@ -941,4 +937,3 @@ export default {
     return route(request, env).catch((exc) => error("Internal error", 500, String(exc?.message || exc)));
   },
 };
-

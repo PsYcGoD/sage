@@ -1300,27 +1300,60 @@ def rotate_key_command(args) -> int:
     """Rotate API key through GitHub OAuth."""
     from . import telemetry
     from .github_oauth import github_oauth_flow
+    import subprocess
 
     old_status = telemetry.api_status()
+    expiry_days = _resolve_expiry_days(args)
     try:
+        print(f"API key expiration: {expiry_days} days")
         print("Opening GitHub OAuth to rotate your SAGE API key...")
         oauth_result = github_oauth_flow()
         if not oauth_result.get("auth_code"):
             print("GitHub authentication failed.")
             return 1
 
-        result = telemetry.api_github_login(
-            auth_code=oauth_result["auth_code"],
-            redirect_uri=oauth_result.get("redirect_uri", ""),
-            display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
-            public_profile=(
-                args.public_profile
-                if hasattr(args, "public_profile") and args.public_profile
-                else bool(old_status.get("profile", {}).get("public_profile"))
-            ),
-            expiry_days=30,
-            base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
-        )
+        try:
+            result = telemetry.api_github_login(
+                auth_code=oauth_result["auth_code"],
+                redirect_uri=oauth_result.get("redirect_uri", ""),
+                display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
+                public_profile=(
+                    args.public_profile
+                    if hasattr(args, "public_profile") and args.public_profile
+                    else bool(old_status.get("profile", {}).get("public_profile"))
+                ),
+                expiry_days=expiry_days,
+                base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
+            )
+        except Exception as oauth_exc:
+            print(f"Browser OAuth API exchange failed: {oauth_exc}")
+            print("Trying GitHub CLI fallback...")
+            gh = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+            )
+            token = gh.stdout.strip()
+            if gh.returncode != 0 or not token:
+                details = (gh.stderr or gh.stdout or "").strip()
+                raise RuntimeError(
+                    "Browser OAuth failed and GitHub CLI fallback is not available. "
+                    f"gh output: {details or 'no token returned'}"
+                ) from oauth_exc
+            result = telemetry.api_github_login(
+                github_access_token=token,
+                display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
+                public_profile=(
+                    args.public_profile
+                    if hasattr(args, "public_profile") and args.public_profile
+                    else bool(old_status.get("profile", {}).get("public_profile"))
+                ),
+                expiry_days=expiry_days,
+                base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
+            )
     except Exception as exc:
         print(f"Key rotation failed: {exc}")
         return 1

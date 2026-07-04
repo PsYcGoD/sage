@@ -54,7 +54,12 @@ class Orchestrator:
             description=description,
             context=context or {},
         )
-        
+
+        # Ensure agent queue is initialized
+        if agent.task_queue is None:
+            import asyncio
+            agent.task_queue = asyncio.Queue()
+
         await agent.task_queue.put(task)
         print(f"[SAGE] Task #{task.id} assigned to {agent_name}")
 
@@ -74,6 +79,9 @@ class Orchestrator:
         assigned_count = 0
         for agent in self.agents.values():
             if agent.status == "idle":
+                # Ensure agent queue is initialized
+                if agent.task_queue is None:
+                    agent.task_queue = asyncio.Queue()
                 await agent.task_queue.put(task)
                 assigned_count += 1
 

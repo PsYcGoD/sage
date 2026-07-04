@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from .compression import (
+    ContextCompressor,
     compress_output,
     smart_diff,
     summarize_long_output,
@@ -20,6 +21,7 @@ class ContextManager:
 
     def __init__(self):
         self.tracker = TokenTracker()
+        self.compressor = ContextCompressor()
         self.compression_enabled = True
         self.max_output_lines = 50
 
@@ -49,22 +51,16 @@ class ContextManager:
                 'token_estimate': 0,
             }
 
-        # Estimate original tokens
-        original_tokens = self.tracker.estimate_tokens(combined)
+        result = self.compressor.compress_with_result(combined, strategy="auto")
+        compressed = result.compressed_text
 
-        # Apply compression strategies
-        if exit_code != 0:
-            # For errors, extract just the stacktrace
-            compressed = extract_stacktrace(combined)
-        else:
-            # For success, compress output
-            compressed = compress_output(combined, self.max_output_lines)
-
-        # If still too long, summarize
-        if len(compressed) > 4000:  # ~1000 tokens
+        if len(compressed) > 4000:
             compressed = summarize_long_output(compressed, max_chars=4000)
+            compressed_tokens = self.tracker.estimate_tokens(compressed)
+        else:
+            compressed_tokens = result.compressed_tokens
 
-        compressed_tokens = self.tracker.estimate_tokens(compressed)
+        original_tokens = result.original_tokens
 
         # Record usage
         if run_id:
@@ -76,6 +72,10 @@ class ContextManager:
             'compressed_output': compressed,
             'token_savings': original_tokens - compressed_tokens,
             'compression_ratio': f"{(1 - compressed_tokens / original_tokens) * 100:.1f}%" if original_tokens > 0 else "0%",
+            'original_tokens': original_tokens,
+            'compressed_tokens': compressed_tokens,
+            'strategy': result.strategy,
+            'verified_tokenizer': self.compressor.get_stats().get("verified_tokenizer", "unknown"),
         }
 
     def smart_file_read(
@@ -159,11 +159,13 @@ class ContextManager:
         if current_tokens <= max_tokens:
             return text
 
-        # Aggressive compression needed
-        lines = text.splitlines()
-        keep_ratio = max_tokens / current_tokens
-        keep_lines = int(len(lines) * keep_ratio)
+        compressed = self.compressor.compress(text, strategy="auto")
+        if self.tracker.estimate_tokens(compressed) <= max_tokens:
+            return compressed
 
+        lines = compressed.splitlines()
+        keep_ratio = max_tokens / max(1, self.tracker.estimate_tokens(compressed))
+        keep_lines = int(len(lines) * keep_ratio)
         if keep_lines < 10:
             keep_lines = 10
 

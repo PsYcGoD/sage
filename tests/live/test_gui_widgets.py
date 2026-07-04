@@ -90,15 +90,23 @@ def test_widgets():
     def on_clear():
         print("Clear clicked")
 
-    def on_settings():
-        print("Settings clicked")
-        output_view.append_text("\n⚙ Settings panel would open here\n\n")
+    def on_permission_change(mode):
+        print(f"Permission changed: {mode}")
+        output_view.append_text(f"\nPermission mode changed to {mode}\n\n")
+
+    def on_cancel():
+        print("Cancel clicked")
+
+    def on_output_theme_toggle():
+        print("Output theme toggled")
 
     input_area = InputArea(
         main_frame,
         on_send=on_send,
         on_clear=on_clear,
-        on_settings=on_settings
+        on_permission_change=on_permission_change,
+        on_cancel=on_cancel,
+        on_output_theme_toggle=on_output_theme_toggle
     )
     input_area.pack(fill="x", padx=5, pady=5)
 
@@ -107,10 +115,11 @@ def test_widgets():
     print("1. Change the AI selection")
     print("2. Type a message and click Send or press Ctrl+Enter")
     print("3. Click Clear to clear the input")
-    print("4. Click the settings button (⚙)")
-    print("\nClose the window to exit.")
+    print("4. Change the permission mode")
+    print("\nWindow closes automatically after smoke check.")
 
     # Run the app
+    root.after(500, root.destroy)
     root.mainloop()
 
 

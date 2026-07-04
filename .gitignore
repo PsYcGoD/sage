@@ -16,6 +16,7 @@ htmlcov/
 recovery/
 SAGE.md
 human_touch.md
+public-announcement-update/
 
 # Local Cloudflare/Wrangler state and private visitor exports
 .wrangler/
@@ -24,3 +25,8 @@ sage-api-visitors*.json
 sage-api-visitors*.txt
 visitor-stats*.json
 visitor-stats*.txt
+
+# 🔒 SECURITY: OAuth secrets (NEVER COMMIT)
+.sage-secrets/
+*.env
+oauth.env

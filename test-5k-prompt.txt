@@ -1,0 +1,265 @@
+I need your help reviewing and improving this complex Python codebase for a distributed task scheduling system. Here's the complete architecture:
+
+# Task Scheduler Core Module
+
+```python
+import asyncio
+import json
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
+from uuid import uuid4
+import redis
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+class TaskStatus(Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    RETRYING = "retrying"
+
+class TaskPriority(Enum):
+    LOW = 1
+    MEDIUM = 5
+    HIGH = 10
+    CRITICAL = 20
+
+@dataclass
+class Task:
+    id: str = field(default_factory=lambda: str(uuid4()))
+    name: str = ""
+    status: TaskStatus = TaskStatus.PENDING
+    priority: TaskPriority = TaskPriority.MEDIUM
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    retry_count: int = 0
+    max_retries: int = 3
+    timeout_seconds: int = 300
+    dependencies: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    result: Optional[Any] = None
+    error: Optional[str] = None
+    worker_id: Optional[str] = None
+
+class TaskScheduler:
+    def __init__(self, redis_url: str, postgres_url: str):
+        self.redis = redis.from_url(redis_url)
+        self.postgres_conn = psycopg2.connect(postgres_url)
+        self.logger = logging.getLogger(__name__)
+        self.workers: Dict[str, 'Worker'] = {}
+        self.tasks: Dict[str, Task] = {}
+        self.running = False
+
+    async def start(self):
+        self.running = True
+        await asyncio.gather(
+            self._scheduler_loop(),
+            self._health_check_loop(),
+            self._metrics_collection_loop()
+        )
+
+    async def _scheduler_loop(self):
+        while self.running:
+            try:
+                pending_tasks = await self._get_pending_tasks()
+                for task in pending_tasks:
+                    if self._can_execute(task):
+                        await self._assign_task(task)
+                await asyncio.sleep(1)
+            except Exception as e:
+                self.logger.error(f"Scheduler error: {e}")
+
+    async def _get_pending_tasks(self) -> List[Task]:
+        cursor = self.postgres_conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT * FROM tasks
+            WHERE status = 'pending'
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 100
+        """)
+        return [Task(**row) for row in cursor.fetchall()]
+
+    def _can_execute(self, task: Task) -> bool:
+        if not task.dependencies:
+            return True
+        for dep_id in task.dependencies:
+            dep_task = self.tasks.get(dep_id)
+            if not dep_task or dep_task.status != TaskStatus.COMPLETED:
+                return False
+        return True
+
+    async def _assign_task(self, task: Task):
+        available_worker = self._find_available_worker()
+        if available_worker:
+            task.status = TaskStatus.RUNNING
+            task.started_at = datetime.utcnow()
+            task.worker_id = available_worker.id
+            await available_worker.execute(task)
+            await self._update_task_in_db(task)
+
+    def _find_available_worker(self) -> Optional['Worker']:
+        for worker in self.workers.values():
+            if worker.is_available():
+                return worker
+        return None
+
+    async def _update_task_in_db(self, task: Task):
+        cursor = self.postgres_conn.cursor()
+        cursor.execute("""
+            UPDATE tasks SET
+                status = %s,
+                started_at = %s,
+                completed_at = %s,
+                retry_count = %s,
+                result = %s,
+                error = %s,
+                worker_id = %s
+            WHERE id = %s
+        """, (
+            task.status.value,
+            task.started_at,
+            task.completed_at,
+            task.retry_count,
+            json.dumps(task.result),
+            task.error,
+            task.worker_id,
+            task.id
+        ))
+        self.postgres_conn.commit()
+
+class Worker:
+    def __init__(self, worker_id: str, max_concurrent_tasks: int = 5):
+        self.id = worker_id
+        self.max_concurrent_tasks = max_concurrent_tasks
+        self.current_tasks: Set[str] = set()
+        self.total_executed = 0
+        self.total_failed = 0
+        self.logger = logging.getLogger(f"worker.{worker_id}")
+
+    def is_available(self) -> bool:
+        return len(self.current_tasks) < self.max_concurrent_tasks
+
+    async def execute(self, task: Task):
+        self.current_tasks.add(task.id)
+        try:
+            result = await self._run_task(task)
+            task.result = result
+            task.status = TaskStatus.COMPLETED
+            task.completed_at = datetime.utcnow()
+            self.total_executed += 1
+        except Exception as e:
+            self.logger.error(f"Task {task.id} failed: {e}")
+            task.error = str(e)
+            if task.retry_count < task.max_retries:
+                task.status = TaskStatus.RETRYING
+                task.retry_count += 1
+            else:
+                task.status = TaskStatus.FAILED
+                self.total_failed += 1
+        finally:
+            self.current_tasks.remove(task.id)
+
+    async def _run_task(self, task: Task) -> Any:
+        # Actual task execution logic here
+        await asyncio.sleep(1)
+        return {"success": True}
+```
+
+# Database Schema
+
+```sql
+CREATE TABLE tasks (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    priority INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    timeout_seconds INTEGER DEFAULT 300,
+    dependencies JSONB DEFAULT '[]',
+    metadata JSONB DEFAULT '{}',
+    result JSONB,
+    error TEXT,
+    worker_id VARCHAR(100)
+);
+
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_priority ON tasks(priority DESC);
+CREATE INDEX idx_tasks_created_at ON tasks(created_at);
+CREATE INDEX idx_tasks_worker_id ON tasks(worker_id);
+
+CREATE TABLE workers (
+    id VARCHAR(100) PRIMARY KEY,
+    hostname VARCHAR(255) NOT NULL,
+    max_concurrent_tasks INTEGER DEFAULT 5,
+    current_tasks INTEGER DEFAULT 0,
+    total_executed INTEGER DEFAULT 0,
+    total_failed INTEGER DEFAULT 0,
+    last_heartbeat TIMESTAMP NOT NULL,
+    status VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE task_logs (
+    id SERIAL PRIMARY KEY,
+    task_id UUID REFERENCES tasks(id),
+    timestamp TIMESTAMP NOT NULL,
+    level VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL
+);
+```
+
+# Configuration
+
+```yaml
+scheduler:
+  redis_url: redis://localhost:6379/0
+  postgres_url: postgresql://user:pass@localhost:5432/scheduler
+  worker_count: 10
+  max_tasks_per_worker: 5
+  scheduler_interval_seconds: 1
+  health_check_interval_seconds: 30
+  metrics_collection_interval_seconds: 60
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    - type: file
+      filename: scheduler.log
+      max_bytes: 10485760
+      backup_count: 5
+    - type: console
+
+monitoring:
+  prometheus_enabled: true
+  prometheus_port: 9090
+  grafana_enabled: true
+  grafana_port: 3000
+```
+
+My specific questions are:
+
+1. **Architecture Review**: Is the current separation of TaskScheduler and Worker appropriate? Should I consider a different pattern?
+
+2. **Concurrency Issues**: I'm concerned about race conditions when multiple workers try to claim the same task. What's the best way to handle task claiming atomically?
+
+3. **Performance**: With thousands of tasks per minute, is polling the database every second going to be a bottleneck? Should I use Redis pub/sub instead?
+
+4. **Error Handling**: The retry logic seems basic. What about exponential backoff? What about dead letter queues for permanently failed tasks?
+
+5. **Scaling**: How would this architecture handle horizontal scaling? If I add more scheduler instances, how do I prevent duplicate task execution?
+
+6. **Database Design**: Are my indexes optimal? Should I partition the tasks table by status or created_at?
+
+7. **Testing**: What's the best way to test this distributed system? How do I simulate race conditions and network failures?
+
+Please provide detailed recommendations for each area, including code examples where applicable. I'm particularly interested in production-ready patterns that have been proven at scale.

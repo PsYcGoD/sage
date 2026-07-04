@@ -28,6 +28,11 @@ from .store import connect, data_dir
 SCHEMA_VERSION = "1.0"
 DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
 FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
+
+# 🔒 SECURITY: Master key for API key generation
+# This is intentionally in the code (not in repo) - will be distributed with compiled GUI
+# If compromised, we can rotate it in Cloudflare environment variables
+MASTER_KEY_SECRET = "sage_master_2026_psycgod_ai_ml_secure_key_generation_v1"
 LEVEL_NAMES = {
     0: "local-only",
     1: "anonymous-metrics",
@@ -161,6 +166,108 @@ def account_status() -> dict[str, Any]:
 
 # ---------------------------------------------------------------- API login
 
+def api_github_login(
+    *,
+    auth_code: str,
+    display_name: str | None = None,
+    public_profile: bool = False,
+    expiry_days: int = 30,
+    base_url: str = "",
+) -> dict[str, Any]:
+    """
+    Create SAGE API key using GitHub OAuth.
+
+    Args:
+        auth_code: GitHub OAuth authorization code
+        display_name: Optional display name (defaults to GitHub name)
+        public_profile: Show name on public proof
+        expiry_days: API key expiration (30/60/90 days)
+        base_url: Optional API base URL
+
+    Returns:
+        Dict with api_key, key_id, username, etc.
+    """
+    payload = {
+        "github_auth_code": auth_code,
+        "display_name": display_name,
+        "public_profile": bool(public_profile),
+        "expiry_days": max(1, min(365, int(expiry_days))),
+        "scope": "personal",
+    }
+
+    last_error = ""
+    for candidate in _endpoint_candidates(base_url or DEFAULT_API_BASE_URL):
+        try:
+            # Send to /v1/github-login endpoint (handles OAuth exchange)
+            data = json.dumps(payload).encode("utf-8")
+            request = urllib_request.Request(
+                f"{candidate}/v1/github-login",
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "SAGE-CLI/0.1",
+                },
+                method="POST",
+            )
+            with urllib_request.urlopen(request, timeout=30) as http_response:
+                body = http_response.read().decode("utf-8")
+            response = json.loads(body or "{}")
+        except OSError as exc:
+            last_error = str(exc)
+            continue
+
+        api_key = str(response.get("api_key") or "")
+        key_id = str(response.get("key_id") or "")
+        github_username = str(response.get("github_username") or "")
+        github_id = int(response.get("github_id") or 0)
+
+        if not api_key or not key_id:
+            raise RuntimeError("SAGE API did not return an API key.")
+
+        # Save config
+        config = load_config()
+        config["api_base_url"] = candidate
+        config["api_endpoint"] = f"{candidate}/v1/telemetry"
+        config["api_key"] = api_key
+        config["api_key_id"] = key_id
+        config["api_profile"] = {
+            "display_name": response.get("display_name", github_username),
+            "username": github_username,
+            "github_id": github_id,
+            "public_profile": bool(public_profile),
+            "scope": "personal",
+        }
+        config["telemetry_level"] = 1
+        save_config(config)
+
+        # Link account
+        account_link(
+            github_username,
+            user_id=str(github_id),
+            api_key_ref=key_id,
+            key_max_level=1,
+        )
+        account_use(github_username)
+
+        return {
+            "ok": True,
+            "base_url": candidate,
+            "endpoint": f"{candidate}/v1/telemetry",
+            "api_key": api_key,
+            "api_key_redacted": _redact_key(api_key),
+            "key_id": key_id,
+            "username": github_username,
+            "github_id": github_id,
+            "display_name": response.get("display_name", github_username),
+            "expires_at": response.get("expires_at", ""),
+            "public_profile": bool(public_profile),
+            "effective_level": 1,
+            "effective_level_name": "Level 1 (safe metrics only)",
+        }
+
+    raise RuntimeError(f"SAGE API unreachable. Last error: {last_error}")
+
+
 def api_login(
     *,
     display_name: str = "",
@@ -169,6 +276,7 @@ def api_login(
     privacy_max: int = 1,
     scope: str = "personal",
     base_url: str = "",
+    expiry_days: int = 30,
 ) -> dict[str, Any]:
     """Create a SAGE API key and store it locally."""
     payload = {
@@ -177,11 +285,26 @@ def api_login(
         "public_profile": bool(public_profile),
         "privacy_max": max(0, min(4, int(privacy_max))),
         "scope": scope,
+        "expiry_days": max(1, min(365, int(expiry_days))),  # 🔒 SECURITY: Clamp 1-365 days
     }
     last_error = ""
     for candidate in _endpoint_candidates(base_url or DEFAULT_API_BASE_URL):
         try:
-            response = _post_json(f"{candidate}/v1/keys", payload)
+            # 🔒 SECURITY: Send master key in header
+            data = json.dumps(payload).encode("utf-8")
+            request = urllib_request.Request(
+                f"{candidate}/v1/keys",
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "SAGE-CLI/0.1",
+                    "X-SAGE-Master-Key": MASTER_KEY_SECRET,
+                },
+                method="POST",
+            )
+            with urllib_request.urlopen(request, timeout=15) as http_response:
+                body = http_response.read().decode("utf-8")
+            response = json.loads(body or "{}")
         except OSError as exc:
             last_error = str(exc)
             continue

@@ -1,0 +1,21 @@
+name = "sage-api"
+main = "src/worker.js"
+compatibility_date = "2026-06-14"
+workers_dev = true
+
+[[routes]]
+pattern = "sage.api.marketingstudios.in"
+custom_domain = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sage_telemetry"
+database_id = "30dce3a3-6f7f-423c-9f29-4ff812685752"
+
+[[queues.producers]]
+binding = "TELEMETRY_QUEUE"
+queue = "sage-telemetry-queue"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "sage-redacted-artifacts"

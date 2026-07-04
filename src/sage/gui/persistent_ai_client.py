@@ -27,6 +27,8 @@ class PersistentAIClient:
         self.conversation_history = []
         self.session_active = False
         self.codex_has_session = False
+        self.codex_command = ""
+        self.last_error = ""
         self._lock = threading.Lock()
 
     def _compact_text(self, text: str, max_chars: int = 4000) -> str:
@@ -178,14 +180,15 @@ class PersistentAIClient:
     def _start_codex_session(self) -> bool:
         """Start a CLI-backed Codex session using the user's `codex login` auth."""
         try:
-            if not shutil.which("codex"):
-                print("[ERROR] codex CLI not installed")
+            codex_command = self._resolve_codex_command()
+            if not codex_command:
+                self.last_error = "Codex CLI was not found in PATH or known Windows install locations."
+                print(f"[ERROR] {self.last_error}")
                 return False
 
             env = self._codex_cli_env()
-            # CRITICAL FIX: Run codex directly, NOT through sage run - prevents cmd.exe spawn
             result = subprocess.run(
-                ["codex", "login", "status"],
+                [codex_command, "login", "status"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -196,17 +199,50 @@ class PersistentAIClient:
             )
             combined_output = f"{result.stdout}\n{result.stderr}"
             if result.returncode != 0 or "Logged in" not in combined_output:
-                print("[ERROR] Codex CLI is not logged in. Run: codex login")
+                self.last_error = (
+                    "Codex CLI login check failed.\n"
+                    f"Command: {codex_command} login status\n"
+                    f"Exit code: {result.returncode}\n"
+                    f"Output:\n{combined_output.strip() or '(no output)'}"
+                )
+                print(f"[ERROR] {self.last_error}")
                 return False
 
+            self.codex_command = codex_command
             self.conversation_history = []
             self.codex_has_session = False
             self.session_active = True
             return True
 
         except Exception as e:
-            print(f"[ERROR] Codex session failed: {e}")
+            self.last_error = f"Codex session failed: {e}"
+            print(f"[ERROR] {self.last_error}")
             return False
+
+    def _resolve_codex_command(self) -> str:
+        """Resolve Codex CLI robustly for GUI processes with incomplete PATH."""
+        names = ["codex.cmd", "codex.exe", "codex"] if os.name == "nt" else ["codex"]
+        for name in names:
+            found = shutil.which(name)
+            if found:
+                return found
+
+        if os.name == "nt":
+            candidates: list[Path] = []
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                candidates.append(Path(appdata) / "npm" / "codex.cmd")
+            localappdata = os.environ.get("LOCALAPPDATA")
+            if localappdata:
+                candidates.extend(Path(localappdata).glob("Microsoft/WindowsApps/codex*.exe"))
+            program_files = os.environ.get("ProgramFiles")
+            if program_files:
+                candidates.extend(Path(program_files).glob("WindowsApps/OpenAI.Codex_*/*/resources/codex.exe"))
+                candidates.extend(Path(program_files).glob("WindowsApps/OpenAI.Codex_*/app/resources/codex.exe"))
+            for candidate in candidates:
+                if candidate.exists():
+                    return str(candidate)
+        return ""
 
     def _codex_cli_env(self) -> dict:
         """Return an environment that forces Codex CLI auth instead of env API keys."""
@@ -424,7 +460,7 @@ class PersistentAIClient:
 
     def _codex_command(self, *, resume: bool, output_path: Path) -> list[str]:
         # CRITICAL FIX: Run codex directly to prevent cmd.exe spawn
-        cmd = ["codex", "exec"]
+        cmd = [self.codex_command or self._resolve_codex_command() or "codex", "exec"]
         if resume:
             cmd.extend(["resume", "--last"])
 

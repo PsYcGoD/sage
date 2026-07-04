@@ -335,9 +335,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # 🔒 CRITICAL: Gate ALL commands behind API connection
-    # Only these commands work without API: connect, login, whoami, logout, --version, --help
-    ALLOWED_WITHOUT_API = ["connect", "login", "whoami", "logout", "doctor"]
+    # Gate command execution behind API connection, while still allowing the
+    # first-run GUI and account/status commands needed to connect.
+    ALLOWED_WITHOUT_API = ["connect", "login", "whoami", "logout", "doctor", "gui", "api"]
 
     if args.command_name not in ALLOWED_WITHOUT_API:
         from . import telemetry
@@ -346,8 +346,8 @@ def main(argv: list[str] | None = None) -> int:
             print("❌ SAGE requires API connection to use this command.")
             print("\n🔐 Connect with GitHub (free, takes 30 seconds):")
             print("   sage connect")
-            print("\nOr use legacy login:")
-            print("   sage login")
+            print("\nOr open the GUI and connect from Settings:")
+            print("   sage gui")
             return 1
 
     if args.command_name == "run":
@@ -991,7 +991,10 @@ def telemetry_command(args) -> int:
     if sub == "send":
         result = telemetry.send_queued(dry_run=not args.for_real)
         print(f"Endpoint: {result['endpoint']}")
-        print(f"Dry run: {result['dry_run']} | Sent: {result['sent']} | Still queued: {result['queued']}")
+        print(
+            f"Dry run: {result['dry_run']} | Sent: {result['sent']} | "
+            f"Failed: {result.get('failed', 0)} | Still queued: {result['queued']}"
+        )
         for item in result.get("preview", []):
             print(f"- {item['event_type']} kind={item['command_kind']} saved_tokens={item['saved_tokens']}")
         return 0
@@ -1006,7 +1009,10 @@ def telemetry_command(args) -> int:
             f"queued={queued_all.get('queued', 0)} "
             f"skipped={queued_all.get('skipped', 0)}"
         )
-        print(f"Dry run: {result['dry_run']} | Sent: {result['sent']} | Still queued: {result['queued']}")
+        print(
+            f"Dry run: {result['dry_run']} | Sent: {result['sent']} | "
+            f"Failed: {result.get('failed', 0)} | Still queued: {result['queued']}"
+        )
         snapshot = result.get("snapshot")
         if snapshot:
             print(f"Proof snapshot: {'updated' if snapshot.get('ok') else 'not updated'}")
@@ -1018,6 +1024,12 @@ def telemetry_command(args) -> int:
         status = telemetry.api_status()
         print(f"Mode: {status['mode']} | Level: {status['effective_level']} ({status['effective_level_name']})")
         print(f"Queue: {status['queue']}")
+        errors = telemetry.queue_errors()
+        if errors:
+            print("Recent queue errors:")
+            for item in errors:
+                message = item["last_error"].replace("\n", " ")[:220]
+                print(f"- id={item['id']} attempts={item['attempts']} {message}")
         return 0
 
     if sub == "delete-local-queue":
@@ -1139,28 +1151,10 @@ def api_visitors_command() -> int:
 
 
 def login_command(args) -> int:
-    from . import telemetry
-
-    try:
-        result = telemetry.api_login(
-            display_name=args.display_name,
-            username=args.username,
-            public_profile=args.public_profile,
-            privacy_max=args.privacy_max,
-            scope=args.scope,
-            base_url=args.endpoint,
-        )
-    except Exception as exc:
-        print(f"SAGE API login failed: {exc}")
-        return 1
-    print("SAGE API connected")
-    print(f"Base URL: {result['base_url']}")
-    print(f"Endpoint: {result['endpoint']}")
-    print(f"Key ID: {result['key_id']}")
-    print(f"Stored key: {result['api_key_redacted']}")
-    print(f"Telemetry level: {result['effective_level']} (opt-in safe metrics)")
-    print(f"Public profile: {result['public_profile']}")
-    return 0
+    print("SAGE login now uses GitHub OAuth.")
+    if not hasattr(args, "expiry_days"):
+        args.expiry_days = 30
+    return connect_command(args)
 
 
 def whoami_command() -> int:
@@ -1257,24 +1251,28 @@ def connect_command(args) -> int:
 
 
 def rotate_key_command(args) -> int:
-    """🔒 Rotate API key: generates new key, revokes old one."""
+    """Rotate API key through GitHub OAuth."""
     from . import telemetry
+    from .github_oauth import github_oauth_flow
 
-    # First logout (revoke old key)
     old_status = telemetry.api_status()
-    if old_status.get("connected"):
-        print(f"Revoking old key: {old_status.get('key_id')}")
-        telemetry.api_logout()
-
-    # Then login (create new key with same settings)
     try:
-        result = telemetry.api_login(
-            display_name=args.display_name or old_status.get("profile", {}).get("display_name"),
-            username=args.username or old_status.get("profile", {}).get("username"),
-            public_profile=args.public_profile if hasattr(args, "public_profile") else old_status.get("profile", {}).get("public_profile"),
-            privacy_max=args.privacy_max if hasattr(args, "privacy_max") else old_status.get("privacy_max"),
-            scope=args.scope if hasattr(args, "scope") else "personal",
-            base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url"),
+        print("Opening GitHub OAuth to rotate your SAGE API key...")
+        oauth_result = github_oauth_flow()
+        if not oauth_result.get("auth_code"):
+            print("GitHub authentication failed.")
+            return 1
+
+        result = telemetry.api_github_login(
+            auth_code=oauth_result["auth_code"],
+            display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
+            public_profile=(
+                args.public_profile
+                if hasattr(args, "public_profile") and args.public_profile
+                else bool(old_status.get("profile", {}).get("public_profile"))
+            ),
+            expiry_days=30,
+            base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
         )
     except Exception as exc:
         print(f"Key rotation failed: {exc}")
@@ -1283,7 +1281,7 @@ def rotate_key_command(args) -> int:
     print("✅ API key rotated successfully")
     print(f"New Key ID: {result['key_id']}")
     print(f"Stored key: {result['api_key_redacted']}")
-    print(f"Old key revoked: {old_status.get('key_id') if old_status.get('connected') else 'N/A'}")
+    print(f"Old key revoked by server: {old_status.get('key_id') if old_status.get('connected') else 'N/A'}")
     return 0
 
 

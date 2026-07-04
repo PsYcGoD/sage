@@ -32,7 +32,6 @@ FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
 # 🔒 SECURITY: Master key for API key generation
 # This is intentionally in the code (not in repo) - will be distributed with compiled GUI
 # If compromised, we can rotate it in Cloudflare environment variables
-MASTER_KEY_SECRET = "sage_master_2026_psycgod_ai_ml_secure_key_generation_v1"
 LEVEL_NAMES = {
     0: "local-only",
     1: "anonymous-metrics",
@@ -279,6 +278,7 @@ def api_login(
     expiry_days: int = 30,
 ) -> dict[str, Any]:
     """Create a SAGE API key and store it locally."""
+    raise RuntimeError("Legacy API login is disabled. Use GitHub OAuth with `sage connect`.")
     payload = {
         "display_name": display_name,
         "username": username,
@@ -298,7 +298,7 @@ def api_login(
                 headers={
                     "Content-Type": "application/json",
                     "User-Agent": "SAGE-CLI/0.1",
-                    "X-SAGE-Master-Key": MASTER_KEY_SECRET,
+                    "X-SAGE-Master-Key": "",
                 },
                 method="POST",
             )
@@ -409,7 +409,8 @@ def build_payload(run_id: int, *, level: int | None = None) -> dict[str, Any] | 
         "installation_id": config["installation_id"],
         "run_id_local_hash": hashlib.sha256(f"{config['salt']}:{run_id}".encode()).hexdigest(),
         "workspace_hash": str(run["workspace_hash"] or _workspace_hash(str(run["project"]), config["salt"])),
-        "timestamp": str(run["created_at"]),
+        "timestamp": _now(),
+        "client_created_at": str(run["created_at"]),
         "command_kind": str(run["command_kind"] or "unknown"),
         "command_family": str(run["command_family"] or "unknown"),
         "caller": str(run["caller"] or "cli"),
@@ -491,7 +492,32 @@ def queue_status() -> dict[str, int]:
         ).fetchall()
     counts = {str(row["status"]): int(row["n"]) for row in rows}
     counts.setdefault("queued", 0)
+    counts.setdefault("failed", 0)
+    counts.setdefault("sent", 0)
     return counts
+
+
+def queue_errors(limit: int = 5) -> list[dict[str, Any]]:
+    """Return recent queued-event errors for diagnostics."""
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, attempts, last_error
+            FROM telemetry_queue
+            WHERE status = 'queued' AND last_error != ''
+            ORDER BY attempts DESC, id ASC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    return [
+        {
+            "id": int(row["id"]),
+            "attempts": int(row["attempts"] or 0),
+            "last_error": str(row["last_error"] or ""),
+        }
+        for row in rows
+    ]
 
 
 def delete_local_queue() -> int:
@@ -522,14 +548,19 @@ def send_queued(*, dry_run: bool = True, limit: int = 50) -> dict[str, Any]:
         }
 
     sent = 0
+    failed = 0
     for row in rows:
+        payload = json.loads(row["payload"])
+        payload.setdefault("client_created_at", payload.get("timestamp") or _now())
+        payload["timestamp"] = _now()
         request = urllib_request.Request(
             endpoint,
-            data=str(row["payload"]).encode("utf-8"),
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {api_key}",
                 "X-SAGE-Idempotency-Key": str(row["dedupe_key"]),
+                "X-SAGE-Timestamp": payload["timestamp"],
                 "User-Agent": "SAGE-CLI/0.1",
             },
             method="POST",
@@ -537,7 +568,30 @@ def send_queued(*, dry_run: bool = True, limit: int = 50) -> dict[str, Any]:
         try:
             with urllib_request.urlopen(request, timeout=15) as response:
                 ok = 200 <= response.status < 300
-        except (OSError, urllib_error.HTTPError) as exc:
+        except urllib_error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            last_error = f"HTTP {exc.code}: {body or exc.reason}"
+            if exc.code in {400, 409, 413}:
+                failed += 1
+                with connect() as conn:
+                    conn.execute(
+                        "UPDATE telemetry_queue SET status = 'failed', attempts = attempts + 1, last_error = ? WHERE id = ?",
+                        (last_error, int(row["id"])),
+                    )
+                    conn.commit()
+                continue
+            with connect() as conn:
+                conn.execute(
+                    "UPDATE telemetry_queue SET attempts = attempts + 1, last_error = ? WHERE id = ?",
+                    (last_error, int(row["id"])),
+                )
+                conn.commit()
+            continue
+        except OSError as exc:
             with connect() as conn:
                 conn.execute(
                     "UPDATE telemetry_queue SET attempts = attempts + 1, last_error = ? WHERE id = ?",
@@ -553,7 +607,13 @@ def send_queued(*, dry_run: bool = True, limit: int = 50) -> dict[str, Any]:
                     (_now(), int(row["id"])),
                 )
                 conn.commit()
-    return {"sent": sent, "queued": len(rows) - sent, "dry_run": False, "endpoint": endpoint}
+    return {
+        "sent": sent,
+        "failed": failed,
+        "queued": queue_status().get("queued", 0),
+        "dry_run": False,
+        "endpoint": endpoint,
+    }
 
 
 def sync_all_runs(*, dry_run: bool = False, batch_size: int = 50) -> dict[str, Any]:
@@ -575,7 +635,7 @@ def sync_all_runs(*, dry_run: bool = False, batch_size: int = 50) -> dict[str, A
         total_sent += int(result.get("sent", 0))
         last_result = result
         remaining = queue_status().get("queued", 0)
-        if int(result.get("sent", 0)) == 0 or remaining == 0:
+        if (int(result.get("sent", 0)) == 0 and int(result.get("failed", 0)) == 0) or remaining == 0:
             break
     final_queue = queue_status()
     snapshot = send_proof_snapshot() if final_queue.get("queued", 0) == 0 else {"ok": False, "skipped": "queue-not-empty"}

@@ -134,7 +134,7 @@ class GUIConfig:
     def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Keep critical GUI runtime settings consistent."""
         personal_fable = Path.home() / ".claude" / "CLAUDE-FABLE-5.md"
-        bundled_fable = Path(__file__).resolve().parents[3] / "CLAUDE-FABLE-5.md"
+        bundled_fable = Path(__file__).resolve().parent / "assets" / "CLAUDE-FABLE-5.md"
         fable = str(personal_fable if personal_fable.exists() else bundled_fable)
         integration = str(Path.home() / ".claude" / "SAGE-INTEGRATION.md")
         old_admin_fable = "<USER_HOME>\\.claude\\CLAUDE-FABLE-5.md"

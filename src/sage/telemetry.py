@@ -168,6 +168,7 @@ def account_status() -> dict[str, Any]:
 def api_github_login(
     *,
     auth_code: str,
+    redirect_uri: str = "",
     display_name: str | None = None,
     public_profile: bool = False,
     expiry_days: int = 30,
@@ -188,6 +189,7 @@ def api_github_login(
     """
     payload = {
         "github_auth_code": auth_code,
+        "redirect_uri": redirect_uri,
         "display_name": display_name,
         "public_profile": bool(public_profile),
         "expiry_days": max(1, min(365, int(expiry_days))),

@@ -440,6 +440,7 @@ async function handleGitHubLogin(env, request) {
   if (!authCode) {
     return error("Missing github_auth_code", 400);
   }
+  const redirectUri = textValue(body.redirect_uri, 200);
 
   // Exchange auth code for GitHub access token
   // NOTE: This requires GITHUB_CLIENT_SECRET in env
@@ -455,6 +456,7 @@ async function handleGitHubLogin(env, request) {
         client_id: "Ov23libLspfxbzmPhMSv",  // Public client ID
         client_secret: env.GITHUB_CLIENT_SECRET,  // Secret stored in Cloudflare
         code: authCode,
+        ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       }),
     });
 

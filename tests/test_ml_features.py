@@ -98,6 +98,7 @@ def test_default_agent_catalog_has_24_roles():
     selected = select_agents_for_command("pytest failed with sqlite migration error")
     selected_types = {agent.type for agent in selected}
 
+    assert len(selected) == 24
     assert "test" in selected_types
     assert "database" in selected_types or "debug" in selected_types
 

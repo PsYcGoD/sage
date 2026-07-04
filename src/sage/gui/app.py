@@ -13,7 +13,7 @@ from sage.gui.persistent_ai_client import PersistentAIClient
 from sage.gui.session_manager import SessionManager
 from sage.store import connect, data_dir
 from sage.context import ContextManager
-from sage.agents import ensure_default_agents, get_agent_tasks_for_run, select_agents_for_command
+from sage.agents import DEFAULT_AGENT_SPECS, ensure_default_agents, get_agent_tasks_for_run, select_agents_for_command
 from sage.ml import FailurePredictor, SklearnFailureModel
 from sage.security import evaluate_command, load_policy
 import json
@@ -765,21 +765,43 @@ class SAGEApp(ctk.CTk):
                 raw_compressed_tokens = token_row[1] or 0
                 raw_token_savings = token_row[2] or 0
 
-                # Active agents - count from agent_runs (actually executing)
+                # Agent roster and live work. Registered agents comes from the
+                # catalog; active work comes from agent_runs.
+                raw_total_agents = len(DEFAULT_AGENT_SPECS)
                 agent_row = conn.execute(
                     """
                     SELECT
-                        COUNT(DISTINCT agent_id) as total,
-                        SUM(CASE WHEN status IN ('running', 'queued') THEN 1 ELSE 0 END) as active
+                        SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) as queued,
+                        SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running,
+                        SUM(CASE WHEN status = 'waiting_for_tool' THEN 1 ELSE 0 END) as waiting
                     FROM agent_runs
-                    WHERE status IN ('queued', 'running', 'completed')
+                    WHERE status IN ('running', 'waiting_for_tool')
+                       OR (
+                           status = 'queued'
+                           AND datetime(created_at) >= datetime('now', '-5 minutes')
+                       )
                     """
                 ).fetchone()
-                raw_total_agents = agent_row["total"] or 0
-                raw_active_agents = agent_row["active"] or 0
+                raw_queued_agents = agent_row["queued"] or 0
+                raw_running_agents = agent_row["running"] or 0
+                raw_waiting_agents = agent_row["waiting"] or 0
+                raw_active_agents = raw_queued_agents + raw_running_agents + raw_waiting_agents
                 raw_agent_tasks = conn.execute(
                     "SELECT COUNT(*) FROM agent_tasks WHERE status = 'completed'"
                 ).fetchone()[0] or 0
+                latest_agent_row = conn.execute(
+                    """
+                    SELECT
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                        SUM(CASE WHEN status IN ('queued', 'running', 'waiting_for_tool') THEN 1 ELSE 0 END) as active
+                    FROM agent_runs
+                    WHERE run_id = (SELECT MAX(run_id) FROM agent_runs)
+                    """
+                ).fetchone()
+                latest_agent_total = latest_agent_row["total"] or 0
+                latest_agent_completed = latest_agent_row["completed"] or 0
+                latest_agent_active = latest_agent_row["active"] or 0
 
                 # Dashboard "Total" must match the full local database, the same
                 # source used by `sage context stats`. Resets affect only the
@@ -792,6 +814,9 @@ class SAGEApp(ctk.CTk):
                 total_agents = raw_total_agents
                 active_agents = raw_active_agents
                 agent_tasks = raw_agent_tasks
+                queued_agents = raw_queued_agents
+                running_agents = raw_running_agents
+                waiting_agents = raw_waiting_agents
 
                 if original_tokens > 0:
                     token_rate = token_savings / original_tokens * 100
@@ -827,7 +852,8 @@ class SAGEApp(ctk.CTk):
                 compressed_tokens, token_savings, token_rate, session_used, session_saved,
                 total_agents, active_agents, agent_tasks, session_agent_tasks,
                 success_rate, session_success_rate, successful_commands, session_successes,
-                session_token_rate
+                session_token_rate, queued_agents, running_agents, waiting_agents,
+                latest_agent_total, latest_agent_completed, latest_agent_active
             ))
 
         except Exception as e:
@@ -851,6 +877,12 @@ class SAGEApp(ctk.CTk):
         successful_commands,
         session_successes,
         session_token_rate,
+        queued_agents=0,
+        running_agents=0,
+        waiting_agents=0,
+        latest_agent_total=0,
+        latest_agent_completed=0,
+        latest_agent_active=0,
     ):
         """Update metric card UI elements"""
         self.commands_card.update_metric(
@@ -877,9 +909,9 @@ class SAGEApp(ctk.CTk):
         self.agents_card.update_metric(
             total_value=f"{total_agents}",
             session_value=f"{session_agent_tasks}",
-            total_hint=f"{active_agents} active\n{agent_tasks} tasks",
-            session_hint="Tasks",
-            detail="Registered agents and executed tasks",
+            total_hint=f"{running_agents} running\n{queued_agents} queued",
+            session_hint=f"{agent_tasks} all-time\n{waiting_agents} waiting",
+            detail=f"Latest run: {latest_agent_completed}/{latest_agent_total} done, {latest_agent_active} active",
         )
 
         self.success_card.update_metric(

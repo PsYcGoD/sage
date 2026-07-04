@@ -426,12 +426,18 @@ class PersistentAIClient:
                     streams_done[stream_name] = True
                     continue
 
-                event_type, visible = self._classify_codex_line(line, stream_name, visible_started, suppress_rest)
+                event_type, visible = self._classify_codex_stream_item(
+                    line,
+                    stream_name,
+                    visible_started,
+                    suppress_rest,
+                )
                 visible_started = visible_started or visible == "__START__"
                 suppress_rest = suppress_rest or visible == "__STOP__"
 
                 if visible and visible not in {"__START__", "__STOP__"}:
-                    assistant_text.append(visible)
+                    if event_type in {None, "text"}:
+                        assistant_text.append(visible)
                     yield (event_type or "text", visible)
 
             exit_code = process.wait()
@@ -460,7 +466,13 @@ class PersistentAIClient:
 
     def _codex_command(self, *, resume: bool, output_path: Path) -> list[str]:
         # CRITICAL FIX: Run codex directly to prevent cmd.exe spawn
-        cmd = [self.codex_command or self._resolve_codex_command() or "codex", "exec"]
+        cmd = [
+            self.codex_command or self._resolve_codex_command() or "codex",
+            "exec",
+            "--json",
+            "--color",
+            "never",
+        ]
         if resume:
             cmd.extend(["resume", "--last"])
 
@@ -489,7 +501,9 @@ class PersistentAIClient:
             stripped_err = line.strip()
             if stripped_err.lower().startswith(("error", "[error]", "codex api error")):
                 return line
-            return None
+            if not stripped_err or suppress_rest:
+                return None
+            return line
 
         stripped = line.strip()
         if not stripped:
@@ -525,6 +539,129 @@ class PersistentAIClient:
         if not visible_started:
             return line
         return line
+
+    def _classify_codex_stream_item(
+        self,
+        line: str,
+        stream_name: str,
+        visible_started: bool,
+        suppress_rest: bool,
+    ) -> tuple[str | None, str | None]:
+        """Classify Codex JSONL when available, falling back to text output."""
+        if stream_name == "stdout":
+            stripped = line.strip()
+            if stripped.startswith("{") and stripped.endswith("}"):
+                try:
+                    payload = json.loads(stripped)
+                except json.JSONDecodeError:
+                    pass
+                else:
+                    return self._classify_codex_json_event(payload)
+
+        return self._classify_codex_line(line, stream_name, visible_started, suppress_rest)
+
+    def _classify_codex_json_event(self, payload: dict) -> tuple[str | None, str | None]:
+        """Convert `codex exec --json` events into GUI event types."""
+        raw_type = str(payload.get("type") or payload.get("event") or "").lower()
+        item = payload.get("item") if isinstance(payload.get("item"), dict) else {}
+        item_type = str(item.get("type") or payload.get("item_type") or "").lower()
+        combined_type = f"{raw_type} {item_type}"
+
+        if "token" in combined_type or raw_type in {"turn.completed", "thread.completed"}:
+            return None, None
+
+        if "error" in combined_type:
+            text = self._extract_codex_text(payload)
+            return ("error", text + "\n") if text else (None, None)
+
+        if "reason" in combined_type or "thinking" in combined_type:
+            text = self._extract_codex_text(payload)
+            return ("thinking", self._ensure_trailing_newline(text)) if text else (None, None)
+
+        if any(marker in combined_type for marker in ("exec", "command", "tool", "function_call", "local_shell")):
+            text = self._format_codex_tool_event(payload)
+            return ("tool", self._ensure_trailing_newline(text)) if text else (None, None)
+
+        if any(marker in combined_type for marker in ("patch", "edit", "file_change", "diff")):
+            text = self._extract_codex_text(payload)
+            return ("coding", self._ensure_trailing_newline(text)) if text else (None, None)
+
+        if any(marker in combined_type for marker in ("message", "output_text", "answer")):
+            text = self._extract_codex_text(payload)
+            return ("text", text) if text else (None, None)
+
+        if raw_type.endswith(".started"):
+            label = raw_type.removesuffix(".started").replace("_", " ").replace(".", " ")
+            if label and label not in {"thread", "turn"}:
+                return "thinking", f"{label}...\n"
+
+        text = self._extract_codex_text(payload, status_only=True)
+        return ("thinking", self._ensure_trailing_newline(text)) if text else (None, None)
+
+    def _format_codex_tool_event(self, payload: dict) -> str:
+        item = payload.get("item") if isinstance(payload.get("item"), dict) else {}
+        source = item or payload
+        name = (
+            source.get("name")
+            or source.get("tool_name")
+            or source.get("command")
+            or source.get("cmd")
+            or source.get("type")
+            or payload.get("type")
+        )
+        text = self._extract_codex_text(payload)
+        if name and text and str(name) not in text:
+            return f"{name}: {text}"
+        return text or str(name or "")
+
+    def _extract_codex_text(self, payload, *, status_only: bool = False) -> str:
+        """Pull human-readable text out of common Codex JSON event shapes."""
+        if isinstance(payload, str):
+            return payload.strip()
+        if isinstance(payload, list):
+            parts = [self._extract_codex_text(item, status_only=status_only) for item in payload]
+            return "\n".join(part for part in parts if part).strip()
+        if not isinstance(payload, dict):
+            return ""
+
+        if status_only:
+            keys = ("status", "message", "summary")
+        else:
+            keys = (
+                "text",
+                "delta",
+                "message",
+                "summary",
+                "reasoning",
+                "thinking",
+                "content",
+                "output",
+                "result",
+                "command",
+                "cmd",
+                "arguments",
+                "status",
+            )
+
+        parts: list[str] = []
+        for key in keys:
+            value = payload.get(key)
+            text = self._extract_codex_text(value, status_only=status_only)
+            if text:
+                parts.append(text)
+
+        item = payload.get("item")
+        if isinstance(item, dict):
+            text = self._extract_codex_text(item, status_only=status_only)
+            if text:
+                parts.append(text)
+
+        return "\n".join(dict.fromkeys(parts)).strip()
+
+    def _ensure_trailing_newline(self, text: str) -> str:
+        if not text:
+            return ""
+        return text if text.endswith("\n") else text + "\n"
 
     def _classify_codex_line(
         self,

@@ -29,6 +29,7 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     tasks = get_agent_tasks_for_run(run_id)
 
     assert results
+    assert len(results) == 24
     assert len(tasks) == len(results)
     assert {task["run_id"] for task in tasks} == {run_id}
     assert "test" in {task["agent_type"] for task in tasks}
@@ -38,6 +39,8 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     assert all("confidence" in task["result"] for task in tasks)
     assert all(task["result"].get("actions") for task in tasks)
     assert all(task["result"].get("token_strategy") for task in tasks)
+    assert all(task["result"].get("skill_profile") for task in tasks)
+    assert all(task["result"].get("agent_brief") for task in tasks)
     assert all(task["result"].get("contract_valid") for task in tasks)
     assert all("evidence" in task["result"] for task in tasks)
 

@@ -343,8 +343,8 @@ def main(argv: list[str] | None = None) -> int:
         from . import telemetry
         status = telemetry.api_status()
         if not status.get("connected"):
-            print("❌ SAGE requires API connection to use this command.")
-            print("\n🔐 Connect with GitHub (free, takes 30 seconds):")
+            print("SAGE requires API connection to use this command.")
+            print("\nConnect with GitHub (free, takes 30 seconds):")
             print("   sage connect")
             print("\nOr open the GUI and connect from Settings:")
             print("   sage gui")

@@ -43,6 +43,18 @@ class PersistentAIClient:
         })
         self.conversation_history = self.conversation_history[-8:]
 
+    def load_history(self, messages: list[dict]) -> None:
+        """Hydrate provider history from saved GUI session messages."""
+        with self._lock:
+            self.conversation_history = []
+            for message in messages[-8:]:
+                role = str(message.get("role", "user")).lower()
+                content = str(message.get("text") or message.get("content") or "").strip()
+                if not content:
+                    continue
+                provider_role = "user" if role == "user" else "assistant"
+                self._add_history(provider_role, content)
+
     def start_session(self) -> bool:
         """Initialize persistent session with the AI."""
         if self.session_active:
@@ -378,13 +390,13 @@ class PersistentAIClient:
                     streams_done[stream_name] = True
                     continue
 
-                visible = self._filter_codex_line(line, stream_name, visible_started, suppress_rest)
+                event_type, visible = self._classify_codex_line(line, stream_name, visible_started, suppress_rest)
                 visible_started = visible_started or visible == "__START__"
                 suppress_rest = suppress_rest or visible == "__STOP__"
 
                 if visible and visible not in {"__START__", "__STOP__"}:
                     assistant_text.append(visible)
-                    yield ("text", visible)
+                    yield (event_type or "text", visible)
 
             exit_code = process.wait()
             if exit_code != 0:
@@ -478,6 +490,33 @@ class PersistentAIClient:
             return line
         return line
 
+    def _classify_codex_line(
+        self,
+        line: str,
+        stream_name: str,
+        visible_started: bool,
+        suppress_rest: bool,
+    ) -> tuple[str | None, str | None]:
+        """Return a GUI event type plus filtered Codex output."""
+        visible = self._filter_codex_line(line, stream_name, visible_started, suppress_rest)
+        if not visible or visible in {"__START__", "__STOP__"}:
+            return None, visible
+
+        stripped = visible.strip()
+        lowered = stripped.lower()
+        if not stripped:
+            return "text", visible
+        if lowered.startswith(("reasoning", "thinking", "analysis")):
+            return "thinking", visible
+        if lowered.startswith(("tool:", "exec:", "command:", "running:", "apply_patch")):
+            return "tool", visible
+        if (
+            stripped.startswith(("```", "$", "diff --git", "@@", "+++", "---"))
+            or lowered.startswith(("coding", "editing", "modified", "created file", "updated file"))
+        ):
+            return "coding", visible
+        return "text", visible
+
     def _stream_ollama(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
         """Stream Ollama response with conversation history."""
         try:
@@ -522,7 +561,7 @@ class PersistentAIClient:
 
     def _stream_generic(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
         """Fallback to subprocess for unsupported AIs."""
-        yield ("error", "Generic streaming not implemented - using subprocess fallback")
+        yield ("error", f"No persistent streaming backend is configured for {self.ai_name}.")
 
     def clear_history(self):
         """Clear conversation history and start fresh."""

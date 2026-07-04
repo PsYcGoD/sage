@@ -10,6 +10,7 @@ from sage.gui.widgets.led_border import ThinkingOverlay
 from sage.gui.config import GUIConfig
 from sage.gui.cli_client import CLIClient, check_cli_available, _clean_for_display
 from sage.gui.persistent_ai_client import PersistentAIClient
+from sage.gui.session_manager import SessionManager
 from sage.store import connect, data_dir
 from sage.context import ContextManager
 from sage.agents import ensure_default_agents, get_agent_tasks_for_run, select_agents_for_command
@@ -204,6 +205,10 @@ class SAGEApp(ctk.CTk):
         self.max_context_chars = 14000
         self.pending_context_compression = None
 
+        # Session management
+        self.session_manager = SessionManager()
+        self.current_session_id = None
+
         # Row 2: Output view container (with LED border)
         output_container = ctk.CTkFrame(main_frame, fg_color="transparent")
         output_container.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
@@ -259,6 +264,9 @@ class SAGEApp(ctk.CTk):
 
         # Restore this project's chat memory after the welcome screen renders.
         self.after(700, lambda: self._load_saved_conversation(announce=True))
+
+        # Auto-create or load session for current project
+        self.current_session_id = self.session_manager.get_or_create_session(os.getcwd())
 
         # Session metric baseline
         self.session_start_commands = 0
@@ -1278,7 +1286,14 @@ class SAGEApp(ctk.CTk):
         if not self._confirm_company_mode_send(ai_name, command):
             self.output_view.append_text("\n[Cancelled by company mode preview]\n", "info")
             return False
-        contextual_command = self._build_contextual_prompt(command)
+        use_persistent_memory = (
+            ai_name != "claude"
+            and self.persistent_client is not None
+            and self.persistent_client.session_active
+        )
+        contextual_command = command if use_persistent_memory else self._build_contextual_prompt(command)
+        if use_persistent_memory:
+            self.pending_context_compression = None
 
         # SPAWN AGENTS for complex requests (word count > 50 or contains keywords)
         self._spawn_agents_if_needed(command)
@@ -1286,8 +1301,7 @@ class SAGEApp(ctk.CTk):
         if ai_name == "claude":
             return self._run_claude_cli_stream(contextual_command, visible_prompt=command)
 
-        # NO MORE MANUAL CONTEXT BUILDING - persistent client handles it!
-        # Just send the raw command - the SDK maintains conversation history!
+        # Persistent clients already carry conversation history; send raw text to avoid token waste.
         return self._run_persistent_client(contextual_command, ai_name, visible_prompt=command)
 
     def _run_claude_cli_stream(self, prompt: str, visible_prompt: str | None = None) -> bool:
@@ -1406,7 +1420,11 @@ class SAGEApp(ctk.CTk):
                     self._mark_tab_stream_event(tab_id)
 
                     if event_type == "thinking":
-                        queue_ui_text(content, "thinking_text")
+                        self.after(0, lambda c=content, view=output_view: view.append_expandable_section("Thinking", c, "thinking_text", collapsed=False))
+                    elif event_type == "coding":
+                        self.after(0, lambda c=content, view=output_view: view.append_expandable_section("Coding", c, "code", collapsed=False))
+                    elif event_type == "tool":
+                        self.after(0, lambda c=content, view=output_view: view.append_expandable_section("Tool Activity", c, "running", collapsed=False))
                     elif event_type == "text":
                         queue_ui_text(content)
                     elif event_type == "error":
@@ -2377,16 +2395,30 @@ class SAGEApp(ctk.CTk):
         )
 
     def _remember_conversation_turn(self, role: str, text: str):
-        """Keep recent chat context in memory for the next prompt."""
+        """Keep recent chat context AND save to session."""
         text = (text or "").strip()
         if not text:
             return
         text = self._strip_low_value_output(text)
         if len(text) > 3500:
             text = text[:1700] + "\n[Middle of long response trimmed for GUI memory]\n" + text[-1700:]
+
+        # Old in-memory storage (keep for backward compat)
         self.conversation_turns.append({"role": role, "text": text})
         self.conversation_turns = self.conversation_turns[-16:]
         self._persist_conversation()
+
+        # NEW: Save to SessionManager
+        if self.current_session_id:
+            try:
+                self.session_manager.add_message(
+                    os.getcwd(),
+                    self.current_session_id,
+                    role,
+                    text
+                )
+            except Exception:
+                pass  # Don't break if session save fails
 
     def _conversation_store_path(self) -> Path:
         return Path.home() / ".sage" / "conversations.json"
@@ -3324,166 +3356,55 @@ class SAGEApp(ctk.CTk):
         threading.Thread(target=self._fetch_sidebar_data, daemon=True).start()
 
     def _fetch_sidebar_data(self):
-        """Fetch sidebar data from database"""
+        """Fetch sidebar data from SessionManager"""
         try:
-            state = self._get_sidebar_state()
-            archived = set(map(str, state.get("archived", [])))
-            pinned = set(map(str, state.get("pinned", [])))
-            unread = set(map(str, state.get("unread", [])))
-            title_overrides = state.get("titles", {})
-            prompt_titles = state.get("prompts", {})
+            # Get all projects with their sessions from SessionManager
+            projects = self.session_manager.get_all_projects()
 
-            with connect() as conn:
-                rows = conn.execute("""
-                    SELECT id, command, created_at, exit_code, project, summary, session_id
-                    FROM runs
-                    WHERE command IS NOT NULL AND is_ai_session = 1
-                    ORDER BY created_at DESC
-                    LIMIT 120
-                """).fetchall()
-
-                groups_by_path = {}
-                session_groups = {}  # Group runs by session_id
-                for row in rows:
-                    chat_id, command, timestamp, exit_code, project, summary, session_id = row
-                    chat_key = str(chat_id)
-                    if chat_key in archived or self._is_sidebar_noise(command):
-                        continue
-
-                    # Group by session_id if present, otherwise treat as individual run
-                    if session_id:
-                        if session_id not in session_groups:
-                            session_groups[session_id] = {
-                                "first_run_id": chat_id,
-                                "first_timestamp": timestamp,
-                                "first_command": command,
-                                "first_summary": summary,
-                                "first_exit_code": exit_code,
-                                "project": project,
-                                "run_count": 0,
-                            }
-                        session_groups[session_id]["run_count"] += 1
-                        # Skip individual entries for session runs - we'll show the session instead
-                        continue
-
-                    project = project or os.getcwd()
-                    project_name = os.path.basename(project) or project
-                    group = groups_by_path.setdefault(project, {
-                        "path": project,
-                        "name": project_name,
-                        "run_count": 0,
-                        "last_used": timestamp,
-                        "latest_id": 0,
-                        "chats": [],
+            # Convert to sidebar format
+            groups = []
+            for project in projects:
+                sessions = project.get("sessions", [])
+                # Convert sessions to chat format for sidebar
+                chats = []
+                for session in sessions:
+                    chats.append({
+                        "id": session.get("id"),
+                        "title": session.get("title", "New Chat"),
+                        "display_title": session.get("title", "New Chat"),
+                        "relative_time": self._format_relative_time(session.get("updated_at", "")),
+                        "pinned": session.get("pinned", False),
+                        "unread": session.get("unread", False),
                     })
 
-                    title = (
-                        title_overrides.get(chat_key)
-                        or prompt_titles.get(chat_key)
-                        or self._chat_title_from_run(chat_id, command, summary)
-                    )
-                    group["run_count"] += 1
-                    group["latest_id"] = max(int(group.get("latest_id", 0)), int(chat_id))
-                    group["chats"].append({
-                        "id": chat_id,
-                        "title": title,
-                        "display_title": title,
-                        "ai_model": "SAGE",
-                        "timestamp": self._format_sidebar_time(timestamp),
-                        "relative_time": self._format_relative_time(timestamp),
-                        "exit_code": exit_code,
-                        "project": project,
-                        "project_name": project_name,
-                        "is_pinned": chat_key in pinned,
-                        "is_unread": chat_key in unread,
-                    })
+                groups.append({
+                    "path": project.get("path"),
+                    "name": project.get("name"),
+                    "session_count": project.get("session_count", 0),
+                    "run_count": project.get("session_count", 0),  # Compat
+                    "sessions": chats,
+                    "chats": chats,  # Compat with old sidebar code
+                })
 
-                # Now add session-grouped entries
-                for session_id, session_data in session_groups.items():
-                    project = session_data["project"] or os.getcwd()
-                    project_name = os.path.basename(project) or project
-                    group = groups_by_path.setdefault(project, {
-                        "path": project,
-                        "name": project_name,
-                        "run_count": 0,
-                        "last_used": session_data["first_timestamp"],
-                        "latest_id": 0,
-                        "chats": [],
-                    })
+            # Add current project if not in list
+            current_dir = os.getcwd()
+            if not any(g["path"] == current_dir for g in groups):
+                groups.insert(0, {
+                    "path": current_dir,
+                    "name": os.path.basename(current_dir) or "Current Directory",
+                    "session_count": 0,
+                    "run_count": 0,
+                    "sessions": [],
+                    "chats": [],
+                })
 
-                    chat_id = session_data["first_run_id"]
-                    chat_key = str(chat_id)
-                    title = (
-                        title_overrides.get(chat_key)
-                        or prompt_titles.get(chat_key)
-                        or self._chat_title_from_run(chat_id, session_data["first_command"], session_data["first_summary"])
-                    )
+            # Sort: current project first, then by most recent activity
+            groups.sort(key=lambda g: (g["path"] != current_dir, g.get("session_count", 0) == 0))
 
-                    # Add session indicator to title
-                    if session_data["run_count"] > 1:
-                        title = f"{title} ({session_data['run_count']} cmds)"
-
-                    group["run_count"] += 1
-                    group["latest_id"] = max(int(group.get("latest_id", 0)), int(chat_id))
-                    group["chats"].append({
-                        "id": chat_id,
-                        "title": title,
-                        "display_title": title,
-                        "ai_model": "SAGE",
-                        "timestamp": self._format_sidebar_time(session_data["first_timestamp"]),
-                        "relative_time": self._format_relative_time(session_data["first_timestamp"]),
-                        "exit_code": session_data["first_exit_code"],
-                        "project": project,
-                        "project_name": project_name,
-                        "is_pinned": chat_key in pinned,
-                        "is_unread": chat_key in unread,
-                        "session_id": session_id,
-                    })
-
-                groups = list(groups_by_path.values())
-                for group in groups:
-                    group["chats"].sort(
-                        key=lambda chat: (not chat.get("is_pinned", False), -int(chat["id"]))
-                    )
-
-                current_dir = os.getcwd()
-                remembered_projects = self.config.get("recent_projects", [])
-                if not isinstance(remembered_projects, list):
-                    remembered_projects = []
-
-                for item in remembered_projects:
-                    if not isinstance(item, dict):
-                        continue
-                    path = os.path.abspath(str(item.get("path", "")))
-                    if not path or path in groups_by_path:
-                        continue
-                    groups_by_path[path] = {
-                        "path": path,
-                        "name": item.get("name") or os.path.basename(path) or path,
-                        "run_count": 0,
-                        "chats": [],
-                        "last_used": item.get("last_used", ""),
-                        "latest_id": 0,
-                    }
-                    groups.append(groups_by_path[path])
-
-                if current_dir not in groups_by_path:
-                    group = {
-                        "path": current_dir,
-                        "name": os.path.basename(current_dir) or "Current Directory",
-                        "run_count": 0,
-                        "chats": [],
-                        "last_used": "Now",
-                        "latest_id": 0,
-                    }
-                    groups_by_path[current_dir] = group
-                    groups.insert(0, group)
-
-                groups.sort(key=lambda group: (group["path"] != current_dir, -int(group.get("latest_id", 0))))
-                self.after(0, lambda g=groups: self.sidebar.load_project_groups(g))
+            self.after(0, lambda g=groups: self.sidebar.load_project_groups(g))
 
         except Exception as e:
-            print(f"Sidebar DB Error: {e}")
+            print(f"Sidebar Error: {e}")
 
     def _format_sidebar_time(self, timestamp: str) -> str:
         """Return a compact timestamp for the sidebar."""
@@ -3663,9 +3584,35 @@ class SAGEApp(ctk.CTk):
         if save:
             self.config.save()
 
-    def load_chat(self, chat_id: int):
-        """Load a previous chat"""
+    def load_chat(self, session_id_or_chat_id):
+        """Load a session (new) or legacy chat (old)."""
         try:
+            # Try loading as session ID (string)
+            if isinstance(session_id_or_chat_id, str):
+                messages = self.session_manager.get_messages(os.getcwd(), session_id_or_chat_id)
+                if messages:
+                    self.current_session_id = session_id_or_chat_id
+                    self.conversation_turns = [
+                        {"role": msg.get("role", ""), "text": msg.get("text", "")}
+                        for msg in messages
+                        if msg.get("text")
+                    ][-16:]
+                    if self.persistent_client:
+                        self.persistent_client.load_history(messages)
+                    self.output_view.clear()
+                    for msg in messages:
+                        role = msg.get("role", "")
+                        text = msg.get("text", "")
+                        if role == "user":
+                            self.output_view.append_user_message(text)
+                        else:
+                            self.output_view.append_assistant_start(role.capitalize())
+                            self.output_view.append_assistant_text(f"{text}\n")
+                    self.session_manager.mark_unread(os.getcwd(), session_id_or_chat_id, False)
+                    self.load_sidebar_data()
+                    return
+
+            # Fallback: old database chat_id (int)
             with connect() as conn:
                 row = conn.execute(
                     """
@@ -3674,12 +3621,11 @@ class SAGEApp(ctk.CTk):
                     FROM runs
                     WHERE id = ?
                     """,
-                    (chat_id,),
+                    (int(session_id_or_chat_id),),
                 ).fetchone()
 
             if not row:
-                self.output_view.append_text(f"\nChat #{chat_id} was not found.\n", "error")
-                self.load_sidebar_data()
+                self.output_view.append_text(f"\nSession not found: {session_id_or_chat_id}\n", "error")
                 return
 
             state = self._get_sidebar_state()
@@ -3710,7 +3656,7 @@ class SAGEApp(ctk.CTk):
             if assistant_text:
                 self._remember_conversation_turn("assistant", assistant_text)
         except Exception as e:
-            self.output_view.append_text(f"\nERROR: Could not load chat #{chat_id}: {e}\n", "error")
+            self.output_view.append_text(f"\nERROR: Could not load: {e}\n", "error")
 
     def _format_saved_output(self, text: str) -> str:
         """Convert saved raw output into readable chat text."""
@@ -3942,6 +3888,14 @@ class SAGEApp(ctk.CTk):
             self.load_sidebar_data()
             return
 
+        if action == "show_scheduled":
+            self._show_local_response(self._format_scheduled_view())
+            return
+
+        if action == "show_plugins":
+            self._show_local_response(self._format_plugins_view())
+            return
+
         chat_id = str(chat.get("id"))
         project = str(chat.get("project") or os.getcwd())
         state = self._get_sidebar_state()
@@ -4014,10 +3968,34 @@ class SAGEApp(ctk.CTk):
             return
 
         if action == "fork_worktree":
-            self.output_view.append_text(
-                "\nFork into new worktree needs a Git branch name. Settings now has GitHub connect, and the branch picker can be added next.\n",
-                "info",
-            )
+            branch_dialog = ctk.CTkInputDialog(text="Branch name:", title="Fork into worktree")
+            branch = (branch_dialog.get_input() or "").strip()
+            if not branch:
+                return
+            if not os.path.isdir(project):
+                self.output_view.append_text(f"\nProject folder not found: {project}\n", "error")
+                return
+            target = str(Path(project).parent / f"{Path(project).name}-{branch.replace('/', '-')}")
+            try:
+                import subprocess
+
+                result = subprocess.run(
+                    ["git", "worktree", "add", "-b", branch, target],
+                    cwd=project,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=120,
+                )
+                if result.returncode == 0:
+                    self.output_view.append_text(f"\nCreated worktree for chat #{chat_id}:\n{target}\n", "info")
+                    self._remember_project(target)
+                    self.load_sidebar_data()
+                else:
+                    self.output_view.append_text(f"\nERROR: git worktree failed:\n{result.stderr or result.stdout}\n", "error")
+            except Exception as e:
+                self.output_view.append_text(f"\nERROR: Could not create worktree: {e}\n", "error")
             return
 
         if action == "open_new_window":
@@ -4036,32 +4014,91 @@ class SAGEApp(ctk.CTk):
                 self.output_view.append_text(f"\nERROR: Could not open new SAGE window: {e}\n", "error")
             return
 
+    def _format_scheduled_view(self) -> str:
+        """Return a real scheduled/workflow status view for the sidebar button."""
+        lines = ["Scheduled workflows and background work:"]
+        with connect() as conn:
+            workflows = conn.execute(
+                """
+                SELECT workflow_name, status, steps_completed, steps_total, started_at, completed_at
+                FROM workflow_runs
+                ORDER BY id DESC
+                LIMIT 12
+                """
+            ).fetchall()
+            agent_runs = conn.execute(
+                """
+                SELECT status, COUNT(*) as n
+                FROM agent_runs
+                WHERE status IN ('queued', 'running', 'waiting_for_tool')
+                GROUP BY status
+                """
+            ).fetchall()
+        if agent_runs:
+            lines.append("\nAgent queue:")
+            for row in agent_runs:
+                lines.append(f"- {row['status']}: {row['n']}")
+        if workflows:
+            lines.append("\nRecent workflows:")
+            for row in workflows:
+                lines.append(
+                    f"- {row['workflow_name']} [{row['status']}] "
+                    f"{row['steps_completed'] or 0}/{row['steps_total'] or 0} "
+                    f"started {row['started_at']}"
+                )
+        if not agent_runs and not workflows:
+            lines.append("- No scheduled or running work is currently recorded.")
+        return "\n".join(lines) + "\n"
+
+    def _format_plugins_view(self) -> str:
+        """Return installed plugin/cache information for the sidebar button."""
+        roots = [
+            Path.home() / ".codex" / "plugins" / "cache",
+            Path.home() / ".codex" / "plugins",
+        ]
+        found = []
+        for root in roots:
+            if not root.exists():
+                continue
+            for path in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+                if path.is_dir():
+                    found.append(path)
+        lines = ["Installed plugin/cache folders:"]
+        if found:
+            for path in found[:40]:
+                lines.append(f"- {path.name}: {path}")
+        else:
+            lines.append("- No plugin folders found in the standard Codex plugin paths.")
+        return "\n".join(lines) + "\n"
+
 
     def new_chat_with_folder_picker(self):
-        """Open folder picker to start new chat in selected project."""
-        folder = filedialog.askdirectory(
-            title="Select Project Folder for New Chat",
-            initialdir=os.getcwd()
+        """Create NEW session in current project (NOT clearing existing chats!)"""
+        # NO folder picker - just create new session in current project
+        current_project = os.getcwd()
+
+        # Create new session
+        session_id = self.session_manager.create_session(current_project, title="New Chat")
+        self.current_session_id = session_id
+
+        # Clear ONLY in-memory conversation (not persisted sessions!)
+        self.conversation_turns = []
+        self.project_memory_turns = []
+
+        # Clear persistent AI client history
+        if hasattr(self, 'persistent_client') and self.persistent_client:
+            self.persistent_client.clear_history()
+
+        # Clear output
+        self.output_view.clear()
+        self.output_view.append_text(
+            f"✨ New chat session created: {session_id}\n\n",
+            "info"
         )
 
-        if folder:
-            # Switch to selected folder
-            os.chdir(folder)
-            self._remember_project(folder)
-            self.project_memory_turns = []
-            self.conversation_turns = []
-            self._persist_conversation()
-            if self.active_output_tab_id in self.output_tabs:
-                self.output_tabs[self.active_output_tab_id]["project"] = folder
-            self.output_view.clear()
-            self.output_view.append_text(
-                f"New chat started in: {folder}\n\n",
-                "info"
-            )
-            # Reload sidebar with new project
-            self.project_label.configure(text=f"Project: {folder}")
-            self.load_sidebar_data()
-            self._render_output_tabs()
+        # Reload sidebar to show new session
+        self.load_sidebar_data()
+        self._render_output_tabs()
 
     def switch_project(self, project_path: str):
         """Switch to a different project directory"""

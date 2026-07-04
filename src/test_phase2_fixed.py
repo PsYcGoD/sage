@@ -1,10 +1,11 @@
-﻿    # Test MCP config
-    config_path = Path(__file__).parent.parent / "sage-mcp.json"
-    try:
-        with open(config_path) as f:
-            config = json.load(f)
-        print(f"\n[OK] MCP config file exists")
-        print(f"  Server name: {config['name']}")
-        print(f"  Tools: {len(config['tools'])}")
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"\n[SKIP] MCP config issue: {e}")
+"""Legacy phase-2 smoke snippet.
+
+This file used to contain an indented fragment from an old manual MCP check,
+which made `python -m compileall src tests` fail. The active automated tests
+now live under `tests/`.
+"""
+
+
+def test_phase2_fixed_legacy_placeholder() -> None:
+    """Keep the legacy module importable without running stale checks."""
+    return None

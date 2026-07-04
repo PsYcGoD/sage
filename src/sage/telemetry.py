@@ -638,7 +638,10 @@ def sync_all_runs(*, dry_run: bool = False, batch_size: int = 50) -> dict[str, A
         if (int(result.get("sent", 0)) == 0 and int(result.get("failed", 0)) == 0) or remaining == 0:
             break
     final_queue = queue_status()
-    snapshot = send_proof_snapshot() if final_queue.get("queued", 0) == 0 else {"ok": False, "skipped": "queue-not-empty"}
+    try:
+        snapshot = send_proof_snapshot()
+    except Exception as exc:
+        snapshot = {"ok": False, "error": str(exc)}
     return {
         "queued_all": queued,
         "sent": total_sent,

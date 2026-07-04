@@ -23,11 +23,10 @@ def send_batch_background(limit: int = 20) -> None:
 
         # Send batch (non-dry-run)
         result = telemetry.send_queued(dry_run=False, limit=limit)
-        if telemetry.queue_status().get("queued", 0) == 0:
-            try:
-                telemetry.send_proof_snapshot()
-            except Exception:
-                pass
+        try:
+            telemetry.send_proof_snapshot()
+        except Exception:
+            pass
 
         # Log to file for debugging (optional)
         log_path = telemetry.data_dir() / "telemetry_sender.log"

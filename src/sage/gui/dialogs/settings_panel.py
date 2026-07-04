@@ -340,11 +340,12 @@ class SettingsPanel(ctk.CTkToplevel):
         def worker():
             try:
                 from sage import telemetry
-                from sage.github_oauth import github_oauth_flow
+                from sage.github_oauth import github_device_flow, github_oauth_flow
                 from sage.install import install_sage_system_wide, is_sage_installed_system_wide
 
                 result = None
                 gh_error = None
+                device_error = None
 
                 try:
                     self.after(0, lambda: self.sage_api_status.configure(
@@ -359,6 +360,31 @@ class SettingsPanel(ctk.CTkToplevel):
                     )
                 except Exception as exc:
                     gh_error = exc
+
+                if result is None:
+                    try:
+                        self.after(0, lambda: self.sage_api_status.configure(
+                            text="Opening GitHub device login...",
+                            text_color="gray65",
+                        ))
+
+                        device_result = github_device_flow(
+                            status_callback=lambda message: self.after(
+                                0,
+                                lambda text=message: self.sage_api_status.configure(
+                                    text=text,
+                                    text_color="gray65",
+                                ),
+                            )
+                        )
+                        result = telemetry.api_github_login(
+                            github_access_token=device_result["access_token"],
+                            display_name=display_name,
+                            public_profile=public_profile,
+                            expiry_days=expiry_days,
+                        )
+                    except Exception as exc:
+                        device_error = exc
 
                 if result is None:
                     try:
@@ -385,7 +411,10 @@ class SettingsPanel(ctk.CTkToplevel):
                         )
                     except Exception as oauth_exc:
                         raise RuntimeError(
-                            f"GitHub CLI login failed: {gh_error}. Browser login failed: {oauth_exc}"
+                            "All GitHub login methods failed. "
+                            f"GitHub CLI: {gh_error}. "
+                            f"Device login: {device_error}. "
+                            f"Browser login: {oauth_exc}"
                         ) from oauth_exc
 
                 profile_name = result.get("display_name") or result.get("username") or ""

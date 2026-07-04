@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from ..store import connect
+from .tokens import count_tokens
 
 
 class TokenTracker:
@@ -89,14 +90,8 @@ class TokenTracker:
         }
 
     def estimate_tokens(self, text: str) -> int:
+        """Count tokens using the shared real tokenizer (tiktoken cl100k_base).
+
+        Falls back to a character heuristic only if tiktoken is unavailable.
         """
-        Estimate token count.
-        
-        Rough estimation: ~4 chars per token for English.
-        """
-        if not text:
-            return 0
-        
-        # Simple estimation
-        # More accurate: use tiktoken library
-        return len(text) // 4
+        return count_tokens(text)

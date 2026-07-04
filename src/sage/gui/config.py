@@ -16,47 +16,68 @@ class GUIConfig:
 
     DEFAULT_CONFIG = {
         "personal_mode": False,
+        "permission_mode": "ask",
         "system_prompts": {
             "claude": ["~/.claude/SAGE-INTEGRATION.md"],
+            "bedrock": ["~/.claude/SAGE-INTEGRATION.md"],
             "codex": ["~/.claude/SAGE-INTEGRATION.md"],
-            "gpt4": [],
-            "gemini": [],
-            "custom": []
+            "ollama": ["~/.claude/SAGE-INTEGRATION.md"],
+            "gemini": ["~/.claude/SAGE-INTEGRATION.md"],
+            "llama": ["~/.claude/SAGE-INTEGRATION.md"],
+            "mistral": ["~/.claude/SAGE-INTEGRATION.md"]
         },
         "ai_commands": {
-            "claude": "claude",
-            "codex": "codex",
-            "gpt4": "aichat -m gpt-4",
-            "gemini": "aichat -m gemini",
-            "custom": ""
+            "claude": "sage run -- claude",
+            "bedrock": "direct",
+            "codex": "sage run -- codex exec",
+            "ollama": "direct",
+            "gemini": "sage run -- aichat -m gemini",
+            "llama": "sage run -- aichat -m llama",
+            "mistral": "sage run -- aichat -m mistral"
         },
         "theme": "dark",
+        "output_light_mode": False,
+        "run_in_external_terminal": False,
+        "run_in_embedded_terminal": True,
         "auto_compress": True,
-        "default_ai": "claude"
+        "default_ai": "claude",
+        "current_project": "",
+        "recent_projects": []
     }
 
     PERSONAL_CONFIG = {
         "personal_mode": True,
+        "permission_mode": "full",
         "system_prompts": {
             "claude": [
-                "<USER_HOME>\\.claude\\CLAUDE-FABLE-5.md",
-                "<USER_HOME>\\.claude\\SAGE-INTEGRATION.md"
+                "~/.claude/CLAUDE-FABLE-5.md",
+                "~/.claude/SAGE-INTEGRATION.md"
             ],
-            "codex": ["<USER_HOME>\\.claude\\SAGE-INTEGRATION.md"],
-            "gpt4": [],
-            "gemini": [],
-            "custom": []
+            "codex": ["~/.claude/SAGE-INTEGRATION.md"],
+            "ollama": [
+                "~/.claude/CLAUDE-FABLE-5.md",
+                "~/.claude/SAGE-INTEGRATION.md"
+            ],
+            "gemini": ["~/.claude/SAGE-INTEGRATION.md"],
+            "llama": ["~/.claude/SAGE-INTEGRATION.md"],
+            "mistral": ["~/.claude/SAGE-INTEGRATION.md"]
         },
         "ai_commands": {
-            "claude": "claude --dangerously-skip-permissions",
-            "codex": "codex",
-            "gpt4": "aichat -m gpt-4",
-            "gemini": "aichat -m gemini",
-            "custom": ""
+            "claude": "sage run -- claude --dangerously-skip-permissions",
+            "codex": "sage run -- codex exec --dangerously-bypass-approvals-and-sandbox",
+            "ollama": "sage run -- ollama run qwen2.5-coder:7b",
+            "gemini": "sage run -- aichat -m gemini",
+            "llama": "sage run -- aichat -m llama",
+            "mistral": "sage run -- aichat -m mistral"
         },
         "theme": "dark",
+        "output_light_mode": False,
+        "run_in_external_terminal": False,
+        "run_in_embedded_terminal": True,
         "auto_compress": True,
-        "default_ai": "claude"
+        "default_ai": "claude",
+        "current_project": "",
+        "recent_projects": []
     }
 
     def __init__(self):
@@ -77,7 +98,7 @@ class GUIConfig:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                     # Merge with defaults to ensure all keys exist
-                    return self._merge_configs(self.DEFAULT_CONFIG.copy(), config)
+                    return self._normalize_config(self._merge_configs(self.DEFAULT_CONFIG.copy(), config))
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Error loading config: {e}. Using defaults.")
                 return self._detect_and_save_config()
@@ -87,10 +108,10 @@ class GUIConfig:
     def _detect_and_save_config(self) -> Dict[str, Any]:
         """Detect personal vs public mode and save initial config."""
         # Check if personal mode files exist
-        personal_prompt = Path("<USER_HOME>\\.claude\\CLAUDE-FABLE-5.md")
+        personal_prompt = Path.home() / ".claude" / "CLAUDE-FABLE-5.md"
         is_personal = personal_prompt.exists()
 
-        config = self.PERSONAL_CONFIG.copy() if is_personal else self.DEFAULT_CONFIG.copy()
+        config = self._normalize_config(self.PERSONAL_CONFIG.copy() if is_personal else self.DEFAULT_CONFIG.copy())
 
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
@@ -109,6 +130,55 @@ class GUIConfig:
             else:
                 result[key] = value
         return result
+
+    def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Keep critical GUI runtime settings consistent."""
+        personal_fable = Path.home() / ".claude" / "CLAUDE-FABLE-5.md"
+        bundled_fable = Path(__file__).resolve().parents[3] / "CLAUDE-FABLE-5.md"
+        fable = str(personal_fable if personal_fable.exists() else bundled_fable)
+        integration = str(Path.home() / ".claude" / "SAGE-INTEGRATION.md")
+        old_admin_fable = "<USER_HOME>\\.claude\\CLAUDE-FABLE-5.md"
+        old_admin_integration = "<USER_HOME>\\.claude\\SAGE-INTEGRATION.md"
+
+        prompts = config.setdefault("system_prompts", {})
+        for ai in ["claude", "ollama"]:
+            values = prompts.get(ai, [])
+            if not isinstance(values, list):
+                values = []
+            blocked = {
+                fable,
+                integration,
+                str(personal_fable),
+                str(bundled_fable),
+                old_admin_fable,
+                old_admin_integration,
+                "~/.claude/CLAUDE-FABLE-5.md",
+                "~/.claude/SAGE-INTEGRATION.md",
+            }
+            values = [p for p in values if p and p not in blocked]
+            # Keep SAGE integration loaded, then append FABLE-5 last so the
+            # user's personal operating profile is not diluted by later files.
+            values = [integration, *values, fable]
+            prompts[ai] = values
+
+        commands = config.setdefault("ai_commands", {})
+
+        # All commands MUST run through sage wrapper for token tracking
+        required_commands = {
+            "claude": "sage run -- claude --print --output-format stream-json --include-partial-messages",
+            "codex": "sage run -- codex exec --json --skip-git-repo-check",
+            "ollama": "sage run -- ollama run qwen2.5-coder:7b",
+            "gemini": "sage run -- aichat -m gemini",
+            "llama": "sage run -- aichat -m llama",
+            "mistral": "sage run -- aichat -m mistral",
+        }
+        commands.update(required_commands)
+
+        config.setdefault("recent_projects", [])
+        config.setdefault("current_project", "")
+        config.setdefault("run_in_external_terminal", False)
+        config.setdefault("run_in_embedded_terminal", True)
+        return config
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value."""
@@ -152,6 +222,15 @@ class GUIConfig:
     def is_auto_compress_enabled(self) -> bool:
         """Check if auto-compression is enabled."""
         return self.config.get("auto_compress", True)
+
+    def get_permission_mode(self) -> str:
+        """Get the current permission mode (ask/approve/full)."""
+        return self.config.get("permission_mode", "ask")
+
+    def set_permission_mode(self, mode: str) -> None:
+        """Set the permission mode."""
+        if mode in ["ask", "approve", "full"]:
+            self.config["permission_mode"] = mode
 
 
 # Global config instance

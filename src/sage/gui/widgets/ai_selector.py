@@ -11,7 +11,7 @@ from typing import Callable, Optional
 class AISelector(ctk.CTkFrame):
     """AI selection dropdown widget."""
 
-    AI_OPTIONS = ["Claude", "Codex", "GPT-4", "Gemini", "Custom"]
+    AI_OPTIONS = ["Claude", "Bedrock", "Codex", "Ollama", "Gemini"]
 
     def __init__(
         self,
@@ -80,10 +80,10 @@ class AISelector(ctk.CTkFrame):
         # Convert internal format to display format
         ai_map = {
             "claude": "Claude",
+            "bedrock": "Bedrock",
             "codex": "Codex",
-            "gpt4": "GPT-4",
-            "gemini": "Gemini",
-            "custom": "Custom"
+            "ollama": "Ollama",
+            "gemini": "Gemini"
         }
         display_name = ai_map.get(ai.lower(), "Claude")
         self.dropdown.set(display_name)

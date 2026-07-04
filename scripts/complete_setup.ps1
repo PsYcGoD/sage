@@ -237,8 +237,8 @@ Write-Host "🧪 Test your deployment:" -ForegroundColor Cyan
 Write-Host "   sage connect" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "📚 Documentation:" -ForegroundColor Cyan
-Write-Host "   • GITHUB_OAUTH_SETUP.md" -ForegroundColor Gray
-Write-Host "   • SECURITY_HARDENING.md" -ForegroundColor Gray
+Write-Host "   • README.md" -ForegroundColor Gray
+Write-Host "   • AGENTS.md" -ForegroundColor Gray
 Write-Host ""
 Write-Host "🎉 Users can now authenticate with GitHub!" -ForegroundColor Green
 Write-Host ""

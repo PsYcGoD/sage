@@ -25,6 +25,17 @@ Current public proof includes:
 - ML prediction scoring from local command history
 - Private visitor stats for the owner through `sage api visitors`
 
+Latest verified snapshot:
+
+| Metric | Value |
+|--------|------:|
+| **Commands processed** | 2,905 |
+| **Tokens processed** | 20,398,361 |
+| **Tokens compressed** | 1,616,965 |
+| **Tokens saved** | 18,781,396 |
+| **Compression rate** | 92.07% |
+| **Success rate** | 92.43% |
+
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
 ---
@@ -50,7 +61,7 @@ Want early access or help trying it? **Comment or DM for early access.**
 S.A.G.E provides a complete AI orchestration layer with:
 - **🖥️ Beautiful Desktop GUI** - Modern interface with zero configuration required (`sage gui`)
 - **🎯 Auto-Integration** - Install once (`pip install -e .`) so AI coding agents can route commands through `sage run --`
-- **💰 99.3% token compression** - Automatic output optimization solving local assistant's context exhaustion
+- **💰 Est. 99.3% token compression** - Automatic output optimization solving local assistant's context exhaustion
 - **🔧 Auto-fix engine** - ML-powered error detection and automatic fixes with confidence scoring
 - **🤖 Multi-agent coordination** - Parallel AI agents handling complex tasks simultaneously
 - **📋 Workflow automation** - YAML-based pipelines for repeatable processes
@@ -279,8 +290,8 @@ sage mcp start
 ### Context Compression Results
 | Metric | Value |
 |--------|-------|
-| **Average Compression** | 95-99% |
-| **Peak Compression** | 99.3% (149 tokens → 1 token) |
+| **Average Compression** | 90-99% |
+| **Peak Compression** | est. 99.3% (149 tokens → 1 token) |
 | **Token Savings per Command** | ~50-200 tokens |
 | **Cost Savings per Command** | $0.0001-$0.0006 |
 | **Annual Savings (1000 cmds)** | ~$0.50-$1.00 |
@@ -354,7 +365,7 @@ sage/
 │       └── database.py       # Cross-project patterns
 │
 ├── tests/                    # Test suite
-├── SAGE_V2_COMPLETE.md      # Complete documentation
+├── docs/                    # Architecture notes and public screenshots
 ├── README.md                 # This file
 └── pyproject.toml           # Project configuration
 ```
@@ -600,13 +611,14 @@ ruff check src/ tests/
 - [ ] Team collaboration features
 - [ ] Custom agent SDK
 - [ ] Plugin marketplace
+- [ ] Live Testing (Beta)
 
 ---
 
 ## 📖 Documentation
 
 ### Complete Documentation
-- **[SAGE_V2_COMPLETE.md](SAGE_V2_COMPLETE.md)** - Full implementation guide (10,000+ words)
+- **[docs/AGENT_LAYER_IMPLEMENTATION.md](docs/AGENT_LAYER_IMPLEMENTATION.md)** - Agent-layer implementation details
 
 ### Quick Links
 - Installation Guide: See [Installation](#-installation)
@@ -619,7 +631,7 @@ ruff check src/ tests/
 ## 🎓 Learning Resources
 
 ### Tutorials
-1. **Getting Started**: Run your first command in 5 minutes
+1. **Getting Started**: Run your first command in 2 minutes
 2. **Auto-Fix Mastery**: Set up automatic error resolution
 3. **Workflow Creation**: Build custom YAML pipelines
 4. **Agent Development**: Create custom AI agents
@@ -653,7 +665,7 @@ sage context stats    # See 99% compression
 A: No. All data stays local in SQLite. Privacy-first design.
 
 **Q: How much does SAGE save in API costs?**  
-A: With 99.3% compression, you can run 100x more commands before hitting context limits. At $3/million tokens, that's $0.0004+ saved per command.
+A: With an estimated 99.3% peak compression, you can run far more commands before hitting context limits. At $3/million tokens, that's $0.0004+ saved per command.
 
 **Q: Can I use SAGE without MCP-compatible client?**  
 A: Yes! SAGE works standalone. MCP integration is optional.
@@ -695,8 +707,8 @@ MIT License - See [LICENSE](LICENSE) for details.
 - **Feb 2026**: Multi-agent orchestration
 - **Mar 2026**: Workflow automation, dashboard
 - **Apr 2026**: MCP integration, ML prediction
-- **May 2026**: NLP parser, global intelligence
-- **Jun 2026**: Testing, optimization, documentation
+- **May 2026**: NLP parser, global intelligence, testing
+- **Jun 2026**: Live testing, optimization, documentation
 - **Jul 2026**: Production release, performance tuning
 
 ### Credits
@@ -709,7 +721,7 @@ Built with ❤️ using:
 
 ---
 
-## 📞 Contact & Support
+## Support
 
 - **GitHub**: [https://github.com/PsYcGoD/sage](https://github.com/PsYcGoD/sage)
 - **Issues**: [GitHub Issues](https://github.com/PsYcGoD/sage/issues)
@@ -739,6 +751,6 @@ cd sage && pip install -e .
 
 ---
 
-**Made with 🧠 by developers, for developers.**
+**Made with PsYc+GoD AI & ML**
 
 *Transform your AI coding workflow today with S.A.G.E V2.0*

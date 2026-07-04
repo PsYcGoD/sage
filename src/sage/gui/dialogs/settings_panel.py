@@ -335,7 +335,7 @@ class SettingsPanel(ctk.CTkToplevel):
         expiry_days = int(expiry_text.split()[0])  # Extract number
 
         self.sage_api_connect_btn.configure(state="disabled", text="Connecting...")
-        self.sage_api_status.configure(text="Starting GitHub authentication...", text_color="gray65")
+        self.sage_api_status.configure(text="Checking GitHub login...", text_color="gray65")
 
         def worker():
             try:
@@ -343,38 +343,51 @@ class SettingsPanel(ctk.CTkToplevel):
                 from sage.github_oauth import github_oauth_flow
                 from sage.install import install_sage_system_wide, is_sage_installed_system_wide
 
-                # Run GitHub OAuth flow
-                oauth_result = github_oauth_flow()
+                result = None
+                gh_error = None
 
-                if not oauth_result.get("auth_code"):
-                    raise RuntimeError("GitHub authentication cancelled")
+                try:
+                    self.after(0, lambda: self.sage_api_status.configure(
+                        text="Using existing GitHub CLI login...",
+                        text_color="gray65",
+                    ))
+                    result = self._connect_sage_api_with_gh_token(
+                        display_name=display_name,
+                        public_profile=public_profile,
+                        expiry_days=expiry_days,
+                        original_error=RuntimeError("Browser OAuth was not attempted"),
+                    )
+                except Exception as exc:
+                    gh_error = exc
 
-                self.after(0, lambda: self.sage_api_status.configure(
-                    text="GitHub approved. Creating SAGE API key...",
-                    text_color="gray65",
-                ))
+                if result is None:
+                    try:
+                        self.after(0, lambda: self.sage_api_status.configure(
+                            text="Opening GitHub browser login...",
+                            text_color="gray65",
+                        ))
+                        oauth_result = github_oauth_flow()
 
-                # Send to SAGE API
-                result = telemetry.api_github_login(
-                    auth_code=oauth_result["auth_code"],
-                    redirect_uri=oauth_result.get("redirect_uri", ""),
-                    display_name=display_name,
-                    public_profile=public_profile,
-                    expiry_days=expiry_days,
-                )
-            except Exception as oauth_exc:
-                self.after(0, lambda: self.sage_api_status.configure(
-                    text="Browser OAuth was rejected. Trying GitHub CLI login...",
-                    text_color="gray65",
-                ))
-                result = self._connect_sage_api_with_gh_token(
-                    display_name=display_name,
-                    public_profile=public_profile,
-                    expiry_days=expiry_days,
-                    original_error=oauth_exc,
-                )
+                        if not oauth_result.get("auth_code"):
+                            raise RuntimeError("GitHub authentication cancelled")
 
-            try:
+                        self.after(0, lambda: self.sage_api_status.configure(
+                            text="GitHub approved. Creating SAGE API key...",
+                            text_color="gray65",
+                        ))
+
+                        result = telemetry.api_github_login(
+                            auth_code=oauth_result["auth_code"],
+                            redirect_uri=oauth_result.get("redirect_uri", ""),
+                            display_name=display_name,
+                            public_profile=public_profile,
+                            expiry_days=expiry_days,
+                        )
+                    except Exception as oauth_exc:
+                        raise RuntimeError(
+                            f"GitHub CLI login failed: {gh_error}. Browser login failed: {oauth_exc}"
+                        ) from oauth_exc
+
                 profile_name = result.get("display_name") or result.get("username") or ""
                 if profile_name:
                     self.config.set("profile_name", profile_name)

@@ -4,17 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sage"
-version = "0.1.0"
+version = "2.0.0"
 description = "Smart Agent Guidance Engine for developer automation tools."
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+  "joblib>=1.3",
+  "pandas>=2.0",
+  "pywinpty>=2.0; platform_system == 'Windows'",
+  "scikit-learn>=1.3",
+  "tiktoken>=0.7",
+]
 license = { text = "MIT" }
 authors = [
   { name = "PsYcGoD" }
 ]
 keywords = ["ai", "cli", "terminal", "debugging", "local assistant", "terminal agent"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
@@ -28,3 +35,11 @@ sage = "sage.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not gui and not live' --ignore=tests/live --ignore=tests/tests"
+markers = [
+  "gui: needs a Tk/Tcl display; excluded by default and in CI",
+  "live: spawns real CLIs or long-running processes; excluded by default and in CI",
+]

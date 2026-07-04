@@ -78,10 +78,10 @@ S.A.G.E provides a complete AI orchestration layer with:
 #### 3. **Multi-Agent Orchestration** 🤖
 *Parallel Task Execution*
 - Async agent coordination with task queues
-- 10+ concurrent agents supported
+- 24 built-in agent roles with concurrent execution support
 - Inter-agent communication protocol
 - Status tracking and health monitoring
-- Built-in agent types: Code, Test, Review, Deploy
+- Built-in agent families: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, auditor
 - **Commands**: `sage agents list`, `sage agents status`
 
 #### 4. **Workflow Automation** 📋
@@ -273,7 +273,7 @@ sage mcp start
 - **Database Tables**: 9 tables
 - **CLI Commands**: 21 commands
 - **MCP Tools**: 6 exposed tools
-- **Agent Types**: 5 built-in agents
+- **Agent Types**: 24 built-in agents
 
 ---
 

@@ -1073,8 +1073,10 @@ class SAGEApp(ctk.CTk):
                 self.status_indicator.configure(text_color="red")
                 self._save_active_output_tab_state()
                 self._render_output_tabs()
+                diagnostic = getattr(self.persistent_client, "last_error", "") or "No diagnostic was reported."
                 self.output_view.append_text(
                     f"ERROR: Could not start {ai_name.capitalize()} persistent session!\n\n"
+                    f"Diagnostic:\n{diagnostic}\n\n"
                     f"Requirements:\n"
                     f"- Claude: ANTHROPIC_API_KEY env var or logged in via 'claude auth login'\n"
                     f"- Codex: logged in via 'codex login'\n"
@@ -3398,6 +3400,56 @@ class SAGEApp(ctk.CTk):
                     "chats": [],
                 })
 
+            # Merge older run-backed chats into the same project groups. These
+            # are loaded by integer run id through the legacy load_chat path.
+            try:
+                from sage.store import connect
+
+                by_path = {str(group.get("path")): group for group in groups}
+                with connect() as conn:
+                    rows = conn.execute(
+                        """
+                        SELECT id, project, command, summary, created_at
+                        FROM runs
+                        ORDER BY id DESC
+                        LIMIT 250
+                        """
+                    ).fetchall()
+
+                for row in rows:
+                    command = str(row["command"] or "")
+                    if self._is_sidebar_noise(command):
+                        continue
+                    project_path = str(row["project"] or current_dir)
+                    group = by_path.get(project_path)
+                    if group is None:
+                        group = {
+                            "path": project_path,
+                            "name": os.path.basename(project_path) or project_path,
+                            "session_count": 0,
+                            "run_count": 0,
+                            "sessions": [],
+                            "chats": [],
+                        }
+                        groups.append(group)
+                        by_path[project_path] = group
+
+                    chats = group.setdefault("chats", group.get("sessions", []))
+                    if any(str(chat.get("id")) == str(row["id"]) for chat in chats):
+                        continue
+                    chats.append({
+                        "id": int(row["id"]),
+                        "title": self._chat_title_from_run(int(row["id"]), command, str(row["summary"] or "")),
+                        "display_title": self._chat_title_from_run(int(row["id"]), command, str(row["summary"] or "")),
+                        "relative_time": self._format_relative_time(str(row["created_at"] or "")),
+                        "project": project_path,
+                    })
+                    group["sessions"] = chats
+                    group["session_count"] = len(chats)
+                    group["run_count"] = len(chats)
+            except Exception as exc:
+                print(f"Sidebar legacy history error: {exc}")
+
             # Sort: current project first, then by most recent activity
             groups.sort(key=lambda g: (g["path"] != current_dir, g.get("session_count", 0) == 0))
 
@@ -4051,24 +4103,35 @@ class SAGEApp(ctk.CTk):
         return "\n".join(lines) + "\n"
 
     def _format_plugins_view(self) -> str:
-        """Return installed plugin/cache information for the sidebar button."""
+        """Return useful plugin/cache information for the plugin command."""
+        plugins = self._scan_plugins()
         roots = [
             Path.home() / ".codex" / "plugins" / "cache",
             Path.home() / ".codex" / "plugins",
         ]
-        found = []
-        for root in roots:
-            if not root.exists():
-                continue
-            for path in sorted(root.iterdir(), key=lambda p: p.name.lower()):
-                if path.is_dir():
-                    found.append(path)
-        lines = ["Installed plugin/cache folders:"]
-        if found:
-            for path in found[:40]:
-                lines.append(f"- {path.name}: {path}")
+        lines = ["Codex plugins"]
+        if plugins:
+            lines.append(f"Installed: {len(plugins)}")
+            for item in plugins[:40]:
+                version = f" v{item['version']}" if item.get("version") else ""
+                lines.append(f"- {item['name']}{version}")
+                lines.append(f"  Path: {item['path']}")
+            if len(plugins) > 40:
+                lines.append(f"...and {len(plugins) - 40} more")
         else:
-            lines.append("- No plugin folders found in the standard Codex plugin paths.")
+            lines.append("No plugin bundles found in the standard Codex plugin paths.")
+
+        lines.extend([
+            "",
+            "How to use:",
+            "- Install/connect plugins in Codex Desktop or place plugin bundles under the paths below.",
+            "- Restart or reconnect Codex in SAGE after installing a plugin.",
+            "- Ask Codex to use a plugin by name; available plugin skills are loaded by the Codex runtime.",
+            "",
+            "Plugin paths:",
+        ])
+        for root in roots:
+            lines.append(f"- {root}")
         return "\n".join(lines) + "\n"
 
 

@@ -10,6 +10,25 @@
 
 ---
 
+## Live Public Proof Dashboard
+
+S.A.G.E now publishes a privacy-safe public proof dashboard for aggregate token and context savings:
+
+**Live dashboard**: [https://sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
+
+![SAGE Live Public Proof Dashboard](docs/assets/sage-live-dashboard.png)
+
+Current public proof includes:
+- Total commands processed through SAGE
+- Tokens processed, compressed, and saved
+- Compression rate and command success rate
+- ML prediction scoring from local command history
+- Private visitor stats for the owner through `sage api visitors`
+
+Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
+
+---
+
 ## 🚀 What is S.A.G.E?
 
 S.A.G.E is a **production-ready AI development orchestration platform** that transforms how developer automation tools work with your terminal commands. It's not just a command wrapper—it's an intelligent system that learns, predicts, fixes, and optimizes your entire development workflow.

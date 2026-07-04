@@ -105,6 +105,14 @@ Track:
 - Compression rates and success metrics
 - ML prediction accuracy
 
+Latest verified snapshot:
+- Commands processed: 2,905
+- Tokens processed: 20,398,361
+- Tokens compressed: 1,616,965
+- Tokens saved: 18,781,396
+- Compression rate: 92.07%
+- Success rate: 92.43%
+
 **Privacy-first**: Raw commands and outputs stay local. Only aggregate stats are shared publicly.
 
 ### 🔌 **MCP Integration - Native Claude Code Support**
@@ -177,8 +185,8 @@ After `pip install -e .`, all AI coding assistants automatically use SAGE! Just 
 |--------|-------|
 | **Average Compression** | 95-99% |
 | **Peak Compression** | 99.3% (verified) |
-| **Commands Processed** | 1000+ (growing daily) |
-| **Token Savings** | Millions saved |
+| **Commands Processed** | 2,905 |
+| **Token Savings** | 18,781,396 tokens saved |
 | **Auto-Fix Success** | 88-95% depending on error type |
 | **Active Users** | Growing community |
 
@@ -337,10 +345,10 @@ sage run -- python your_script.py
 ## 🎓 Learn More
 
 ### Resources
-- 📖 [Complete Documentation](SAGE_V2_COMPLETE.md) (10,000+ words)
+- 📖 [Agent Architecture](docs/AGENT_LAYER_IMPLEMENTATION.md)
 - 📚 [README.md](README.md) - Quick reference
 - 🏗️ [Architecture Guide](docs/AGENT_LAYER_IMPLEMENTATION.md)
-- 🤝 [Contributing Guidelines](CONTRIBUTING.md)
+- 🤝 Contributing guidelines are in the README
 
 ### Community
 - ⭐ Star the repository

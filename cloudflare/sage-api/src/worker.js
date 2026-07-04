@@ -437,37 +437,44 @@ async function handleGitHubLogin(env, request) {
   }
 
   const authCode = textValue(body.github_auth_code, 200);
-  if (!authCode) {
-    return error("Missing github_auth_code", 400);
+  const suppliedToken = textValue(body.github_access_token, 4000);
+  if (!authCode && !suppliedToken) {
+    return error("Missing github_auth_code or github_access_token", 400);
   }
   const redirectUri = textValue(body.redirect_uri, 200);
 
-  // Exchange auth code for GitHub access token
-  // NOTE: This requires GITHUB_CLIENT_SECRET in env
-  let githubToken;
-  try {
-    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-      body: JSON.stringify({
-        client_id: "Ov23libLspfxbzmPhMSv",  // Public client ID
-        client_secret: env.GITHUB_CLIENT_SECRET,  // Secret stored in Cloudflare
-        code: authCode,
-        ...(redirectUri ? { redirect_uri: redirectUri } : {}),
-      }),
-    });
+  // Exchange auth code for GitHub access token, or validate a token supplied
+  // by GitHub CLI fallback. The token is never stored.
+  let githubToken = suppliedToken;
+  if (!githubToken) {
+    try {
+      const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: "Ov23libLspfxbzmPhMSv",
+          client_secret: env.GITHUB_CLIENT_SECRET,
+          code: authCode,
+          ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+        }),
+      });
 
-    const tokenData = await tokenResponse.json();
-    githubToken = tokenData.access_token;
+      const tokenData = await tokenResponse.json();
+      githubToken = tokenData.access_token;
 
-    if (!githubToken) {
-      return error("GitHub OAuth failed - invalid auth code", 401);
+      if (!githubToken) {
+        return error(
+          "GitHub OAuth failed - invalid auth code",
+          401,
+          tokenData.error_description || tokenData.error || ""
+        );
+      }
+    } catch (exc) {
+      return error("GitHub OAuth exchange failed", 500, String(exc.message || exc));
     }
-  } catch (exc) {
-    return error("GitHub OAuth exchange failed", 500, String(exc.message || exc));
   }
 
   // Get GitHub user info

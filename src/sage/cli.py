@@ -227,7 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
     connect_parser = sub.add_parser("connect", help="Connect SAGE with GitHub authentication (required for first use).")
     connect_parser.add_argument("--display-name", help="Optional display name (defaults to GitHub name).")
     connect_parser.add_argument("--public-profile", action="store_true", help="Show your name on public proof.")
-    connect_parser.add_argument("--expiry-days", type=int, default=30, choices=[30, 60, 90], help="API key expiration (default: 30 days).")
+    connect_parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
 
     login_parser = sub.add_parser("login", help="Create and store a free SAGE API key.")
     _add_login_args(login_parser)
@@ -328,6 +328,7 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--privacy-max", type=int, default=1, choices=[0, 1, 2, 3, 4], help="Maximum telemetry level allowed for this key.")
     parser.add_argument("--scope", default="personal", help="API key scope label.")
     parser.add_argument("--endpoint", default="", help="SAGE API base URL. Defaults to sage.api.marketingstudios.in.")
+    parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1157,6 +1158,21 @@ def login_command(args) -> int:
     return connect_command(args)
 
 
+def _resolve_expiry_days(args) -> int:
+    selected = getattr(args, "expiry_days", None)
+    if selected in {30, 60, 90}:
+        return int(selected)
+    if not sys.stdin.isatty():
+        return 30
+
+    print("Choose API key expiration:")
+    print("  1. 30 days")
+    print("  2. 60 days")
+    print("  3. 90 days")
+    choice = input("Expiration [1/2/3, default 1]: ").strip()
+    return {"1": 30, "2": 60, "3": 90, "30": 30, "60": 60, "90": 90}.get(choice, 30)
+
+
 def whoami_command() -> int:
     from . import telemetry
 
@@ -1180,6 +1196,7 @@ def connect_command(args) -> int:
     from . import telemetry
     from .github_oauth import github_oauth_flow
     from .install import install_sage_system_wide, is_sage_installed_system_wide
+    import subprocess
 
     # Check if already connected
     status = telemetry.api_status()
@@ -1200,6 +1217,9 @@ def connect_command(args) -> int:
     print("  ✅ 99.3% token compression for all commands")
     print("=" * 60)
     print()
+    expiry_days = _resolve_expiry_days(args)
+    print(f"API key expiration: {expiry_days} days")
+    print()
 
     try:
         # Run GitHub OAuth flow
@@ -1214,13 +1234,38 @@ def connect_command(args) -> int:
         # Send to SAGE API (which will validate with GitHub and create key)
         print("🔄 Creating SAGE API key...")
 
-        result = telemetry.api_github_login(
-            auth_code=oauth_result["auth_code"],
-            redirect_uri=oauth_result.get("redirect_uri", ""),
-            display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
-            public_profile=args.public_profile if hasattr(args, "public_profile") else False,
-            expiry_days=args.expiry_days if hasattr(args, "expiry_days") else 30,
-        )
+        try:
+            result = telemetry.api_github_login(
+                auth_code=oauth_result["auth_code"],
+                redirect_uri=oauth_result.get("redirect_uri", ""),
+                display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
+                public_profile=args.public_profile if hasattr(args, "public_profile") else False,
+                expiry_days=expiry_days,
+            )
+        except Exception as oauth_exc:
+            print(f"Browser OAuth API exchange failed: {oauth_exc}")
+            print("Trying GitHub CLI fallback...")
+            gh = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+            )
+            token = gh.stdout.strip()
+            if gh.returncode != 0 or not token:
+                details = (gh.stderr or gh.stdout or "").strip()
+                raise RuntimeError(
+                    "Browser OAuth failed and GitHub CLI fallback is not available. "
+                    f"gh output: {details or 'no token returned'}"
+                ) from oauth_exc
+            result = telemetry.api_github_login(
+                github_access_token=token,
+                display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
+                public_profile=args.public_profile if hasattr(args, "public_profile") else False,
+                expiry_days=expiry_days,
+            )
 
         print("\n✅ SAGE API connected")
         print(f"GitHub: @{result.get('username')}")

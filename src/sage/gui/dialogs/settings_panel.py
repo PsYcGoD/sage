@@ -144,10 +144,19 @@ class SettingsPanel(ctk.CTkToplevel):
     def _create_profile_section(self, parent):
         """Create profile settings section."""
         section = self._create_section(parent, "Profile Settings", row=1)
+        profile_name = self.config.get("profile_name", "User")
+        try:
+            from sage import telemetry
+
+            status = telemetry.api_whoami()
+            if status.get("connected") and status.get("display_name"):
+                profile_name = status.get("display_name")
+        except Exception:
+            pass
 
         # Name
         self._create_input(section, "Display Name:", "profile_name",
-                          self.config.get("profile_name", "User"), row=0)
+                          profile_name, row=0)
 
         # Email
         self._create_input(section, "Email:", "profile_email",
@@ -301,10 +310,24 @@ class SettingsPanel(ctk.CTkToplevel):
         """Refresh SAGE API connection status."""
         if hasattr(self, "sage_api_status"):
             self.sage_api_status.configure(text=self._sage_api_status_text())
+        try:
+            from sage import telemetry
+
+            status = telemetry.api_whoami()
+        except Exception:
+            return
+        if hasattr(self, "sage_api_github_label"):
+            self.sage_api_github_label.configure(
+                text=f"@{status.get('username')} (GitHub)" if status.get("connected") else "Not connected",
+                text_color="#10b981" if status.get("connected") else "#6b7280",
+            )
+        if hasattr(self, "sage_api_name_entry") and status.get("display_name"):
+            self.sage_api_name_entry.delete(0, "end")
+            self.sage_api_name_entry.insert(0, status.get("display_name"))
 
     def _connect_sage_api(self):
         """Connect SAGE API with GitHub OAuth."""
-        display_name = self.sage_api_name_entry.get().strip() or None
+        display_name = None
         public_profile = self.sage_api_public_switch.get() == 1
 
         # 🔒 SECURITY: Get expiry days from dropdown
@@ -312,7 +335,7 @@ class SettingsPanel(ctk.CTkToplevel):
         expiry_days = int(expiry_text.split()[0])  # Extract number
 
         self.sage_api_connect_btn.configure(state="disabled", text="Connecting...")
-        self.sage_api_status.configure(text="🔐 Starting GitHub authentication...")
+        self.sage_api_status.configure(text="Starting GitHub authentication...", text_color="gray65")
 
         def worker():
             try:
@@ -326,46 +349,80 @@ class SettingsPanel(ctk.CTkToplevel):
                 if not oauth_result.get("auth_code"):
                     raise RuntimeError("GitHub authentication cancelled")
 
+                self.after(0, lambda: self.sage_api_status.configure(
+                    text="GitHub approved. Creating SAGE API key...",
+                    text_color="gray65",
+                ))
+
                 # Send to SAGE API
                 result = telemetry.api_github_login(
                     auth_code=oauth_result["auth_code"],
+                    redirect_uri=oauth_result.get("redirect_uri", ""),
                     display_name=display_name,
                     public_profile=public_profile,
                     expiry_days=expiry_days,
                 )
+                profile_name = result.get("display_name") or result.get("username") or ""
+                if profile_name:
+                    self.config.set("profile_name", profile_name)
+                    self.config.save()
 
                 # Install agent configs
                 if not is_sage_installed_system_wide():
                     install_sage_system_wide()
 
-                # Backfill telemetry
-                backfill = telemetry.queue_all_runs()
-                try:
-                    from sage.telemetry_sender import spawn_background_sender
-
-                    spawn_background_sender()
-                except Exception:
-                    pass
                 message = (
                     "SAGE API connected\n"
                     f"Endpoint: {result['base_url']}\n"
                     f"Key: {result['key_id']}\n"
-                    f"Queued local proof history: {backfill['queued']} of {backfill['scanned']} runs\n"
+                    f"GitHub: @{result.get('username')}\n"
+                    "Local proof history sync has started in the background.\n"
                     "Safe metrics are enabled. Raw commands and output stay local."
                 )
                 self.after(0, lambda: self._finish_sage_api_connect(message, ok=True))
+                threading.Thread(target=self._sync_sage_api_after_connect, daemon=True).start()
             except Exception as exc:
                 message = f"SAGE API connect failed: {exc}"
                 self.after(0, lambda: self._finish_sage_api_connect(message, ok=False))
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _sync_sage_api_after_connect(self):
+        try:
+            from sage import telemetry
+            from sage.telemetry_sender import spawn_background_sender
+
+            backfill = telemetry.queue_all_runs()
+            spawn_background_sender()
+            message = (
+                "SAGE API connected\n"
+                f"Queued local proof history: {backfill['queued']} of {backfill['scanned']} runs\n"
+                "Automatic safe sync is running in the background."
+            )
+            self.after(0, lambda: self.sage_api_status.configure(text=message, text_color="#86efac"))
+        except Exception as exc:
+            self.after(0, lambda: self.sage_api_status.configure(
+                text=f"SAGE API connected, but background sync failed: {exc}",
+                text_color="#fca5a5",
+            ))
+
     def _finish_sage_api_connect(self, message: str, *, ok: bool):
         self.sage_api_connect_btn.configure(state="normal", text="Connect SAGE API")
         self.sage_api_status.configure(text=message, text_color="#86efac" if ok else "#fca5a5")
         if ok:
-            messagebox.showinfo("SAGE API Connected", "SAGE API connected. API key saved locally. Automatic safe sync has started.")
             self._refresh_sage_api_status()
+            if hasattr(self, "_inputs") and "profile_name" in self._inputs:
+                try:
+                    from sage import telemetry
+
+                    status = telemetry.api_whoami()
+                    profile_name = status.get("display_name") or status.get("username") or ""
+                    if profile_name:
+                        self._inputs["profile_name"].delete(0, "end")
+                        self._inputs["profile_name"].insert(0, profile_name)
+                except Exception:
+                    pass
+            messagebox.showinfo("SAGE API Connected", "SAGE API connected. API key saved locally.")
         else:
             messagebox.showerror("SAGE API Connect Failed", message)
 

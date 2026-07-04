@@ -240,3 +240,30 @@ def test_send_without_endpoint_is_noop(isolated_telemetry):
     result = isolated_telemetry.send_queued(dry_run=False)
     assert result["sent"] == 0
     assert "not configured" in result["endpoint"]
+
+
+def test_sync_all_refreshes_snapshot_when_queue_remains(isolated_telemetry, monkeypatch):
+    t = isolated_telemetry
+    calls = {"snapshot": 0}
+
+    monkeypatch.setattr(t, "queue_all_runs", lambda: {"scanned": 1, "queued": 1, "skipped": 0})
+    monkeypatch.setattr(t, "api_status", lambda: {"endpoint": "https://example.test/v1/telemetry"})
+    monkeypatch.setattr(t, "send_queued", lambda *, dry_run, limit: {
+        "sent": 0,
+        "failed": 0,
+        "queued": 1,
+        "dry_run": False,
+        "endpoint": "https://example.test/v1/telemetry",
+    })
+    monkeypatch.setattr(t, "queue_status", lambda: {"queued": 1})
+
+    def fake_snapshot():
+        calls["snapshot"] += 1
+        return {"ok": True}
+
+    monkeypatch.setattr(t, "send_proof_snapshot", fake_snapshot)
+
+    result = t.sync_all_runs(dry_run=False)
+
+    assert calls["snapshot"] == 1
+    assert result["snapshot"] == {"ok": True}

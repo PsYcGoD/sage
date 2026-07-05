@@ -47,6 +47,7 @@ def run_command(
     kind_override: str = "",
     session_id: str = "",
     is_ai_session: int = 0,
+    pty: bool = False,
 ) -> int:
     _configure_stdio()
     if not command_parts:
@@ -75,6 +76,20 @@ def run_command(
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
+
+    if pty:
+        return _run_interactive_passthrough(
+            command_parts,
+            command_text=command_text,
+            started=started,
+            env=env,
+            decision=decision,
+            caller=caller,
+            kind_override=kind_override,
+            session_id=session_id,
+            is_ai_session=is_ai_session,
+        )
+
     use_shell = sys.platform.startswith("win")
     process = subprocess.Popen(
         command_text if use_shell else command_parts,
@@ -318,3 +333,103 @@ def run_command(
         print(summary)
 
     return returncode
+
+
+def _run_interactive_passthrough(
+    command_parts: list[str],
+    *,
+    command_text: str,
+    started: float,
+    env: dict[str, str],
+    decision,
+    caller: str,
+    kind_override: str,
+    session_id: str,
+    is_ai_session: int,
+) -> int:
+    """Run an interactive command without pipes so the child owns the TTY.
+
+    This is for terminal agents such as Claude/Codex. Capturing stdout/stderr
+    breaks their interactive mode, so SAGE records the launch and exit metadata
+    but intentionally does not compress the live terminal stream.
+    """
+    if not session_id:
+        session_id = os.environ.get("SAGE_SESSION_ID", "")
+
+    if not is_ai_session:
+        ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd", "ollama", "ollama.exe", "ollama.cmd"}
+        first_command = Path(command_parts[0]).name.lower() if command_parts else ""
+        is_ai_session = 1 if first_command in ai_commands or caller in ["mcp", "agent", "gui"] else 0
+        if is_ai_session and not session_id:
+            session_id = str(uuid.uuid4())
+            os.environ["SAGE_SESSION_ID"] = session_id
+
+    command_class = classify_command(command_text)
+    use_shell = sys.platform.startswith("win")
+    try:
+        returncode = subprocess.call(
+            command_text if use_shell else command_parts,
+            shell=use_shell,
+            env=env,
+        )
+    except KeyboardInterrupt:
+        returncode = 130
+
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    summary = "Interactive PTY command; live output was not captured."
+    run_id = save_run(
+        project=str(Path.cwd()),
+        command=command_text,
+        exit_code=returncode,
+        duration_ms=duration_ms,
+        stdout="",
+        stderr="",
+        summary=summary,
+        stdout_redactions=0,
+        stderr_redactions=0,
+        summary_redactions=0,
+        command_sha256=command_hash(command_text),
+        policy_mode=decision.mode,
+        policy_decision=decision.decision,
+        policy_reason=decision.reason,
+        retention_expires_at=retention_expiry(),
+        raw_retained=0,
+        command_kind=kind_override or command_class.kind,
+        command_family=command_class.family,
+        caller=caller,
+        workspace_hash=workspace_hash(str(Path.cwd())),
+        session_id=session_id,
+        is_ai_session=is_ai_session,
+    )
+
+    try:
+        from .store import connect
+        from datetime import datetime
+
+        with connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO context_compression
+                (run_id, created_at, original_tokens, compressed_tokens, saved_tokens, strategy, verified_tokenizer)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (run_id, datetime.now().isoformat(), 0, 0, 0, "pty-passthrough", "n/a"),
+            )
+            conn.commit()
+    except Exception:
+        pass
+
+    try:
+        from . import telemetry
+        telemetry.queue_event(run_id)
+        if os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1":
+            from .telemetry_sender import spawn_background_sender
+            spawn_background_sender()
+    except Exception:
+        pass
+
+    if os.environ.get("SAGE_SUPPRESS_FOOTER") != "1":
+        print(f"\n[sage] saved interactive run #{run_id} exit={returncode} time={duration_ms}ms")
+        print("[sage] pty: live output was passed through, not compressed")
+
+    return int(returncode or 0)

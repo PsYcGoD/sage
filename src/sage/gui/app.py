@@ -1,3 +1,4 @@
+import logging
 """SAGE Desktop GUI - Main Application (Redesigned Layout)"""
 
 import customtkinter as ctk
@@ -11,11 +12,12 @@ from sage.gui.config import GUIConfig
 from sage.gui.cli_client import CLIClient, check_cli_available, _clean_for_display
 from sage.gui.persistent_ai_client import PersistentAIClient
 from sage.gui.session_manager import SessionManager
-from sage.store import connect, data_dir
+from sage.store import connect, data_dir, save_run
 from sage.context import ContextManager
-from sage.agents import ensure_default_agents, get_agent_tasks_for_run, select_agents_for_command
+from sage.agents import DEFAULT_AGENT_SPECS, ensure_default_agents, get_agent_tasks_for_run, select_agents_for_command
 from sage.ml import FailurePredictor, SklearnFailureModel
-from sage.security import evaluate_command, load_policy
+from sage.classify import workspace_hash
+from sage.security import command_hash, evaluate_command, load_policy, redact_text, retention_expiry
 import json
 import queue
 import re
@@ -32,6 +34,9 @@ from datetime import datetime, timezone
 import sys
 import os
 
+log = logging.getLogger(__name__)
+
+LOG = logging.getLogger(__name__)
 
 def _set_windows_app_id() -> None:
     """Make Windows taskbar grouping use the SAGE icon instead of Tk's default."""
@@ -42,8 +47,7 @@ def _set_windows_app_id() -> None:
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("sage.desktop")
     except Exception:
-        pass
-
+        log.debug("suppressed", exc_info=True)
 
 class SAGEApp(ctk.CTk):
     """Main SAGE Desktop GUI Application"""
@@ -52,8 +56,8 @@ class SAGEApp(ctk.CTk):
         super().__init__()
 
         # Window configuration
-        self.title("SAGE Desktop - Smart Agent Guidance Engine")
-        self.geometry("1000x750")
+        self.title("SAGE Desktop - By PsYcGoD AI&ML")
+        self.geometry("1300x800")
         self._set_window_icon()
 
         # Set appearance mode and color theme
@@ -65,7 +69,7 @@ class SAGEApp(ctk.CTk):
         self._restore_current_project()
         ensure_default_agents()
 
-        # Configure grid layout - sidebar column 0, main content column 1
+        # Configure grid layout: sidebar (0) | center content (1) | right metrics (2)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -97,17 +101,17 @@ class SAGEApp(ctk.CTk):
         header_frame.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="ew")
         header_frame.grid_columnconfigure(0, weight=1)
 
-        # Title on left
+        # Title on left — small header with product branding
         self.header = ctk.CTkLabel(
             header_frame,
-            text="🧠 SAGE Desktop",
-            font=ctk.CTkFont(size=20, weight="bold")
+            text="Sage Desktop - By PsYcGoD AI&ML",
+            font=ctk.CTkFont(size=15, weight="bold")
         )
         self.header.grid(row=0, column=0, sticky="w")
 
         self.project_label = ctk.CTkLabel(
             header_frame,
-            text=f"Project: {os.getcwd()}",
+            text=f"Working dir: {os.getcwd()}",
             font=ctk.CTkFont(size=11),
             text_color="gray60",
             anchor="w",
@@ -131,6 +135,19 @@ class SAGEApp(ctk.CTk):
             anchor="e",
         )
         self.run_status_label.grid(row=1, column=1, sticky="e")
+
+        # Response timer, kept a little gap to the side of the status.
+        self.timer_label = ctk.CTkLabel(
+            header_frame,
+            text="⏱ 0.0s",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="gray60",
+            anchor="e",
+        )
+        self.timer_label.grid(row=2, column=1, sticky="e", padx=(12, 0))
+        self._timer_running = False
+        self._timer_start = 0.0
+        self._last_answer_seconds = 0.0
 
         # AI selector and Connect button on right (compact)
         ai_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
@@ -183,15 +200,38 @@ class SAGEApp(ctk.CTk):
         )
         self.debug_btn.pack(side="left", padx=(5, 0))
 
-        # Row 1: Compact metric cards
-        cards_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        cards_frame.grid(row=1, column=0, padx=20, pady=5, sticky="ew")
-        cards_frame.grid_columnconfigure((0, 1, 2, 3), weight=1, uniform="metric_cards")
+        # Row 1: Live 24-agent status strip (green=active, orange=idle/stopped)
+        from sage.gui.widgets.agent_strip import AgentStrip
 
-        self.create_metric_cards(cards_frame)
+        self.agent_strip = AgentStrip(main_frame)
+        self.agent_strip.grid(row=1, column=0, padx=20, pady=(2, 6), sticky="ew")
+        self._manual_active_agent_types: set[str] = set()
 
-        # Per-output-tab runtime state. Conversation memory remains app-wide.
+        # Right metrics panel: the 4 cards stacked vertically, autofit.
+        metrics_panel = ctk.CTkFrame(self, fg_color=("#DEDEDE", "#1c1c1c"), width=232)
+        metrics_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=0)
+        metrics_panel.grid_propagate(False)
+        metrics_panel.grid_columnconfigure(0, weight=1)
+        for r in range(1, 5):
+            metrics_panel.grid_rowconfigure(r, weight=1)
+
+        metrics_title = ctk.CTkLabel(
+            metrics_panel,
+            text="Live Metrics",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="gray60",
+            anchor="w",
+        )
+        metrics_title.grid(row=0, column=0, padx=12, pady=(12, 4), sticky="ew")
+
+        self.create_metric_cards(metrics_panel)
+
+        # Per-output-tab runtime state. Conversation memory is keyed by project
+        # so tabs (and different AIs) on the SAME project share one memory and
+        # reuse context to save tokens, while different projects stay isolated.
         self.output_tabs: dict[int, dict] = {}
+        self._live_memory_by_project: dict[str, list] = {}
+        self._saved_memory_by_project: dict[str, list] = {}
         self.active_output_tab_id: int | None = None
         self.next_output_tab_id = 1
         self.persistent_client = None
@@ -200,8 +240,7 @@ class SAGEApp(ctk.CTk):
         self.ai_connected = False
         self.ai_process = None
         self.ai_running = False
-        self.conversation_turns = []
-        self.project_memory_turns = []
+        self._bind_project_memory(os.getcwd())
         self.max_context_chars = 14000
         self.pending_context_compression = None
 
@@ -236,11 +275,14 @@ class SAGEApp(ctk.CTk):
         self.add_tab_btn.grid(row=0, column=98, padx=(6, 0), pady=0, sticky="e")
         self.output_view = None
 
-        # LED border animation overlay on output container
-        self.thinking_overlay = ThinkingOverlay(output_container)
+        # Thin thinking activity strip between output and prompt input.
+        self.thinking_strip_frame = ctk.CTkFrame(main_frame, fg_color="transparent", height=6)
+        self.thinking_strip_frame.grid(row=3, column=0, padx=20, pady=(0, 4), sticky="ew")
+        self.thinking_strip_frame.grid_propagate(False)
+        self.thinking_overlay = ThinkingOverlay(self.thinking_strip_frame)
         self.thinking_overlay.place_forget()
 
-        # Row 3: Input area at bottom
+        # Row 4: Input area at bottom
         self.input_area = InputArea(
             main_frame,
             on_send=self.on_send_command,
@@ -249,7 +291,7 @@ class SAGEApp(ctk.CTk):
             on_cancel=self.on_cancel_process,
             on_output_theme_toggle=self.toggle_output_light_mode
         )
-        self.input_area.grid(row=3, column=0, padx=20, pady=(5, 15), sticky="ew")
+        self.input_area.grid(row=4, column=0, padx=20, pady=(0, 15), sticky="ew")
         self.bind("<Escape>", self._on_escape_key)
 
         # Set initial permission from config
@@ -298,14 +340,14 @@ class SAGEApp(ctk.CTk):
             if ico_path.exists():
                 self.iconbitmap(str(ico_path))
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
         try:
             if png_path.exists():
                 self._sage_window_icon = tk.PhotoImage(file=str(png_path))
                 self.iconphoto(True, self._sage_window_icon)
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def _refresh_runtime_labels(self) -> None:
         """Refresh compact permission/model/policy status in the header."""
@@ -319,13 +361,52 @@ class SAGEApp(ctk.CTk):
                 text=f"Permission: {permission} | Model: {model} | Policy: {policy_mode}"
             )
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def _set_run_status(self, text: str, color: str = "gray60") -> None:
         try:
             self.run_status_label.configure(text=text, text_color=color)
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
+        # Drive the per-answer response timer from the run status transitions.
+        try:
+            if str(text).lower().startswith("running"):
+                self._start_response_timer()
+            elif str(text).lower().startswith("idle"):
+                self._stop_response_timer()
+        except Exception:
+            log.debug("suppressed", exc_info=True)
+
+    def _start_response_timer(self) -> None:
+        """Begin timing the current answer and tick the header timer live."""
+        if getattr(self, "_timer_running", False):
+            return
+        self._timer_running = True
+        self._timer_start = time.monotonic()
+        self._tick_response_timer()
+
+    def _tick_response_timer(self) -> None:
+        if not getattr(self, "_timer_running", False):
+            return
+        elapsed = time.monotonic() - self._timer_start
+        try:
+            self.timer_label.configure(text=f"⏱ {elapsed:.1f}s", text_color="#facc15")
+        except Exception:
+            return
+        self.after(100, self._tick_response_timer)
+
+    def _stop_response_timer(self) -> None:
+        """Freeze the timer at the final answer duration."""
+        if not getattr(self, "_timer_running", False):
+            return
+        self._timer_running = False
+        self._last_answer_seconds = time.monotonic() - self._timer_start
+        try:
+            self.timer_label.configure(
+                text=f"⏱ {self._last_answer_seconds:.1f}s", text_color="#22c55e"
+            )
+        except Exception:
+            log.debug("suppressed", exc_info=True)
 
     def _confirm_company_mode_send(self, ai_name: str, prompt: str) -> bool:
         """Preview AI prompt execution when policy is in company mode."""
@@ -395,6 +476,7 @@ class SAGEApp(ctk.CTk):
             self.output_stack,
             on_reply_to_selection=self.reply_to_output_selection,
             on_ai_response_complete=self._remember_terminal_ai_response,
+            on_ai_stream_finished=lambda error, tid=tab_id: self._finish_terminal_ai_run(tid, error),
         )
         terminal.grid(row=0, column=0, sticky="nsew")
         terminal.grid_remove()
@@ -472,7 +554,7 @@ class SAGEApp(ctk.CTk):
             try:
                 terminal.append_text("\n[Stop the running command before closing this tab]\n", "info")
             except Exception:
-                pass
+                log.debug("suppressed", exc_info=True)
             return
 
         was_active = tab_id == self.active_output_tab_id
@@ -484,7 +566,7 @@ class SAGEApp(ctk.CTk):
                 terminal.grid_remove()
                 terminal.destroy()
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         self.output_tabs.pop(tab_id, None)
 
         if was_active:
@@ -537,7 +619,7 @@ class SAGEApp(ctk.CTk):
                 "info",
             )
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         self._set_run_status(f"Running, {len(pending)} queued", "#facc15")
         return True
 
@@ -551,7 +633,7 @@ class SAGEApp(ctk.CTk):
             else:
                 self.output_view.append_text(f"\n> [{label}] {prompt}\n", "user")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def _steer_active_prompt(self, command: str) -> bool:
         """Cancel the active response and run this prompt next."""
@@ -573,7 +655,7 @@ class SAGEApp(ctk.CTk):
                 "info",
             )
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         self.on_cancel_process()
         self.after(250, lambda tid=self.active_output_tab_id: self._drain_queued_prompt(tid))
         return True
@@ -600,7 +682,7 @@ class SAGEApp(ctk.CTk):
                 "info",
             )
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         self.on_send_command(next_prompt)
 
     def _append_run_status(self, output_view, text: str) -> None:
@@ -611,7 +693,7 @@ class SAGEApp(ctk.CTk):
             else:
                 output_view.append_text(text, "info")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def _mark_tab_stream_event(self, tab_id: int | None) -> None:
         tab = self.output_tabs.get(tab_id)
@@ -665,6 +747,8 @@ class SAGEApp(ctk.CTk):
         except OSError:
             project = os.getcwd()
             tab["project"] = project
+        # Rebind shared memory to this tab's project (same project = same memory).
+        self._bind_project_memory(project)
 
         ai_name = tab.get("ai_name") or self.config.get_default_ai()
         self.ai_selector.set(str(ai_name).capitalize())
@@ -692,49 +776,44 @@ class SAGEApp(ctk.CTk):
         self._render_output_tabs()
 
     def create_metric_cards(self, parent):
-        """Create the 4 compact metric cards"""
+        """Create the 4 metric cards stacked vertically in the right panel."""
 
         # Total Commands card
         self.commands_card = MetricCard(
             parent,
             label="Commands",
-            value="0",
-            subtitle="Total",
-            width=150,
-            height=70
+            height=150,
+            value_font_size=18,
         )
-        self.commands_card.grid(row=0, column=0, padx=5, pady=0, sticky="ew")
+        self.commands_card.grid(row=1, column=0, padx=10, pady=4, sticky="new")
 
         # Tokens card (shows both used and saved with labels)
         self.tokens_card = TokenMetricCard(
             parent,
             label="Context Tokens",
-            width=150,
-            height=70
+            height=150,
+            label_font_size=11,
+            title_font_size=12,
+            value_font_size=18,
+            muted_font_size=9,
         )
-        self.tokens_card.grid(row=0, column=1, padx=5, pady=0, sticky="ew")
+        self.tokens_card.grid(row=2, column=0, padx=10, pady=4, sticky="new")
 
         # Active Agents card
         self.agents_card = MetricCard(
             parent,
             label="Agents",
-            value="0",
-            subtitle="Active",
-            width=150,
-            height=70
+            height=150,
         )
-        self.agents_card.grid(row=0, column=2, padx=5, pady=0, sticky="ew")
+        self.agents_card.grid(row=3, column=0, padx=10, pady=4, sticky="new")
 
         # Success Rate card
         self.success_card = MetricCard(
             parent,
             label="Success",
-            value="0%",
-            subtitle="Rate",
-            width=150,
-            height=70
+            height=150,
         )
-        self.success_card.grid(row=0, column=3, padx=5, pady=0, sticky="ew")
+        self.success_card.grid(row=4, column=0, padx=10, pady=(4, 12), sticky="new")
 
     def update_metrics(self):
         """Update metric cards from database"""
@@ -758,28 +837,62 @@ class SAGEApp(ctk.CTk):
                 ).fetchone()[0]
 
                 self._ensure_context_compression_table(conn)
-                token_row = conn.execute(
-                    "SELECT SUM(original_tokens), SUM(compressed_tokens), SUM(saved_tokens) FROM context_compression"
-                ).fetchone()
+                token_row = self._fetch_ai_token_totals(conn)
                 raw_original_tokens = token_row[0] or 0
                 raw_compressed_tokens = token_row[1] or 0
                 raw_token_savings = token_row[2] or 0
 
-                # Active agents - count from agent_runs (actually executing)
+                # Agent roster and live work. Registered agents comes from the
+                # catalog; active work comes from agent_runs.
+                raw_total_agents = len(DEFAULT_AGENT_SPECS)
                 agent_row = conn.execute(
                     """
                     SELECT
-                        COUNT(DISTINCT agent_id) as total,
-                        SUM(CASE WHEN status IN ('running', 'queued') THEN 1 ELSE 0 END) as active
+                        SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) as queued,
+                        SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running,
+                        SUM(CASE WHEN status = 'waiting_for_tool' THEN 1 ELSE 0 END) as waiting
                     FROM agent_runs
-                    WHERE status IN ('queued', 'running', 'completed')
+                    WHERE status IN ('queued', 'running', 'waiting_for_tool')
+                      AND run_id = (SELECT MAX(run_id) FROM agent_runs)
                     """
                 ).fetchone()
-                raw_total_agents = agent_row["total"] or 0
-                raw_active_agents = agent_row["active"] or 0
+                raw_queued_agents = agent_row["queued"] or 0
+                raw_running_agents = agent_row["running"] or 0
+                raw_waiting_agents = agent_row["waiting"] or 0
+                raw_active_agents = raw_queued_agents + raw_running_agents + raw_waiting_agents
                 raw_agent_tasks = conn.execute(
                     "SELECT COUNT(*) FROM agent_tasks WHERE status = 'completed'"
                 ).fetchone()[0] or 0
+                latest_agent_row = conn.execute(
+                    """
+                    SELECT
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                        SUM(CASE WHEN status IN ('queued', 'running', 'waiting_for_tool') THEN 1 ELSE 0 END) as active
+                    FROM agent_runs
+                    WHERE run_id = (SELECT MAX(run_id) FROM agent_runs)
+                    """
+                ).fetchone()
+                latest_agent_total = latest_agent_row["total"] or 0
+                latest_agent_completed = latest_agent_row["completed"] or 0
+                latest_agent_active = latest_agent_row["active"] or 0
+
+                # Which agent *types* are currently active, for the live strip.
+                active_type_rows = conn.execute(
+                    """
+                    SELECT DISTINCT a.type
+                    FROM agent_runs ar
+                    JOIN agents a ON a.id = ar.agent_id
+                    WHERE ar.status IN ('queued', 'running', 'waiting_for_tool')
+                      AND ar.run_id = (SELECT MAX(run_id) FROM agent_runs)
+                    """
+                ).fetchall()
+                active_agent_types = {row["type"] for row in active_type_rows}
+
+                # If no agents are active on the latest run, clear manual predictions.
+                # This handles the case where completion handlers haven't fired yet.
+                if not active_agent_types and latest_agent_active == 0:
+                    self._manual_active_agent_types = set()
 
                 # Dashboard "Total" must match the full local database, the same
                 # source used by `sage context stats`. Resets affect only the
@@ -792,6 +905,9 @@ class SAGEApp(ctk.CTk):
                 total_agents = raw_total_agents
                 active_agents = raw_active_agents
                 agent_tasks = raw_agent_tasks
+                queued_agents = raw_queued_agents
+                running_agents = raw_running_agents
+                waiting_agents = raw_waiting_agents
 
                 if original_tokens > 0:
                     token_rate = token_savings / original_tokens * 100
@@ -817,18 +933,16 @@ class SAGEApp(ctk.CTk):
             session_token_total = session_used + session_saved
             session_token_rate = (session_saved / session_token_total * 100) if session_token_total else 0
 
-            # Debug print
-            # Debug: Session metrics calculation
-            # print(f"[DEBUG] Session: used={session_used}, saved={session_saved}, baseline_used={self.session_start_used}, baseline_saved={self.session_start_saved}")
-
             # Update UI on main thread
             self.after(0, lambda: self._update_ui_metrics(
                 total_commands, session_commands,
                 compressed_tokens, token_savings, token_rate, session_used, session_saved,
                 total_agents, active_agents, agent_tasks, session_agent_tasks,
                 success_rate, session_success_rate, successful_commands, session_successes,
-                session_token_rate
+                session_token_rate, queued_agents, running_agents, waiting_agents,
+                latest_agent_total, latest_agent_completed, latest_agent_active
             ))
+            self.after(0, lambda types=active_agent_types: self._update_agent_strip(types))
 
         except Exception as e:
             print(f"DB Error: {e}")
@@ -851,6 +965,12 @@ class SAGEApp(ctk.CTk):
         successful_commands,
         session_successes,
         session_token_rate,
+        queued_agents=0,
+        running_agents=0,
+        waiting_agents=0,
+        latest_agent_total=0,
+        latest_agent_completed=0,
+        latest_agent_active=0,
     ):
         """Update metric card UI elements"""
         self.commands_card.update_metric(
@@ -877,9 +997,9 @@ class SAGEApp(ctk.CTk):
         self.agents_card.update_metric(
             total_value=f"{total_agents}",
             session_value=f"{session_agent_tasks}",
-            total_hint=f"{active_agents} active\n{agent_tasks} tasks",
-            session_hint="Tasks",
-            detail="Registered agents and executed tasks",
+            total_hint=f"{running_agents} running\n{queued_agents} queued",
+            session_hint=f"{agent_tasks} all-time\n{waiting_agents} waiting",
+            detail=f"Latest run: {latest_agent_completed}/{latest_agent_total} done, {latest_agent_active} active",
         )
 
         self.success_card.update_metric(
@@ -889,6 +1009,20 @@ class SAGEApp(ctk.CTk):
             session_hint=f"{session_successes}/{session_commands}",
             detail="Successful runs",
         )
+
+    def _update_agent_strip(self, active_types: set) -> None:
+        """Turn agent cards green when their type is active on the latest run."""
+        strip = getattr(self, "agent_strip", None)
+        if strip is not None:
+            try:
+                manual = getattr(self, "_manual_active_agent_types", set())
+                strip.update_active(set(active_types) | set(manual))
+            except Exception:
+                log.debug("suppressed", exc_info=True)
+
+    def _set_manual_active_agents(self, active_types: set[str]) -> None:
+        self._manual_active_agent_types = set(active_types)
+        self._update_agent_strip(set())
 
     def _format_count(self, value: int) -> str:
         """Format metric counts compactly."""
@@ -917,9 +1051,7 @@ class SAGEApp(ctk.CTk):
                 ).fetchone()[0]
 
                 self._ensure_context_compression_table(conn)
-                token_row = conn.execute(
-                    "SELECT SUM(original_tokens), SUM(compressed_tokens), SUM(saved_tokens) FROM context_compression"
-                ).fetchone()
+                token_row = self._fetch_ai_token_totals(conn)
                 raw_compressed_tokens = token_row[1] or 0
                 raw_token_savings = token_row[2] or 0
                 self.session_start_commands = raw_commands
@@ -952,6 +1084,35 @@ class SAGEApp(ctk.CTk):
             )
             """
         )
+
+    def _fetch_ai_token_totals(self, conn):
+        """Return token totals for actual AI sessions, falling back to all rows."""
+        ai_row = conn.execute(
+            """
+            SELECT
+                SUM(cc.original_tokens),
+                SUM(CASE WHEN cc.saved_tokens < 0 THEN cc.original_tokens ELSE cc.compressed_tokens END),
+                SUM(CASE WHEN cc.saved_tokens < 0 THEN 0 ELSE cc.saved_tokens END)
+            FROM context_compression cc
+            JOIN runs r ON r.id = cc.run_id
+            WHERE r.is_ai_session = 1
+               OR r.caller = 'gui'
+               OR lower(r.command_family) IN ('claude', 'codex', 'ollama')
+               OR lower(r.command) GLOB 'claude *'
+               OR lower(r.command) GLOB 'codex *'
+            """
+        ).fetchone()
+        if ai_row and (ai_row[0] or ai_row[1] or ai_row[2]):
+            return ai_row
+        return conn.execute(
+            """
+            SELECT
+                SUM(original_tokens),
+                SUM(CASE WHEN saved_tokens < 0 THEN original_tokens ELSE compressed_tokens END),
+                SUM(CASE WHEN saved_tokens < 0 THEN 0 ELSE saved_tokens END)
+            FROM context_compression
+            """
+        ).fetchone()
 
     def on_ai_changed(self, ai_name: str):
         """Callback when AI selection changes"""
@@ -1065,6 +1226,7 @@ class SAGEApp(ctk.CTk):
                 ai_name,
                 system_prompts,
                 permission_mode=self.config.get_permission_mode(),
+                project_cwd=os.getcwd(),
             )
 
             # Start the persistent session
@@ -1086,6 +1248,23 @@ class SAGEApp(ctk.CTk):
                     "error"
                 )
                 return False
+
+            # Hydrate the fresh session from this project's SHARED memory so a
+            # second AI on the same project reuses the first AI's context instead
+            # of starting cold — that reuse is what saves tokens.
+            try:
+                self._bind_project_memory(os.getcwd())
+                shared_turns = (self.project_memory_turns + self.conversation_turns)[-8:]
+                if shared_turns:
+                    self.persistent_client.load_history(shared_turns)
+                    if show_status:
+                        self.output_view.append_text(
+                            f"[Memory] Reusing {len(shared_turns)} shared turn"
+                            f"{'s' if len(shared_turns) != 1 else ''} from this project's other sessions.\n",
+                            "info",
+                        )
+            except Exception:
+                log.debug("suppressed", exc_info=True)
 
             # Keep legacy CLI client for fallback
             custom_command = self.config.get_ai_command(ai_name)
@@ -1128,10 +1307,11 @@ class SAGEApp(ctk.CTk):
         """Return a warning when the claude CLI is installed but not logged in."""
         try:
             result = subprocess.run(
-                "claude auth status",
-                shell=True,
+                [shutil.which("claude") or "claude", "auth", "status"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
                 creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
             )
@@ -1297,7 +1477,9 @@ class SAGEApp(ctk.CTk):
         if use_persistent_memory:
             self.pending_context_compression = None
 
-        # SPAWN AGENTS for complex requests (word count > 50 or contains keywords)
+        # Spawn agents for complex requests. The strip only turns green from
+        # live agent_runs rows, not from broad planning guesses.
+        self._set_manual_active_agents(set())
         self._spawn_agents_if_needed(command)
 
         if ai_name == "claude":
@@ -1383,36 +1565,62 @@ class SAGEApp(ctk.CTk):
             output_view.begin_ai_stream(ai_name)
         self._start_live_heartbeat(tab_id, output_view, ai_name)
 
-        ui_buffer: list[tuple[str, str | None]] = []
+        # One ordered, coalesced UI queue for ALL event kinds (text, thinking,
+        # coding, tool, error). Immediate per-event self.after(0) calls flood the
+        # Tk loop and cause visible lag when two tabs stream at once; a single
+        # pending flush that preserves order keeps it smooth.
+        ui_ops: list = []
         ui_buffer_lock = threading.Lock()
         ui_flush_state = {"scheduled": False}
 
         def flush_ui_buffer() -> None:
             with ui_buffer_lock:
-                items = list(ui_buffer)
-                ui_buffer.clear()
+                ops = list(ui_ops)
+                ui_ops.clear()
                 ui_flush_state["scheduled"] = False
-            for text, tag in items:
-                if tag:
-                    output_view.append_text(text, tag)
+            # Merge consecutive plain-text appends into one insert.
+            pending_text: list[str] = []
+
+            def flush_text() -> None:
+                if pending_text:
+                    output_view.append_text("".join(pending_text))
+                    pending_text.clear()
+
+            for op in ops:
+                if op[0] == "text":
+                    pending_text.append(op[1])
                 else:
-                    output_view.append_text(text)
+                    flush_text()
+                    op[1]()
+            flush_text()
+
+        def _schedule_flush() -> None:
+            if ui_flush_state["scheduled"]:
+                return
+            ui_flush_state["scheduled"] = True
+            self.after(33, flush_ui_buffer)
 
         def queue_ui_text(text: str, tag: str | None = None) -> None:
             if not text:
                 return
             with ui_buffer_lock:
-                ui_buffer.append((text, tag))
-                if ui_flush_state["scheduled"]:
-                    return
-                ui_flush_state["scheduled"] = True
-            self.after(60, flush_ui_buffer)
+                if tag:
+                    ui_ops.append(("op", lambda t=text, g=tag: output_view.append_text(t, g)))
+                else:
+                    ui_ops.append(("text", text))
+                _schedule_flush()
+
+        def queue_ui_op(fn) -> None:
+            with ui_buffer_lock:
+                ui_ops.append(("op", fn))
+                _schedule_flush()
 
         def stream_worker():
             fallback_used = False
             try:
                 # Try streaming from persistent client
                 had_output = False
+                assistant_chunks: list[str] = []
                 for event_type, content in client.send_message(prompt):
                     current_tab = self.output_tabs.get(tab_id)
                     if current_tab and not current_tab.get("ai_running"):
@@ -1422,17 +1630,21 @@ class SAGEApp(ctk.CTk):
                     self._mark_tab_stream_event(tab_id)
 
                     if event_type == "thinking":
-                        self.after(0, lambda c=content, view=output_view: view.append_expandable_section("Thinking", c, "thinking_text", collapsed=False))
+                        assistant_chunks.append(content)
+                        queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Thinking", c, "thinking_text", collapsed=False))
                     elif event_type == "coding":
-                        self.after(0, lambda c=content, view=output_view: view.append_expandable_section("Coding", c, "code", collapsed=False))
+                        assistant_chunks.append(content)
+                        queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Coding", c, "code", collapsed=False))
                     elif event_type == "tool":
-                        self.after(0, lambda c=content, view=output_view: view.append_expandable_section("Tool Activity", c, "running", collapsed=False))
+                        assistant_chunks.append(content)
+                        queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Tool Activity", c, "running", collapsed=False))
                     elif event_type == "text":
+                        assistant_chunks.append(content)
                         queue_ui_text(content)
                     elif event_type == "error":
                         # Check if it's the "restricted to Claude Code client" error
                         if "restricted to the official Claude Code client" in content or "403" in content:
-                            self.after(0, lambda view=output_view: view.append_text(
+                            queue_ui_op(lambda view=output_view: view.append_text(
                                 "\n[WARN] SDK mode requires Anthropic API key. Falling back to CLI mode...\n",
                                 "info"
                             ))
@@ -1440,13 +1652,10 @@ class SAGEApp(ctk.CTk):
                             break
                         queue_ui_text(f"\n{content}\n", "error")
                     elif event_type == "complete":
-                        # Save to database via sage run wrapper for token tracking
-                        history_summary = client.get_history_summary()
-                        threading.Thread(
-                            target=self._track_persistent_run,
-                            args=(history_summary,),
-                            daemon=True,
-                        ).start()
+                        assistant_text = "".join(assistant_chunks).strip()
+                        run_id = self._save_gui_ai_run(ai_name, prompt, visible_prompt, assistant_text)
+                        if run_id:
+                            self._record_context_compression(run_id, output_view)
 
                         # EXECUTE AGENTS NOW - create database run and execute agents
                         threading.Thread(
@@ -1475,8 +1684,9 @@ class SAGEApp(ctk.CTk):
                         self.ai_running = False
                         self.after(0, self.thinking_overlay.hide)
                         self.after(0, lambda: self._set_run_status("Idle", "gray60"))
+                        self.after(0, lambda: self._set_manual_active_agents(set()))
                     self.after(1500, self.update_metrics)
-                    self.after(1500, self.load_sidebar_data)
+                    # REMOVED: load_sidebar_data() - causes sidebar flicker on every command
                     self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
 
         self.ai_thread = threading.Thread(target=stream_worker, daemon=True)
@@ -1487,18 +1697,73 @@ class SAGEApp(ctk.CTk):
         return True
 
     def _track_persistent_run(self, history_summary: str | None = None):
-        """Track the persistent session run in SAGE database for metrics."""
+        """Deprecated no-op kept for older callbacks.
+
+        The GUI used to log `sage run -- echo Persistent session...` here. That
+        polluted compression metrics with tiny fake rows instead of recording the
+        actual AI output. Persistent streams now call `_save_gui_ai_run`.
+        """
+        return None
+
+    def _save_gui_ai_run(self, ai_name: str, prompt: str, visible_prompt: str, assistant_text: str) -> int | None:
+        """Persist a real GUI SDK AI interaction and its output compression."""
         try:
-            # Run a minimal sage command to log this interaction
-            history_summary = history_summary or self.persistent_client.get_history_summary()
-            subprocess.run(
-                ["sage", "run", "--", "echo", f"Persistent session: {history_summary}"],
-                capture_output=True,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+            summary = f"{ai_name.capitalize()} GUI response to: {visible_prompt[:160]}"
+            strictness = str(load_policy().get("redaction_strictness") or "standard")
+            stdout_redacted = redact_text(assistant_text or "", strictness=strictness)
+            summary_redacted = redact_text(summary, strictness=strictness)
+            command = f"{ai_name} gui-session"
+            run_id = save_run(
+                project=os.getcwd(),
+                command=command,
+                exit_code=0,
+                duration_ms=0,
+                stdout=stdout_redacted.text,
+                stderr="",
+                summary=summary_redacted.text,
+                stdout_redactions=stdout_redacted.count,
+                stderr_redactions=0,
+                summary_redactions=summary_redacted.count,
+                command_sha256=command_hash(command),
+                policy_mode=str(load_policy().get("mode", "personal")),
+                policy_decision="allowed",
+                policy_reason="gui persistent AI session",
+                retention_expires_at=retention_expiry(),
+                raw_retained=1,
+                command_kind="ai",
+                command_family=ai_name,
+                caller="gui",
+                workspace_hash=workspace_hash(os.getcwd()),
+                session_id=str(self.current_session_id or ""),
+                is_ai_session=1,
             )
+            result = ContextManager().process_command_output(
+                stdout=stdout_redacted.text,
+                stderr="",
+                exit_code=0,
+                run_id=run_id,
+            )
+            self._insert_context_compression(run_id, result)
+            self._save_prompt_for_run(run_id, visible_prompt)
+            return run_id
         except Exception:
-            pass
+            return None
+
+    def _insert_context_compression(self, run_id: int, result: dict) -> None:
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        saved_tokens = int(result.get("token_savings", 0))
+        original_tokens = int(result.get("original_tokens", saved_tokens))
+        compressed_tokens = int(result.get("compressed_tokens", max(0, original_tokens - saved_tokens)))
+        with connect() as conn:
+            self._ensure_context_compression_table(conn)
+            conn.execute(
+                """
+                INSERT INTO context_compression
+                (run_id, created_at, original_tokens, compressed_tokens, saved_tokens)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (run_id, now, original_tokens, compressed_tokens, saved_tokens),
+            )
 
     def _run_real_cli_in_pty(self, prompt: str, ai_name: str, visible_prompt: str) -> bool:
         """Run CLI through sage wrapper in PTY - TRACKS TOKENS + SHOWS THINKING!"""
@@ -1540,7 +1805,7 @@ class SAGEApp(ctk.CTk):
             self.output_view.send_command(terminal_command, wrap_with_sage=False)
             self._remember_conversation_turn("user", visible_prompt)
             self.after(1500, self.update_metrics)
-            self.after(1500, self.load_sidebar_data)
+            # REMOVED: load_sidebar_data() - causes sidebar flicker on every command
             return True
         except Exception as exc:
             self.output_view.append_text(f"\n[ERROR] Could not send command to terminal: {exc}\n", "error")
@@ -1639,6 +1904,11 @@ class SAGEApp(ctk.CTk):
                                     elif block_type == 'text' and not seen_answer:
                                         seen_answer = True
                                         self.output_view.append_text('\n━━━ Answer ━━━\n', 'answer_header')
+                                    elif block_type == 'tool_use':
+                                        # Tool call - show it!
+                                        tool_name = block.get('name', 'UnknownTool')
+                                        tool_input = block.get('input', {})
+                                        self._format_tool_call(tool_name, tool_input)
 
                                 elif stream_type == 'content_block_delta':
                                     delta = stream_event.get('delta', {})
@@ -1652,6 +1922,25 @@ class SAGEApp(ctk.CTk):
                                         text = delta.get('text', '')
                                         if text:
                                             self.output_view.append_text(text)
+                                    elif delta_type == 'input_json_delta':
+                                        # Tool input being streamed (we already showed the call, ignore deltas)
+                                        pass
+
+                                elif stream_type == 'content_block_stop':
+                                    block_data = stream_event.get('content_block', {})
+                                    if block_data.get('type') == 'tool_use':
+                                        # Tool finished, show result marker
+                                        self.output_view.append_text('  L  ', 'thinking_text')
+
+                                elif stream_type == 'message_delta':
+                                    # Message-level events (tool results come here)
+                                    message = stream_event.get('message', {})
+                                    for content_item in message.get('content', []):
+                                        if isinstance(content_item, dict):
+                                            if content_item.get('type') == 'tool_result':
+                                                # Show tool result
+                                                result_content = content_item.get('content', '')
+                                                self._format_tool_result(result_content)
 
                             # Codex format
                             elif event_type == 'reasoning':
@@ -1681,18 +1970,59 @@ class SAGEApp(ctk.CTk):
                         except json.JSONDecodeError:
                             self.output_view.append_text(line)
                     else:
+                        # Non-JSON lines - includes SAGE footer metrics
                         self.output_view.append_text(line)
 
                 process.wait()
+
+                # Show SAGE metrics footer after AI completes
+                self.output_view.append_text('\n━━━ SAGE Metrics ━━━\n', 'thinking_header')
+                self.output_view.append_text('Loading metrics...\n')
+
+                # Get latest run metrics from database
+                try:
+                    from sage.store import connect
+                    with connect() as conn:
+                        latest = conn.execute(
+                            """
+                            SELECT r.id, r.exit_code,
+                                   cc.saved_tokens, cc.compressed_tokens, cc.original_tokens,
+                                   GROUP_CONCAT(DISTINCT ar.agent_type) as agents
+                            FROM runs r
+                            LEFT JOIN context_compression cc ON cc.run_id = r.id
+                            LEFT JOIN agent_runs ar ON ar.run_id = r.id
+                            WHERE r.id = (SELECT MAX(id) FROM runs)
+                            GROUP BY r.id
+                            """
+                        ).fetchone()
+
+                        if latest:
+                            run_id = latest['id']
+                            saved = latest['saved_tokens'] or 0
+                            compressed = latest['compressed_tokens'] or 0
+                            original = latest['original_tokens'] or 0
+                            ratio = f"{(saved / original * 100):.1f}%" if original else "0%"
+                            agents = latest['agents'] or 'none'
+
+                            metrics_text = (
+                                f"Run #{run_id} | Exit: {latest['exit_code']}\n"
+                                f"Tokens: {original:,} → {compressed:,} (saved {saved:,} = {ratio})\n"
+                                f"Agents: {agents}\n"
+                            )
+                            self.output_view.append_text(metrics_text)
+                except Exception as e:
+                    self.output_view.append_text(f"Failed to load metrics: {e}\n", 'error')
 
             except Exception as e:
                 self.output_view.append_text(f"\n[ERROR] {e}\n", 'error')
             finally:
                 self.ai_running = False
-                self.thinking_overlay.hide()
-                # Refresh metrics if method exists
-                if hasattr(self.sidebar, 'refresh_metrics'):
-                    self.sidebar.refresh_metrics()
+                # CRITICAL: Hide thinking overlay on MAIN thread, not background thread!
+                self.after(0, lambda: self.thinking_overlay.hide())
+                # Clear agent status back to idle
+                self.after(0, lambda: self._set_manual_active_agents(set()))
+                # Update metrics card WITHOUT reloading entire sidebar
+                self.after(0, self.update_metrics)
 
         import threading
         thread = threading.Thread(target=run_command, daemon=True)
@@ -1756,6 +2086,7 @@ class SAGEApp(ctk.CTk):
         finally:
             self.ai_running = False
             self.after(0, lambda: self.thinking_overlay.hide())
+            self.after(0, lambda: self._set_manual_active_agents(set()))
 
     def _switch_to_pty_mode(self, ai_name: str, prompt: str, visible_prompt: str):
         """Switch output view to PTY terminal and run REAL CLI"""
@@ -1792,6 +2123,7 @@ class SAGEApp(ctk.CTk):
                 if not self.pty_terminal.is_pty_active():
                     self.ai_running = False
                     self.thinking_overlay.hide()
+                    self._set_manual_active_agents(set())
                 elif self.ai_running:
                     self.after(500, check_completion)
 
@@ -1860,6 +2192,7 @@ class SAGEApp(ctk.CTk):
         finally:
             self.ai_running = False
             self.after(0, lambda: self.thinking_overlay.hide())
+            self.after(0, lambda: self._set_manual_active_agents(set()))
 
     def _run_cli_embedded_terminal(self, prompt: str, ai_name: str, visible_prompt: str) -> bool:
         """Run the real SAGE CLI and stream its terminal output inside the desktop."""
@@ -1992,8 +2325,9 @@ class SAGEApp(ctk.CTk):
             self.ai_running = False
             self.ai_process = None
             self.after(0, self.thinking_overlay.hide)
+            self.after(0, lambda: self._set_manual_active_agents(set()))
             self.after(0, self.update_metrics)
-            self.after(0, self.load_sidebar_data)
+            # REMOVED: load_sidebar_data() - causes sidebar flicker on every command
 
     def _clean_terminal_answer(self, output_text: str) -> str:
         """Keep memory focused on the assistant answer, not the terminal footer."""
@@ -2396,6 +2730,28 @@ class SAGEApp(ctk.CTk):
             f"({stats['savings_percent']:.1f}% saved).\n\n"
         )
 
+    def _project_key(self, project: str | None = None) -> str:
+        """Normalized identity for per-project shared memory."""
+        target = project or os.getcwd()
+        return os.path.normcase(os.path.abspath(target))
+
+    def _bind_project_memory(self, project: str | None = None) -> None:
+        """Point conversation_turns/project_memory_turns at this project's shared lists.
+
+        Same-project tabs get the SAME list objects, so a second AI reuses the
+        first AI's context and both save tokens. Switching tabs rebinds instead
+        of wiping, so each project keeps its own live memory.
+        """
+        # Use __dict__ access so a partially-constructed app (e.g. tests using
+        # __new__) never triggers CTk's __getattr__ recursion on a missing attr.
+        if not isinstance(self.__dict__.get("_live_memory_by_project"), dict):
+            self.__dict__["_live_memory_by_project"] = {}
+        if not isinstance(self.__dict__.get("_saved_memory_by_project"), dict):
+            self.__dict__["_saved_memory_by_project"] = {}
+        key = self._project_key(project)
+        self.conversation_turns = self._live_memory_by_project.setdefault(key, [])
+        self.project_memory_turns = self._saved_memory_by_project.setdefault(key, [])
+
     def _remember_conversation_turn(self, role: str, text: str):
         """Keep recent chat context AND save to session."""
         text = (text or "").strip()
@@ -2405,9 +2761,11 @@ class SAGEApp(ctk.CTk):
         if len(text) > 3500:
             text = text[:1700] + "\n[Middle of long response trimmed for GUI memory]\n" + text[-1700:]
 
-        # Old in-memory storage (keep for backward compat)
+        # Shared per-project live memory. Mutate in place so all tabs on this
+        # project (and both AIs) see the same conversation without re-sending it.
+        self._bind_project_memory(os.getcwd())
         self.conversation_turns.append({"role": role, "text": text})
-        self.conversation_turns = self.conversation_turns[-16:]
+        self.conversation_turns[:] = self.conversation_turns[-16:]
         self._persist_conversation()
 
         # NEW: Save to SessionManager
@@ -2438,27 +2796,26 @@ class SAGEApp(ctk.CTk):
             if not isinstance(data, dict):
                 data = {}
             saved_turns = (getattr(self, "project_memory_turns", []) + self.conversation_turns)[-16:]
-            data[os.path.normcase(os.getcwd())] = saved_turns
+            data[self._project_key()] = saved_turns
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def _load_saved_conversation(self, announce: bool = False):
         """Restore saved project memory without mixing it into the live session."""
         try:
+            self._bind_project_memory(os.getcwd())
             path = self._conversation_store_path()
             if not path.exists():
-                self.project_memory_turns = []
-                self.conversation_turns = []
                 return
             data = json.loads(path.read_text(encoding="utf-8"))
-            turns = data.get(os.path.normcase(os.getcwd()), []) if isinstance(data, dict) else []
-            self.project_memory_turns = [
+            turns = data.get(self._project_key(), []) if isinstance(data, dict) else []
+            # Restore saved memory in place; preserve this project's live turns.
+            self.project_memory_turns[:] = [
                 turn for turn in turns
                 if isinstance(turn, dict) and str(turn.get("text", "")).strip()
             ][-16:]
-            self.conversation_turns = []
             if announce and self.project_memory_turns:
                 count = len(self.project_memory_turns)
                 self.output_view.append_text(
@@ -2467,12 +2824,27 @@ class SAGEApp(ctk.CTk):
                     "info",
                 )
         except Exception:
-            self.project_memory_turns = []
-            self.conversation_turns = []
+            self._bind_project_memory(os.getcwd())
+            self.project_memory_turns.clear()
+            self.conversation_turns.clear()
 
     def _remember_terminal_ai_response(self, text: str):
         """Store the actual streamed terminal response for same-chat context."""
         self._remember_conversation_turn(self.ai_selector.get().lower(), text)
+        self._set_manual_active_agents(set())
+
+    def _finish_terminal_ai_run(self, tab_id: int, error: str | None = None) -> None:
+        """Reset GUI run state when an embedded terminal AI command completes."""
+        tab = self.output_tabs.get(tab_id)
+        if tab:
+            tab["ai_running"] = False
+        if tab_id == self.active_output_tab_id:
+            self.ai_running = False
+            self.thinking_overlay.hide()
+            self._set_run_status("Idle", "gray60")
+        self._set_manual_active_agents(set())
+        self.after(1500, self.update_metrics)
+        self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
 
     def _format_run_preamble(self, ai_name: str, command: str, terminal: bool = False) -> str:
         """Show AI, PTY, ML, and agent plan for the run."""
@@ -2500,7 +2872,7 @@ class SAGEApp(ctk.CTk):
 
     def _format_run_agents(self, command: str) -> str:
         """Show planned agents and active agent records for this run."""
-        planned = select_agents_for_command(command)
+        planned = select_agents_for_command(command, limit=6)
         lines = ["Planned agents:"]
         for spec in planned:
             lines.append(f"- {spec.name} ({spec.type})")
@@ -2561,17 +2933,23 @@ class SAGEApp(ctk.CTk):
 
                 # Spawn agents asynchronously and assign tasks
                 async def spawn_all():
-                    for agent_class, name in agents_to_spawn:
-                        try:
-                            agent = await orchestrator.spawn_agent(agent_class, name)
-                            print(f"[SAGE] Spawned {name} for this request")
+                    try:
+                        for agent_class, name in agents_to_spawn:
+                            try:
+                                agent = await orchestrator.spawn_agent(agent_class, name)
+                                print(f"[SAGE] Spawned {name} for this request")
 
-                            # Assign task immediately so agent goes to "busy" status
-                            task_desc = f"Handle: {command[:100]}"
-                            await orchestrator.assign_task(name, task_desc, {"command": command})
-                            print(f"[SAGE] Assigned task to {name}")
-                        except Exception as e:
-                            print(f"[SAGE] Failed to spawn {name}: {e}")
+                                # Assign task immediately so agent goes to "busy" status
+                                task_desc = f"Handle: {command[:100]}"
+                                await orchestrator.assign_task(name, task_desc, {"command": command})
+                                print(f"[SAGE] Assigned task to {name}")
+                            except Exception as e:
+                                print(f"[SAGE] Failed to spawn {name}: {e}")
+
+                        for agent in orchestrator.agents.values():
+                            await agent.ensure_task_queue().join()
+                    finally:
+                        await orchestrator.shutdown()
 
                 # Run in background thread to not block UI
                 def run_async():
@@ -2631,12 +3009,10 @@ class SAGEApp(ctk.CTk):
             # Display agent results in output view
             if results:
                 self.after(0, lambda: self._display_agent_results(results))
-                print(f"[SAGE] {len(results)} agents completed analysis")
+                LOG.info("%s agents completed analysis", len(results))
 
         except Exception as e:
-            print(f"[SAGE] Agent execution failed: {e}")
-            import traceback
-            traceback.print_exc()
+            LOG.warning("Agent execution failed: %s", e, exc_info=LOG.isEnabledFor(logging.DEBUG))
 
     def _display_agent_results(self, results: list[dict]):
         """Display agent analysis results in the output view."""
@@ -2704,9 +3080,11 @@ class SAGEApp(ctk.CTk):
             return True
 
         if name in {"/new", "/newchat"}:
-            # Clear BOTH legacy and persistent conversation history
-            self.project_memory_turns = []
-            self.conversation_turns = []
+            # Clear this project's SHARED memory in place so every tab/AI on it
+            # forgets together (rebinding to a fresh list would not clear the dict).
+            self._bind_project_memory(os.getcwd())
+            self.project_memory_turns.clear()
+            self.conversation_turns.clear()
             self._persist_conversation()
 
             # Clear persistent client history - THIS IS THE REAL FIX!
@@ -3283,7 +3661,7 @@ class SAGEApp(ctk.CTk):
             run_id = getattr(client, "last_run_id", None) if client else None
             if run_id:
                 self.after(0, lambda rid=run_id, text=visible_prompt: self._save_prompt_for_run(rid, text))
-                self._record_context_compression(run_id)
+                self._record_context_compression(run_id, output_view)
 
             if self.output_tabs.get(tab_id, {}).get("ai_running", self.ai_running):
                 assistant_text = "".join(assistant_chunks).strip()
@@ -3303,14 +3681,75 @@ class SAGEApp(ctk.CTk):
                 self.ai_running = False
             self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
             error_msg = str(err)
-            import traceback
-            traceback.print_exc()
+            LOG.warning("AI stream worker failed: %s", err, exc_info=LOG.isEnabledFor(logging.DEBUG))
             if tab_id == self.active_output_tab_id:
                 self.after(0, self.thinking_overlay.hide)
                 self.after(0, lambda: self._set_run_status("Idle", "gray60"))
             self.after(0, lambda msg=error_msg, view=output_view: view.append_text(f"\nERROR: {msg}\n", "error"))
 
-    def _record_context_compression(self, run_id: int):
+    def _format_tool_result(self, result_content):
+        """Format and display a tool result."""
+        # Extract text from result
+        if isinstance(result_content, str):
+            text = result_content
+        elif isinstance(result_content, list):
+            parts = []
+            for block in result_content:
+                if isinstance(block, dict) and isinstance(block.get("text"), str):
+                    parts.append(block["text"])
+            text = "\n".join(parts)
+        else:
+            text = "(no output)"
+
+        # Show first line + count if multiline
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines:
+            self.output_view.append_text("(no output)\n", 'thinking_text')
+            return
+
+        first_line = lines[0]
+        if len(first_line) > 100:
+            first_line = first_line[:97] + "..."
+
+        if len(lines) > 1:
+            self.output_view.append_text(f"{first_line} ... +{len(lines) - 1} lines\n", 'thinking_text')
+        else:
+            self.output_view.append_text(f"{first_line}\n", 'thinking_text')
+
+    def _format_tool_call(self, tool_name: str, tool_input: dict):
+        """Format and display a tool call with its inputs."""
+        from sage.gui.diff_formatter import format_edit_diff, format_write_diff
+
+        if tool_name == 'Edit':
+            file_path = tool_input.get('file_path', '???')
+            old_string = tool_input.get('old_string', '')
+            new_string = tool_input.get('new_string', '')
+            diff = format_edit_diff(file_path, old_string, new_string)
+            self.output_view.append_text(diff)
+
+        elif tool_name == 'Write':
+            file_path = tool_input.get('file_path', '???')
+            content = tool_input.get('content', '')
+            diff = format_write_diff(file_path, content)
+            self.output_view.append_text(diff)
+
+        elif tool_name == 'Read':
+            file_path = tool_input.get('file_path', '???')
+            limit = tool_input.get('limit')
+            offset = tool_input.get('offset')
+            if limit and offset:
+                self.output_view.append_text(f"\n● Read({file_path}) — lines {offset}:{offset + limit}\n")
+            elif limit:
+                self.output_view.append_text(f"\n● Read({file_path}) — first {limit} lines\n")
+            else:
+                self.output_view.append_text(f"\n● Read({file_path})\n")
+
+        else:
+            # Generic tool format
+            params_str = ", ".join(f"{k}={v!r}" for k, v in tool_input.items())
+            self.output_view.append_text(f"\n● {tool_name}({params_str})\n")
+
+    def _record_context_compression(self, run_id: int, output_view=None):
         """Persist real prompt context compression stats for the token card."""
         stats = self.pending_context_compression
         if not stats:
@@ -3333,6 +3772,13 @@ class SAGEApp(ctk.CTk):
                         int(stats["saved_tokens"]),
                     ),
                 )
+
+            # Display per-request token savings
+            if output_view:
+                saved_k = self._format_count(int(stats["saved_tokens"]))
+                savings_pct = stats["savings_percent"]
+                msg = f"\n💾 Saved {saved_k} tokens on this request ({savings_pct:.1f}% compression)\n"
+                self.after(0, lambda: output_view.append_text(msg, "success"))
         except Exception as e:
             # DEBUG:Error recording context compression: {e}")
             pass
@@ -3644,14 +4090,29 @@ class SAGEApp(ctk.CTk):
                 messages = self.session_manager.get_messages(os.getcwd(), session_id_or_chat_id)
                 if messages:
                     self.current_session_id = session_id_or_chat_id
-                    self.conversation_turns = [
+                    self._bind_project_memory(os.getcwd())
+                    # FIXED: Show ALL messages, not just last 16
+                    self.conversation_turns[:] = [
                         {"role": msg.get("role", ""), "text": msg.get("text", "")}
                         for msg in messages
                         if msg.get("text")
-                    ][-16:]
+                    ]
                     if self.persistent_client:
                         self.persistent_client.load_history(messages)
                     self.output_view.clear()
+
+                    # FIXED: Disable pruning while loading history - users expect to see ALL messages
+                    self.output_view.prune_enabled = False
+
+                    # Show full message count at top
+                    total_messages = len(messages)
+                    if total_messages > 0:
+                        self.output_view.append_text(
+                            f"\n━━━ Loaded {total_messages} message{'s' if total_messages != 1 else ''} from this chat ━━━\n\n",
+                            "info"
+                        )
+
+                    # Display ALL messages with full content
                     for msg in messages:
                         role = msg.get("role", "")
                         text = msg.get("text", "")
@@ -3660,6 +4121,10 @@ class SAGEApp(ctk.CTk):
                         else:
                             self.output_view.append_assistant_start(role.capitalize())
                             self.output_view.append_assistant_text(f"{text}\n")
+
+                    # Re-enable pruning for future streaming (new messages)
+                    self.output_view.prune_enabled = True
+
                     self.session_manager.mark_unread(os.getcwd(), session_id_or_chat_id, False)
                     self.load_sidebar_data()
                     return
@@ -3693,16 +4158,16 @@ class SAGEApp(ctk.CTk):
                 self.output_view.append_assistant_text(f"{assistant_text}\n")
             elif row["stdout"]:
                 output = row["stdout"]
-                assistant_text = self._format_saved_output(output[:4000])
+                # FIXED: Show FULL output, not just first 4K chars
+                assistant_text = self._format_saved_output(output)
                 self.output_view.append_assistant_text(f"{assistant_text}\n")
-                if len(output) > 4000:
-                    self.output_view.append_assistant_text("\n[Output trimmed in sidebar view]\n")
             elif row["summary"]:
                 assistant_text = self._format_saved_output(row["summary"])
                 self.output_view.append_assistant_text(f"{assistant_text}\n")
 
-            self.project_memory_turns = []
-            self.conversation_turns = []
+            self._bind_project_memory(os.getcwd())
+            self.project_memory_turns.clear()
+            self.conversation_turns.clear()
             if saved_prompt:
                 self._remember_conversation_turn("user", saved_prompt)
             if assistant_text:
@@ -3849,8 +4314,7 @@ class SAGEApp(ctk.CTk):
             self.connect_btn.configure(text="Connect")
             self.status_indicator.configure(text_color="red")
             self.ai_selector.configure(state="readonly")
-            self.project_memory_turns = []
-            self.conversation_turns = []
+            self._bind_project_memory(os.getcwd())
             self._reset_session_baseline_to_zero()
             self.output_view.clear()
             self.output_view.append_text(
@@ -3877,9 +4341,7 @@ class SAGEApp(ctk.CTk):
             FROM runs
             """
         ).fetchone()
-        token_row = conn.execute(
-            "SELECT SUM(original_tokens), SUM(compressed_tokens), SUM(saved_tokens) FROM context_compression"
-        ).fetchone()
+        token_row = self._fetch_ai_token_totals(conn)
         agent_row = conn.execute(
             """
             SELECT
@@ -4134,7 +4596,6 @@ class SAGEApp(ctk.CTk):
             lines.append(f"- {root}")
         return "\n".join(lines) + "\n"
 
-
     def new_chat_with_folder_picker(self):
         """Create NEW session in current project (NOT clearing existing chats!)"""
         # NO folder picker - just create new session in current project
@@ -4144,9 +4605,11 @@ class SAGEApp(ctk.CTk):
         session_id = self.session_manager.create_session(current_project, title="New Chat")
         self.current_session_id = session_id
 
-        # Clear ONLY in-memory conversation (not persisted sessions!)
-        self.conversation_turns = []
-        self.project_memory_turns = []
+        # Clear this project's shared in-memory conversation in place
+        # (not persisted sessions!)
+        self._bind_project_memory(current_project)
+        self.conversation_turns.clear()
+        self.project_memory_turns.clear()
 
         # Clear persistent AI client history
         if hasattr(self, 'persistent_client') and self.persistent_client:
@@ -4214,10 +4677,11 @@ class SAGEApp(ctk.CTk):
             try:
                 active_client.stop()
             except Exception:
-                pass
+                log.debug("suppressed", exc_info=True)
         self.ai_running = False
         if tab:
             tab["ai_running"] = False
+        self._set_manual_active_agents(set())
 
         if self.ai_process:
             try:
@@ -4264,14 +4728,12 @@ class SAGEApp(ctk.CTk):
         finally:
             self.destroy()
 
-
 def main():
     """Launch the SAGE Desktop GUI"""
     _set_windows_app_id()
     app = SAGEApp()
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
-
 
 if __name__ == "__main__":
     main()

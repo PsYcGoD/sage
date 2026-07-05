@@ -6,8 +6,10 @@ that keep conversation history and don't burn credits on repeated context.
 """
 
 import json
+import logging
 import os
 import queue
+import re
 import shutil
 import subprocess
 import threading
@@ -16,20 +18,39 @@ from pathlib import Path
 from typing import Optional, Generator, Tuple
 from datetime import datetime
 
+from sage.gui.model_defaults import bedrock_claude_model, claude_model, ollama_model
+
+
+LOG = logging.getLogger(__name__)
+
 
 class PersistentAIClient:
     """Maintains a persistent conversation session with an AI provider."""
 
-    def __init__(self, ai_name: str, system_prompts: list[str] | None = None, permission_mode: str = "ask"):
+    def __init__(
+        self,
+        ai_name: str,
+        system_prompts: list[str] | None = None,
+        permission_mode: str = "ask",
+        project_cwd: str | None = None,
+    ):
         self.ai_name = ai_name.lower()
         self.system_prompts = system_prompts or []
         self.permission_mode = permission_mode
+        self.project_cwd = str(project_cwd or os.getcwd())
         self.conversation_history = []
         self.session_active = False
         self.codex_has_session = False
         self.codex_command = ""
         self.last_error = ""
         self._lock = threading.Lock()
+
+    def _record_error(self, message: str, exc: Exception | None = None) -> None:
+        self.last_error = message
+        if exc:
+            LOG.warning("%s: %s", message, exc, exc_info=LOG.isEnabledFor(logging.DEBUG))
+        else:
+            LOG.warning("%s", message)
 
     def _compact_text(self, text: str, max_chars: int = 4000) -> str:
         text = str(text or "")
@@ -72,7 +93,7 @@ class PersistentAIClient:
             else:
                 return self._start_generic_session()
         except Exception as e:
-            print(f"[ERROR] Failed to start {self.ai_name} session: {e}")
+            self._record_error(f"Failed to start {self.ai_name} session", e)
             return False
 
     def _start_claude_session(self) -> bool:
@@ -92,8 +113,7 @@ class PersistentAIClient:
             # Default to Bedrock if AWS is configured
             use_bedrock = has_aws_creds or os.getenv("USE_BEDROCK", "").lower() in ("true", "1", "yes")
 
-            print(f"[INFO] AWS region: {aws_region}")
-            print(f"[INFO] Use Bedrock: {use_bedrock}")
+            LOG.info("Claude session region=%s bedrock=%s", aws_region, use_bedrock)
 
             # Create client - match Claude Code's exact setup
             try:
@@ -102,15 +122,13 @@ class PersistentAIClient:
 
                 if use_bedrock or os.getenv("CLAUDE_CODE_USE_BEDROCK") == "1":
                     # AWS Bedrock client - uses boto3 credentials
-                    print(f"[INFO] Creating Bedrock client in {aws_region}...")
                     self.client = anthropic.AnthropicBedrock(aws_region=aws_region)
-                    print(f"[OK] AWS Bedrock client created (region: {aws_region})")
+                    LOG.info("AWS Bedrock client created for region %s", aws_region)
                     self.is_bedrock = True
                 elif base_url:
                     # Custom base URL (like cc.freemodel.dev proxy)
-                    print(f"[INFO] Using custom base URL: {base_url}")
                     self.client = anthropic.Anthropic(api_key=api_key, base_url=base_url)
-                    print(f"[OK] Custom API client created")
+                    LOG.info("Anthropic API client created with custom base URL")
                     self.is_bedrock = False
                 else:
                     # Direct Anthropic API
@@ -118,33 +136,32 @@ class PersistentAIClient:
                         # Try Claude CLI auth
                         try:
                             result = subprocess.run(
-                                "claude auth status",
-                                shell=True,
+                                [shutil.which("claude") or "claude", "auth", "status"],
                                 capture_output=True,
                                 text=True,
+                                encoding="utf-8",
+                                errors="replace",
                                 timeout=5,
                                 creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
                             )
                             if '"loggedin": true' not in result.stdout.lower():
-                                print("[ERROR] No API key and Claude CLI not logged in")
+                                self._record_error("No Anthropic API key and Claude CLI is not logged in")
                                 return False
-                        except Exception:
-                            print("[ERROR] Could not verify Claude CLI auth")
+                        except Exception as exc:
+                            self._record_error("Could not verify Claude CLI auth", exc)
                             return False
 
                     self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
-                    print("[OK] Anthropic API client created")
+                    LOG.info("Anthropic API client created")
                     self.is_bedrock = False
 
             except Exception as e:
-                print(f"[ERROR] Failed to create client: {e}")
-                import traceback
-                traceback.print_exc()
+                self._record_error("Failed to create Claude client", e)
                 return False
 
             # Verify client
             if not self.client:
-                print("[ERROR] Client is None after creation")
+                self._record_error("Claude client is None after creation")
                 return False
 
             self.conversation_history = []
@@ -157,24 +174,21 @@ class PersistentAIClient:
                     try:
                         content = p.read_text(encoding="utf-8")
                         system_content.append(content)
-                        print(f"[OK] Loaded system prompt: {p.name} ({len(content)} chars)")
+                        LOG.info("Loaded system prompt %s (%s chars)", p.name, len(content))
                     except Exception as e:
-                        print(f"[WARN] Could not read {prompt_file}: {e}")
+                        LOG.warning("Could not read system prompt %s: %s", prompt_file, e)
 
             self.system_message = "\n\n".join(system_content) if system_content else None
             self.session_active = True
 
-            print(f"[OK] Session started with {len(system_content)} system prompts")
+            LOG.info("Claude session started with %s system prompts", len(system_content))
             return True
 
         except ImportError as e:
-            print(f"[ERROR] Missing package: {e}")
-            print("[FIX] Run: pip install anthropic boto3")
+            self._record_error(f"Missing Claude package: {e}. Install with: pip install sage[ai]")
             return False
         except Exception as e:
-            print(f"[ERROR] Claude session failed: {e}")
-            import traceback
-            traceback.print_exc()
+            self._record_error("Claude session failed", e)
             return False
 
     def _start_codex_session(self) -> bool:
@@ -183,7 +197,7 @@ class PersistentAIClient:
             codex_command = self._resolve_codex_command()
             if not codex_command:
                 self.last_error = "Codex CLI was not found in PATH or known Windows install locations."
-                print(f"[ERROR] {self.last_error}")
+                LOG.warning("%s", self.last_error)
                 return False
 
             env = self._codex_cli_env()
@@ -205,7 +219,7 @@ class PersistentAIClient:
                     f"Exit code: {result.returncode}\n"
                     f"Output:\n{combined_output.strip() or '(no output)'}"
                 )
-                print(f"[ERROR] {self.last_error}")
+                LOG.warning("%s", self.last_error)
                 return False
 
             self.codex_command = codex_command
@@ -216,7 +230,7 @@ class PersistentAIClient:
 
         except Exception as e:
             self.last_error = f"Codex session failed: {e}"
-            print(f"[ERROR] {self.last_error}")
+            LOG.warning("%s", self.last_error)
             return False
 
     def _resolve_codex_command(self) -> str:
@@ -263,11 +277,11 @@ class PersistentAIClient:
 
             self.conversation_history = []
             self.session_active = True
-            self.ollama_model = "qwen2.5-coder:7b"
+            self.ollama_model = ollama_model()
             return True
 
         except Exception as e:
-            print(f"[ERROR] Ollama session failed: {e}")
+            self._record_error("Ollama session failed", e)
             return False
 
     def _start_generic_session(self) -> bool:
@@ -311,13 +325,11 @@ class PersistentAIClient:
 
             # Use env-specified model IDs if available (Claude Code style)
             if hasattr(self, 'is_bedrock') and self.is_bedrock:
-                # AWS Bedrock - use env defaults or fallback
-                model = os.getenv("ANTHROPIC_DEFAULT_SONNET_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+                model = bedrock_claude_model()
             else:
-                # Direct Anthropic API
-                model = "claude-sonnet-4-20250514"
+                model = claude_model()
 
-            print(f"[DEBUG] Using model: {model}")
+            LOG.debug("Using Claude model: %s", model)
 
             # Prepare system message (Bedrock requires list format)
             system_param = None
@@ -340,6 +352,7 @@ class PersistentAIClient:
 
             with self.client.messages.stream(**kwargs) as stream:
                 assistant_text = []
+                current_tool = {}  # Track current tool_use block
 
                 for event in stream:
                     if hasattr(event, 'type'):
@@ -348,6 +361,13 @@ class PersistentAIClient:
                             if block and hasattr(block, 'type'):
                                 if block.type == 'thinking':
                                     yield ("thinking", "[Thinking...]\n")
+                                elif block.type == 'tool_use':
+                                    # Start tracking a new tool call
+                                    current_tool = {
+                                        'id': getattr(block, 'id', ''),
+                                        'name': getattr(block, 'name', ''),
+                                        'input': {}
+                                    }
 
                         elif event.type == 'content_block_delta':
                             delta = getattr(event, 'delta', None)
@@ -362,6 +382,51 @@ class PersistentAIClient:
                                         if text:
                                             assistant_text.append(text)
                                             yield ("text", text)
+                                    elif delta.type == 'input_json_delta':
+                                        # Accumulate tool input JSON
+                                        json_chunk = getattr(delta, 'partial_json', '')
+                                        if json_chunk and current_tool:
+                                            current_tool.setdefault('input_json', '')
+                                            current_tool['input_json'] += json_chunk
+
+                        elif event.type == 'content_block_stop':
+                            # Tool call complete - parse and format it
+                            if current_tool and current_tool.get('name'):
+                                tool_name = current_tool['name']
+
+                                # Parse accumulated JSON input
+                                try:
+                                    import json
+                                    tool_input = json.loads(current_tool.get('input_json', '{}'))
+
+                                    # Format Edit() calls as visual diffs
+                                    if tool_name == 'Edit':
+                                        from sage.gui.diff_formatter import format_edit_diff
+                                        file_path = tool_input.get('file_path', 'unknown')
+                                        old_string = tool_input.get('old_string', '')
+                                        new_string = tool_input.get('new_string', '')
+                                        diff_output = format_edit_diff(file_path, old_string, new_string)
+                                        yield ("tool", diff_output)
+
+                                    # Format Write() calls showing preview
+                                    elif tool_name == 'Write':
+                                        from sage.gui.diff_formatter import format_write_diff
+                                        file_path = tool_input.get('file_path', 'unknown')
+                                        content = tool_input.get('content', '')
+                                        write_output = format_write_diff(file_path, content)
+                                        yield ("tool", write_output)
+
+                                    # Other tools - show compact summary
+                                    else:
+                                        summary = f"\n🔧 {tool_name}({', '.join(f'{k}={repr(v)[:50]}' for k, v in tool_input.items())})\n"
+                                        yield ("tool", summary)
+
+                                except Exception as e:
+                                    # Fallback to raw tool info on parse error
+                                    yield ("tool", f"\n🔧 {tool_name}(...)\n")
+
+                                # Reset for next tool
+                                current_tool = {}
 
                 # Save assistant response to history
                 full_response = "".join(assistant_text)
@@ -387,6 +452,7 @@ class PersistentAIClient:
             assistant_text = []
             visible_started = False
             suppress_rest = False
+            saw_error = False
 
             process = subprocess.Popen(
                 cmd,
@@ -398,6 +464,7 @@ class PersistentAIClient:
                 errors="replace",
                 bufsize=1,
                 env=self._codex_cli_env(),
+                cwd=self.project_cwd if os.path.isdir(self.project_cwd) else None,
                 creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
             )
 
@@ -426,17 +493,26 @@ class PersistentAIClient:
                     streams_done[stream_name] = True
                     continue
 
-                event_type, visible = self._classify_codex_line(line, stream_name, visible_started, suppress_rest)
+                event_type, visible = self._classify_codex_stream_item(
+                    line,
+                    stream_name,
+                    visible_started,
+                    suppress_rest,
+                )
                 visible_started = visible_started or visible == "__START__"
                 suppress_rest = suppress_rest or visible == "__STOP__"
 
                 if visible and visible not in {"__START__", "__STOP__"}:
-                    assistant_text.append(visible)
+                    if event_type in {None, "text"}:
+                        assistant_text.append(visible)
+                    elif event_type == "error":
+                        saw_error = True
                     yield (event_type or "text", visible)
 
             exit_code = process.wait()
             if exit_code != 0:
-                yield ("error", f"Codex CLI exited with code {exit_code}")
+                if not saw_error:
+                    yield ("error", f"Codex CLI exited with code {exit_code}")
                 return
 
             self.codex_has_session = True
@@ -460,7 +536,13 @@ class PersistentAIClient:
 
     def _codex_command(self, *, resume: bool, output_path: Path) -> list[str]:
         # CRITICAL FIX: Run codex directly to prevent cmd.exe spawn
-        cmd = [self.codex_command or self._resolve_codex_command() or "codex", "exec"]
+        cmd = [
+            self.codex_command or self._resolve_codex_command() or "codex",
+            "exec",
+            "--json",
+            "--color",
+            "never",
+        ]
         if resume:
             cmd.extend(["resume", "--last"])
 
@@ -489,7 +571,9 @@ class PersistentAIClient:
             stripped_err = line.strip()
             if stripped_err.lower().startswith(("error", "[error]", "codex api error")):
                 return line
-            return None
+            if not stripped_err or suppress_rest:
+                return None
+            return line
 
         stripped = line.strip()
         if not stripped:
@@ -526,6 +610,219 @@ class PersistentAIClient:
             return line
         return line
 
+    def _classify_codex_stream_item(
+        self,
+        line: str,
+        stream_name: str,
+        visible_started: bool,
+        suppress_rest: bool,
+    ) -> tuple[str | None, str | None]:
+        """Classify Codex JSONL when available, falling back to text output."""
+        normalized_error = self._normalize_provider_error(line)
+        if stream_name != "stdout" and normalized_error:
+            return "error", normalized_error + "\n"
+
+        if stream_name == "stdout":
+            stripped = line.strip()
+            if stripped.startswith("{") and stripped.endswith("}"):
+                try:
+                    payload = json.loads(stripped)
+                except json.JSONDecodeError:
+                    pass
+                else:
+                    return self._classify_codex_json_event(payload)
+
+        return self._classify_codex_line(line, stream_name, visible_started, suppress_rest)
+
+    def _classify_codex_json_event(self, payload: dict) -> tuple[str | None, str | None]:
+        """Convert `codex exec --json` events into GUI event types."""
+        raw_type = str(payload.get("type") or payload.get("event") or "").lower()
+        item = payload.get("item") if isinstance(payload.get("item"), dict) else {}
+        item_type = str(item.get("type") or payload.get("item_type") or "").lower()
+        combined_type = f"{raw_type} {item_type}"
+        status = str(item.get("status") or payload.get("status") or "").lower()
+
+        if "token" in combined_type or raw_type in {"turn.completed", "thread.completed"}:
+            return None, None
+
+        if "error" in combined_type:
+            text = self._extract_codex_text(payload)
+            text = self._normalize_provider_error(text) or text
+            return ("error", text + "\n") if text else (None, None)
+
+        if "reason" in combined_type or "thinking" in combined_type:
+            text = self._extract_codex_text(payload)
+            return ("thinking", self._ensure_trailing_newline(text)) if text else (None, None)
+
+        if any(marker in combined_type for marker in ("exec", "command", "tool", "function_call", "local_shell")):
+            text = self._format_codex_tool_event(payload)
+            return ("tool", self._ensure_trailing_newline(text)) if text else (None, None)
+
+        if status in {"in_progress", "running", "pending"}:
+            text = self._extract_codex_text(payload, status_only=True) or status
+            return "thinking", self._ensure_trailing_newline(text)
+
+        if any(marker in combined_type for marker in ("patch", "edit", "file_change", "diff")):
+            text = self._extract_codex_text(payload)
+            return ("coding", self._ensure_trailing_newline(text)) if text else (None, None)
+
+        if any(marker in combined_type for marker in ("message", "output_text", "answer")):
+            text = self._extract_codex_text(payload)
+            return ("text", text) if text else (None, None)
+
+        if raw_type.endswith(".started"):
+            label = raw_type.removesuffix(".started").replace("_", " ").replace(".", " ")
+            if label and label not in {"thread", "turn"}:
+                return "thinking", f"{label}...\n"
+
+        text = self._extract_codex_text(payload, status_only=True)
+        return ("thinking", self._ensure_trailing_newline(text)) if text else (None, None)
+
+    def _format_codex_tool_event(self, payload: dict) -> str:
+        item = payload.get("item") if isinstance(payload.get("item"), dict) else {}
+        source = item or payload
+        status = str(source.get("status") or payload.get("status") or "").lower()
+        item_type = str(source.get("type") or payload.get("type") or "").lower()
+        name = (
+            source.get("name")
+            or source.get("tool_name")
+            or source.get("command")
+            or source.get("cmd")
+            or source.get("type")
+            or payload.get("type")
+        )
+
+        command_text = self._clean_codex_tool_text(self._codex_tool_command_text(source))
+        result_text = self._codex_tool_result_text(source) or self._codex_tool_result_text(payload)
+
+        # Codex emits tool output as a separate event. Show that output as output,
+        # not as "Ran <the output>".
+        if "output" in item_type and not command_text:
+            return result_text or str(name or "")
+
+        if not command_text and result_text:
+            return result_text
+        if not command_text:
+            return str(name or "")
+
+        exit_code = self._codex_tool_exit_code(source)
+        if exit_code not in (None, 0):
+            prefix = f"Failed ({exit_code})"
+        elif status in {"in_progress", "running", "pending"}:
+            prefix = "Running"
+        elif status in {"completed", "success", "succeeded"}:
+            prefix = "Ran"
+        else:
+            prefix = ""
+
+        text = f"{prefix} {command_text}".strip()
+        if result_text:
+            text = f"{text}\n\n{result_text}" if text else result_text
+        return text
+
+    def _codex_tool_exit_code(self, source: dict) -> int | None:
+        for key in ("exit_code", "exitCode", "returncode", "return_code"):
+            value = source.get(key)
+            if value is None:
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _codex_tool_result_text(self, source: dict) -> str:
+        """Extract tool output/result text without repeating command arguments."""
+        parts: list[str] = []
+        for key in ("stdout", "stderr", "output", "result", "content", "message", "summary", "error"):
+            if key not in source:
+                continue
+            text = self._extract_codex_text(source.get(key))
+            if text:
+                parts.append(text)
+        return "\n".join(dict.fromkeys(parts)).strip()
+
+    def _codex_tool_command_text(self, source: dict) -> str:
+        """Extract the command-like part of Codex tool JSON without status noise."""
+        for key in ("arguments", "command", "cmd"):
+            value = source.get(key)
+            if not value:
+                continue
+            if isinstance(value, str):
+                stripped = value.strip()
+                if stripped.startswith("{") and stripped.endswith("}"):
+                    try:
+                        decoded = json.loads(stripped)
+                    except json.JSONDecodeError:
+                        return stripped
+                    nested = self._codex_tool_command_text(decoded)
+                    return nested or stripped
+                return stripped
+            if isinstance(value, dict):
+                nested = self._codex_tool_command_text(value)
+                if nested:
+                    return nested
+        return ""
+
+    def _clean_codex_tool_text(self, text: str) -> str:
+        text = str(text or "").strip()
+        if not text:
+            return ""
+        match = re.search(r"(sage\s+run\s+--\s+.+?)(?:['\"]\s*$|$)", text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return text
+
+    def _extract_codex_text(self, payload, *, status_only: bool = False) -> str:
+        """Pull human-readable text out of common Codex JSON event shapes."""
+        if isinstance(payload, str):
+            return payload.strip()
+        if isinstance(payload, list):
+            parts = [self._extract_codex_text(item, status_only=status_only) for item in payload]
+            return "\n".join(part for part in parts if part).strip()
+        if not isinstance(payload, dict):
+            return ""
+
+        if status_only:
+            keys = ("status", "message", "summary")
+        else:
+            keys = (
+                "text",
+                "delta",
+                "message",
+                "summary",
+                "reasoning",
+                "thinking",
+                "content",
+                "error",
+                "output",
+                "result",
+                "command",
+                "cmd",
+                "arguments",
+                "status",
+            )
+
+        parts: list[str] = []
+        for key in keys:
+            value = payload.get(key)
+            text = self._extract_codex_text(value, status_only=status_only)
+            if text:
+                parts.append(text)
+
+        item = payload.get("item")
+        if isinstance(item, dict):
+            text = self._extract_codex_text(item, status_only=status_only)
+            if text:
+                parts.append(text)
+
+        return "\n".join(dict.fromkeys(parts)).strip()
+
+    def _ensure_trailing_newline(self, text: str) -> str:
+        if not text:
+            return ""
+        return text if text.endswith("\n") else text + "\n"
+
     def _classify_codex_line(
         self,
         line: str,
@@ -542,6 +839,9 @@ class PersistentAIClient:
         lowered = stripped.lower()
         if not stripped:
             return "text", visible
+        normalized_error = self._normalize_provider_error(stripped)
+        if normalized_error:
+            return "error", normalized_error + "\n"
         if lowered.startswith(("reasoning", "thinking", "analysis")):
             return "thinking", visible
         if lowered.startswith(("tool:", "exec:", "command:", "running:", "apply_patch")):
@@ -552,6 +852,36 @@ class PersistentAIClient:
         ):
             return "coding", visible
         return "text", visible
+
+    def _normalize_provider_error(self, text: str) -> str:
+        """Return a concise GUI error for common API/provider failures."""
+        text = str(text or "").strip()
+        if not text:
+            return ""
+        lowered = text.lower()
+        token_limit_markers = (
+            "context_length_exceeded",
+            "maximum context length",
+            "too many tokens",
+            "token limit",
+            "exceeds the model",
+            "exceeded the model",
+        )
+        if any(marker in lowered for marker in token_limit_markers):
+            detail = " ".join(text.split())
+            if len(detail) > 500:
+                detail = detail[:497] + "..."
+            return (
+                "API error: prompt is over the model context/token limit. "
+                f"{detail}"
+            )
+
+        api_error_markers = ("api error", "openai error", "anthropic error", "provider error")
+        if any(marker in lowered for marker in api_error_markers):
+            detail = " ".join(text.split())
+            return detail[:500]
+
+        return ""
 
     def _stream_ollama(self, prompt: str) -> Generator[Tuple[str, str], None, None]:
         """Stream Ollama response with conversation history."""

@@ -58,8 +58,25 @@ def send_batch_background(limit: int = 200) -> None:
         # Silent failure - telemetry is best-effort
         pass
 
+# A detached sender is spawned by every `sage run`. Without a debounce, a slow
+# or offline network keeps the queue non-empty, so every command spawns yet
+# another python sender that also cannot drain — they pile up and swap the box.
+# A single lock file gates spawns to at most one per _SENDER_DEBOUNCE_SECONDS.
+_SENDER_DEBOUNCE_SECONDS = 90
+
+
+def _sender_lock_path() -> Path:
+    from .store import data_dir
+
+    return Path(data_dir()) / "telemetry_sender.lock"
+
+
 def spawn_background_sender() -> bool:
-    """Spawn a background process to send telemetry. Returns True if spawned."""
+    """Spawn a background process to send telemetry. Returns True if spawned.
+
+    Debounced: if a sender was spawned within the last _SENDER_DEBOUNCE_SECONDS,
+    this is a no-op so detached python processes cannot accumulate.
+    """
     try:
         # Quick check: only spawn if we have events to send
         from . import telemetry
@@ -67,6 +84,19 @@ def spawn_background_sender() -> bool:
         status = telemetry.queue_status()
         if status.get("queued", 0) == 0:
             return False
+
+        # Debounce: skip if a recent sender is still within its window.
+        lock = _sender_lock_path()
+        try:
+            if lock.exists() and (time.time() - lock.stat().st_mtime) < _SENDER_DEBOUNCE_SECONDS:
+                return False
+        except OSError:
+            pass
+        try:
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            lock.write_text(str(time.time()), encoding="utf-8")
+        except OSError:
+            pass
 
         cmd = [sys.executable, "-m", "sage.telemetry_sender", "--limit", "200"]
         kwargs = {

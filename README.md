@@ -29,12 +29,12 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| **Commands processed** | 2,905 |
-| **Tokens processed** | 20,398,361 |
-| **Tokens compressed** | 1,616,965 |
-| **Tokens saved** | 18,781,396 |
-| **Compression rate** | 92.07% |
-| **Success rate** | 92.43% |
+| **Commands processed** | 3,820 |
+| **Tokens processed** | 15,164,330 |
+| **Tokens compressed** | 1,027,453 |
+| **Tokens saved** | 14,136,877 |
+| **Compression rate** | 93.22% |
+| **Success rate** | 96.86% |
 
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
@@ -95,10 +95,11 @@ S.A.G.E provides a complete AI orchestration layer with:
 - **Commands**: `sage fix`, `sage fix --apply --confidence 0.9`
 
 #### 3. **Multi-Agent Orchestration** 🤖
-*24 specialist agents on every SAGE run*
-- Full 24-agent fan-out by default: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, and auditor
+*Keyword-gated specialists when the request actually needs them*
+- Seven deterministic specialists: code, debug, test, research, security, dependency, and frontend
+- Expanded trigger lists keep normal chat fast while debug/test/security/UI/package/research requests get targeted analysis
+- GUI child commands keep token tracking enabled but skip expensive fan-out; the GUI runs smart post-response analysis only for matching requests
 - Each agent stores a specialist brief and skill profile, so results are traceable instead of decorative
-- Frontend/design review covers interface taste, layout polish, accessibility, animation craft, and Motion/Framer Motion patterns
 - Agent status, latest-run progress, and completed task counts are visible in the GUI and CLI
 - **Commands**: `sage agents list`, `sage agents status`, `sage agents tasks`
 
@@ -177,14 +178,14 @@ The beautiful desktop app provides:
 - 📊 Real-time command history and visual timeline
 - 💾 Token usage analytics and savings dashboard  
 - 🔧 One-click auto-fix with confidence scoring
-- 🤖 24-agent activity card with queued/running/latest-run progress
+- 🤖 Smart-agent activity card with queued/running/latest-run progress
 - ⚙️ Visual settings management with GitHub OAuth
 - 🌐 Live performance metrics and compression stats
 - 🎨 Modern design with light/dark themes
 
 **Zero configuration required** - just run `sage gui` and everything works!
 
-**Early access:** comment or DM if you want help testing the GUI, auto-integration, or the 24-agent fan-out.
+**Early access:** comment or DM if you want help testing the GUI, auto-integration, or smart-agent routing.
 
 ### Requirements
 - Python 3.10+
@@ -291,7 +292,7 @@ sage mcp start
 |--------|-------|
 | **Typical Compression** | 85-95% on real command output |
 | **Peak Compression** | ~99% on highly repetitive logs (e.g. 149 tokens → 1) |
-| **Live aggregate saved** | 18.7M+ tokens across 2,900+ tracked runs (see dashboard) |
+| **Live aggregate saved** | 14.13M+ tokens across 3,820 tracked runs (see dashboard) |
 | **What that buys you** | Many more agent commands per session before context compaction |
 | **Measurement** | tiktoken (`cl100k_base`) — not estimated |
 
@@ -310,7 +311,7 @@ sage mcp start
 - **Database Tables**: 9 tables
 - **CLI Commands**: 80+ commands & subcommands
 - **MCP Tools**: 14 exposed tools (command execution is opt-in)
-- **Agent Types**: 24 built-in agents
+- **Agent Types**: 7 keyword-gated built-in specialists
 
 ---
 
@@ -673,7 +674,7 @@ sage context stats    # See 99% compression
 A: No. All data stays local in SQLite. Privacy-first design.
 
 **Q: How much does SAGE actually help?**  
-A: The real win isn't pennies per command — it's session longevity. By compressing noisy output 85-95%, your AI coding agent runs many more commands before it hits context limits, compacts, or loses the thread. Live aggregate proof: 18.7M+ tokens saved across 2,900+ tracked runs.
+A: The real win isn't pennies per command — it's session longevity. By compressing noisy output 85-95%, your AI coding agent runs many more commands before it hits context limits, compacts, or loses the thread. Live aggregate proof: 14.13M+ tokens saved across 3,820 tracked runs.
 
 **Q: Can I use SAGE without MCP-compatible client?**  
 A: Yes! SAGE works standalone. MCP integration is optional.

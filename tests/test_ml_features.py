@@ -98,9 +98,9 @@ def test_default_agent_catalog_has_seven_roles():
     selected = select_agents_for_command("pytest failed with a missing module error")
     selected_types = {agent.type for agent in selected}
 
-    assert len(selected) == 7
+    assert 1 <= len(selected) < 7
     assert "test" in selected_types
-    assert "dependency" in selected_types or "debug" in selected_types
+    assert "debug" in selected_types
 
 
 def test_agent_catalog_routes_security_and_code():

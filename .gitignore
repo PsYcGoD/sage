@@ -26,7 +26,7 @@ sage-api-visitors*.txt
 visitor-stats*.json
 visitor-stats*.txt
 
-# 🔒 SECURITY: OAuth secrets (NEVER COMMIT)
+# Security: OAuth secrets (never commit)
 .sage-secrets/
 *.env
 oauth.env

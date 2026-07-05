@@ -1,6 +1,7 @@
 """Tests for the new compressed MCP tools."""
 
 from sage.mcp.server import MCPServer
+from sage.mcp.client import connect_and_list
 from sage.mcp.tools import SAGE_TOOLS, sage_grep, sage_read_file, sage_run_workflow, sage_spawn_agent
 
 
@@ -12,10 +13,30 @@ def test_new_tools_are_registered():
         assert name in server.tools
 
 
-def test_tools_list_matches_handlers():
+def test_tools_list_matches_handlers(monkeypatch):
+    monkeypatch.delenv("SAGE_MCP_ENABLE_COMMANDS", raising=False)
     server = MCPServer()
-    listed = {tool["name"] for tool in SAGE_TOOLS}
+    listed = {tool["name"] for tool in server._tool_specs()}
     assert listed == set(server.tools)
+    assert "sage_run_command" not in listed
+    blocked = server._call_tool({"name": "sage_run_command", "arguments": {"command": "echo no"}})
+    assert blocked["isError"] is True
+    assert "disabled by default" in blocked["content"][0]["text"]
+
+
+def test_mcp_run_command_is_opt_in(monkeypatch):
+    monkeypatch.setenv("SAGE_MCP_ENABLE_COMMANDS", "1")
+    server = MCPServer()
+    listed = {tool["name"] for tool in server._tool_specs()}
+    assert "sage_run_command" in listed
+    assert "sage_run_command" in server.tools
+
+
+def test_external_mcp_missing_command_fails_fast():
+    result = connect_and_list("definitely-not-a-real-mcp-server-command-xyz", timeout=1)
+    assert result.ok is False
+    assert result.transport == "stdio"
+    assert "Command not found" in result.error
 
 
 def test_sage_read_file_tool(tmp_path):

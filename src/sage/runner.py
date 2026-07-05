@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import os
 import subprocess
@@ -17,6 +18,7 @@ from .context import ContextManager
 from .context.tokens import is_real_tokenizer
 from .security import command_hash, evaluate_command, load_policy, redact_text, retention_expiry
 
+log = logging.getLogger(__name__)
 
 def _configure_stdio() -> None:
     """Keep Windows terminals from crashing or corrupting UTF-8 AI output."""
@@ -24,8 +26,7 @@ def _configure_stdio() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
-            pass
-
+            log.debug("suppressed", exc_info=True)
 
 def _print_stream(text: str, *, stderr: bool = False) -> None:
     """Print one streamed chunk without losing the saved original text."""
@@ -35,7 +36,6 @@ def _print_stream(text: str, *, stderr: bool = False) -> None:
     except UnicodeEncodeError:
         safe = text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
         print(safe, end="", file=target, flush=True)
-
 
 def run_command(
     command_parts: list[str],
@@ -142,8 +142,16 @@ def run_command(
 
     # Detect AI session context
     if not is_ai_session:
-        # Check if this is an AI-related command
-        is_ai_related = any(marker in command_text for marker in ["--claude", "--codex"]) or caller in ["mcp", "agent"]
+        # Check if this is an AI-related command. GUI terminal mode invokes the
+        # provider as `sage run -- claude ...` or `sage run -- codex ...`, not
+        # with `--claude`/`--codex` flags.
+        ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd"}
+        first_command = Path(command_parts[0]).name.lower() if command_parts else ""
+        is_ai_related = (
+            first_command in ai_commands
+            or any(marker in command_text.lower() for marker in ["--claude", "--codex"])
+            or caller in ["mcp", "agent", "gui"]
+        )
         is_ai_session = 1 if is_ai_related else 0
 
         # Generate new session ID for AI commands
@@ -220,6 +228,70 @@ def run_command(
     suppress_summary = os.environ.get("SAGE_SUPPRESS_SUMMARY") == "1"
     clean_mode = os.environ.get("SAGE_CLEAN_MODE") == "1"
 
+    # Save compression stats regardless of display mode. GUI/agent wrappers often
+    # suppress the footer, but the public dashboard still needs current counters.
+    from .store import connect
+    from datetime import datetime
+    try:
+        saved_tokens = int(result.get("token_savings", 0))
+        original_tokens = int(result.get("original_tokens", saved_tokens))
+        compressed_tokens = int(result.get("compressed_tokens", max(0, original_tokens - saved_tokens)))
+        strategy = str(result.get("strategy", "auto"))
+        tokenizer = "tiktoken" if is_real_tokenizer() else "fallback"
+
+        with connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO context_compression
+                (run_id, created_at, original_tokens, compressed_tokens, saved_tokens, strategy, verified_tokenizer)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    datetime.now().isoformat(),
+                    original_tokens,
+                    compressed_tokens,
+                    saved_tokens,
+                    strategy,
+                    tokenizer,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO context_compression_strategies
+                (run_id, created_at, strategy, original_tokens, compressed_tokens, saved_tokens, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    datetime.now().isoformat(),
+                    strategy,
+                    original_tokens,
+                    compressed_tokens,
+                    saved_tokens,
+                    f"verified_tokenizer={tokenizer}",
+                ),
+            )
+            conn.commit()
+    except Exception as e:
+        if not suppress_footer:
+            print(f"[sage] warning: failed to save compression stats: {e}")
+
+    # Auto-queue telemetry event and publish the safe aggregate proof snapshot
+    # through a detached sender. This must also run from GUI/agent-captured
+    # sessions so the public dashboard does not fall behind local stats.
+    try:
+        from . import telemetry
+        telemetry.queue_event(run_id)
+
+        if os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1":
+            # Spawn background sender immediately when cloud sync is connected.
+            from .telemetry_sender import spawn_background_sender
+            spawn_background_sender()
+    except Exception:
+        # Telemetry failures are silent
+        pass
+
     if suppress_footer:
         return returncode
 
@@ -240,74 +312,6 @@ def run_command(
         if agent_results:
             agent_names = ", ".join(str(item.get("agent", "agent")) for item in agent_results)
             print(f"[sage] agents: {len(agent_results)} completed ({agent_names})")
-
-        # Save compression stats to database
-        from .store import connect
-        from datetime import datetime
-        try:
-            saved_tokens = int(result.get("token_savings", 0))
-            original_tokens = int(result.get("original_tokens", saved_tokens))
-            compressed_tokens = int(result.get("compressed_tokens", max(0, original_tokens - saved_tokens)))
-            strategy = str(result.get("strategy", "auto"))
-            tokenizer = "tiktoken" if is_real_tokenizer() else "fallback"
-
-            with connect() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO context_compression
-                    (run_id, created_at, original_tokens, compressed_tokens, saved_tokens, strategy, verified_tokenizer)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        run_id,
-                        datetime.now().isoformat(),
-                        original_tokens,
-                        compressed_tokens,
-                        saved_tokens,
-                        strategy,
-                        tokenizer,
-                    ),
-                )
-                conn.execute(
-                    """
-                    INSERT INTO context_compression_strategies
-                    (run_id, created_at, strategy, original_tokens, compressed_tokens, saved_tokens, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        run_id,
-                        datetime.now().isoformat(),
-                        strategy,
-                        original_tokens,
-                        compressed_tokens,
-                        saved_tokens,
-                        f"verified_tokenizer={tokenizer}",
-                    ),
-                )
-                conn.commit()
-        except Exception as e:
-            # Don't crash if DB write fails
-            print(f"[sage] warning: failed to save compression stats: {e}")
-
-        # Auto-queue telemetry event (respects level 0 local-only policy).
-        # Only spawn the sender from an interactive terminal. When stdout/stderr
-        # are captured by tests, GUIs, or agent wrappers on Windows, detached
-        # helper processes can keep the capture pipe alive past process exit.
-        try:
-            from . import telemetry
-            telemetry.queue_event(run_id)
-
-            if (
-                os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1"
-                and sys.stdout.isatty()
-                and sys.stderr.isatty()
-            ):
-                # Spawn background sender immediately when cloud sync is connected.
-                from .telemetry_sender import spawn_background_sender
-                spawn_background_sender()
-        except Exception:
-            # Telemetry failures are silent
-            pass
 
     if not suppress_summary:
         print("[sage] summary:")

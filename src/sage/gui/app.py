@@ -12,6 +12,7 @@ from sage.gui.config import GUIConfig
 from sage.gui.cli_client import CLIClient, check_cli_available, _clean_for_display
 from sage.gui.persistent_ai_client import PersistentAIClient
 from sage.gui.session_manager import SessionManager
+from sage.gui import omni_router
 from sage.store import connect, data_dir, save_run
 from sage.context import ContextManager
 from sage.agents import DEFAULT_AGENT_SPECS, ensure_default_agents, get_agent_tasks_for_run, select_agents_for_command
@@ -794,7 +795,7 @@ class SAGEApp(ctk.CTk):
             height=150,
             label_font_size=11,
             title_font_size=12,
-            value_font_size=18,
+            value_font_size=16,
             muted_font_size=9,
         )
         self.tokens_card.grid(row=2, column=0, padx=10, pady=4, sticky="new")
@@ -1305,9 +1306,12 @@ class SAGEApp(ctk.CTk):
 
     def _claude_auth_warning(self) -> str:
         """Return a warning when the claude CLI is installed but not logged in."""
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return ""
         try:
             result = subprocess.run(
                 [shutil.which("claude") or "claude", "auth", "status"],
+                env=os.environ.copy(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -1319,7 +1323,8 @@ class SAGEApp(ctk.CTk):
                 return ""
             return (
                 "\n[WARNING] Claude CLI is installed but NOT logged in - prompts will fail.\n"
-                "Type /login to open a Claude login window, finish the login there, then send your prompt.\n"
+                "Type /login to open a Claude login window, or set ANTHROPIC_API_KEY "
+                "and optional ANTHROPIC_BASE_URL before starting SAGE.\n"
             )
         except Exception:
             # Cannot determine auth state; do not block the user.
@@ -1482,6 +1487,31 @@ class SAGEApp(ctk.CTk):
         self._set_manual_active_agents(set())
         self._spawn_agents_if_needed(command)
 
+        # ── OmniRoute: auto-select cheapest capable agent ─────────────────────
+        if getattr(self, "_omni_enabled", True):
+            try:
+                avail  = omni_router.detect_available()
+                routed, complexity, label = omni_router.route(command, self.conversation_turns, avail)
+                omni_c = self._get_omni_client(routed)
+                if omni_c is not None:
+                    # Tag the client so begin_ai_stream can show the badge
+                    omni_c._omni_route_label = f"{label}  ·  {complexity}"
+                    # Inject shared session history into this agent
+                    try:
+                        msgs = self.session_manager.get_messages(
+                            os.getcwd(), str(self.current_session_id or "")
+                        )
+                        if msgs:
+                            omni_c.load_history(msgs[-8:])
+                    except Exception:
+                        pass
+                    return self._run_persistent_client(
+                        command, routed, visible_prompt=command, _omni_client=omni_c
+                    )
+            except Exception:
+                pass  # Fall through to normal dispatch on any router error
+        # ── end OmniRoute ──────────────────────────────────────────────────────
+
         if ai_name == "claude":
             return self._run_claude_cli_stream(contextual_command, visible_prompt=command)
 
@@ -1535,7 +1565,25 @@ class SAGEApp(ctk.CTk):
         self.ai_thread.start()
         return True
 
-    def _run_persistent_client(self, prompt: str, ai_name: str, visible_prompt: str | None = None) -> bool:
+    def _get_omni_client(self, agent_name: str) -> PersistentAIClient | None:
+        """Get or lazily create a pooled persistent client for OmniRoute."""
+        if not hasattr(self, "_omni_clients"):
+            self._omni_clients: dict[str, PersistentAIClient] = {}
+        client = self._omni_clients.get(agent_name)
+        if client is None or not getattr(client, "session_active", False):
+            system_prompts = self.config.get_system_prompts(agent_name)
+            client = PersistentAIClient(
+                agent_name,
+                system_prompts=system_prompts,
+                permission_mode=self.config.get_permission_mode(),
+                project_cwd=os.getcwd(),
+            )
+            if not client.start_session():
+                return None
+            self._omni_clients[agent_name] = client
+        return client
+
+    def _run_persistent_client(self, prompt: str, ai_name: str, visible_prompt: str | None = None, _omni_client: PersistentAIClient | None = None) -> bool:
         """Run command through PERSISTENT AI client - NO SUBPROCESS, REAL MEMORY!"""
         visible_prompt = visible_prompt or prompt
         tab = self._active_tab_state()
@@ -1548,7 +1596,7 @@ class SAGEApp(ctk.CTk):
         self.thinking_overlay.show()
         self._set_run_status(f"Running {ai_name.capitalize()}...", "#facc15")
         output_view = self.output_view
-        client = self.persistent_client
+        client = _omni_client if _omni_client is not None else self.persistent_client
         tab_id = self.active_output_tab_id
         if client is None:
             if tab:
@@ -1562,7 +1610,8 @@ class SAGEApp(ctk.CTk):
         if hasattr(output_view, "append_user_prompt"):
             output_view.append_user_prompt(visible_prompt)
         if hasattr(output_view, "begin_ai_stream"):
-            output_view.begin_ai_stream(ai_name)
+            route_lbl = getattr(client, "_omni_route_label", None)
+            output_view.begin_ai_stream(ai_name, route_label=route_lbl)
         self._start_live_heartbeat(tab_id, output_view, ai_name)
 
         # One ordered, coalesced UI queue for ALL event kinds (text, thinking,

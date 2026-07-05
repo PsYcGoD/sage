@@ -57,7 +57,10 @@ class OutputView(ctk.CTkFrame):
         """
         super().__init__(parent, **kwargs)
         self.on_reply_to_selection = on_reply_to_selection
-        self.max_visible_chars = 90000
+        # Sensei: Increased from 90K to 500K - GPT-4 Turbo has 128K context, Claude has 200K
+        # Users expect to see full chat history when loading sessions
+        self.max_visible_chars = 500000
+        self.prune_enabled = True  # Can be disabled when loading history
         self._visible_chars = 0
         self._trimmed_once = False
         self.terminal_mode = False
@@ -334,13 +337,17 @@ class OutputView(ctk.CTkFrame):
         self.text_widget.insert("end", text, tag)
         self.text_widget.configure(state="disabled")
         self._visible_chars += len(text)
-        self._prune_if_needed()
+
+        # Only check pruning if we've exceeded the limit (avoid lag from checking every insert)
+        if self._visible_chars > self.max_visible_chars + 10000:
+            self._prune_if_needed()
+
         if self.auto_scroll and should_follow:
             self.scroll_to_bottom()
 
     def _prune_if_needed(self):
         """Keep the visible textbox responsive when conversations get long."""
-        if self._visible_chars <= self.max_visible_chars + 10000:
+        if not self.prune_enabled or self._visible_chars <= self.max_visible_chars + 10000:
             return
 
         try:

@@ -104,22 +104,25 @@ class SessionManager:
         if not session:
             return
 
-        # Trim long messages
-        if len(text) > 3500:
-            text = text[:1700] + "\n[...]\n" + text[-1700:]
+        # FIXED: Keep FULL messages, don't truncate
+        # Only truncate EXTREME cases (>20KB)
+        if len(text) > 20000:
+            text = text[:9500] + "\n[...content truncated...]\n" + text[-9500:]
 
         session["messages"].append({"role": role, "text": text})
-        session["messages"] = session["messages"][-40:]  # Keep last 40 messages
+        # FIXED: Store last 100 messages instead of 40
+        session["messages"] = session["messages"][-100:]
         session["updated_at"] = datetime.now(timezone.utc).isoformat()
         session["unread"] = False  # Mark as read when adding message
 
-        # Auto-title from first user message
+        # FIXED: Better auto-title - keep full title (don't truncate to 50 chars)
         if not session.get("title") or session["title"] == "New Chat":
             user_messages = [m for m in session["messages"] if m.get("role") == "user"]
             if user_messages:
-                first_msg = user_messages[0].get("text", "")[:50].strip()
+                first_msg = user_messages[0].get("text", "").strip()
                 if first_msg:
-                    session["title"] = first_msg
+                    # Keep first 100 chars for title (was 50)
+                    session["title"] = first_msg[:100]
 
         self._save()
 

@@ -1,15 +1,17 @@
+from __future__ import annotations
 """Background telemetry sender - non-blocking, best-effort sync.
 
 Runs in a separate process to avoid slowing down sage run.
 """
 
-from __future__ import annotations
+import logging
 
 import sys
 import subprocess
 import time
 from pathlib import Path
 
+log = logging.getLogger(__name__)
 
 def send_batch_background(limit: int = 200) -> None:
     """Send a batch of queued telemetry events in background."""
@@ -50,12 +52,11 @@ def send_batch_background(limit: int = 200) -> None:
                     f"Snapshot: {snapshot_result}\n"
                 )
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     except Exception:
         # Silent failure - telemetry is best-effort
         pass
-
 
 def spawn_background_sender() -> bool:
     """Spawn a background process to send telemetry. Returns True if spawned."""
@@ -81,7 +82,6 @@ def spawn_background_sender() -> bool:
     except Exception:
         return False
 
-
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint used by detached background sender processes."""
     argv = argv or sys.argv[1:]
@@ -93,7 +93,6 @@ def main(argv: list[str] | None = None) -> int:
             limit = 200
     send_batch_background(limit=limit)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

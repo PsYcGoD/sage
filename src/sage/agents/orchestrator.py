@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any, Optional
 
 from .base_agent import BaseAgent, Task
@@ -14,6 +15,7 @@ class Orchestrator:
 
     def __init__(self):
         self.agents: dict[str, BaseAgent] = {}
+        self._runner_tasks: dict[str, asyncio.Task] = {}
         self.task_counter = 0
 
     def register_agent(self, agent: BaseAgent) -> None:
@@ -32,7 +34,7 @@ class Orchestrator:
         self.register_agent(agent)
         
         # Start agent run loop in background
-        asyncio.create_task(agent.run())
+        self._runner_tasks[name] = asyncio.create_task(agent.run())
         
         return agent
 
@@ -55,12 +57,8 @@ class Orchestrator:
             context=context or {},
         )
 
-        # Ensure agent queue is initialized
-        if agent.task_queue is None:
-            import asyncio
-            agent.task_queue = asyncio.Queue()
-
-        await agent.task_queue.put(task)
+        queue = agent.ensure_task_queue()
+        await queue.put(task)
         print(f"[SAGE] Task #{task.id} assigned to {agent_name}")
 
     async def broadcast_task(
@@ -79,10 +77,8 @@ class Orchestrator:
         assigned_count = 0
         for agent in self.agents.values():
             if agent.status == "idle":
-                # Ensure agent queue is initialized
-                if agent.task_queue is None:
-                    agent.task_queue = asyncio.Queue()
-                await agent.task_queue.put(task)
+                queue = agent.ensure_task_queue()
+                await queue.put(task)
                 assigned_count += 1
 
         print(f"[SAGE] Task #{task.id} broadcast to {assigned_count} agents")
@@ -111,4 +107,10 @@ class Orchestrator:
         print("[SAGE] Shutting down orchestrator...")
         for agent in self.agents.values():
             await agent.stop()
+        for task in self._runner_tasks.values():
+            task.cancel()
+        for task in self._runner_tasks.values():
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._runner_tasks.clear()
         self.agents.clear()

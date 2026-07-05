@@ -1,3 +1,4 @@
+import logging
 """Full Settings Panel for SAGE Desktop GUI."""
 
 import customtkinter as ctk
@@ -9,6 +10,7 @@ import subprocess
 import threading
 from tkinter import messagebox
 
+log = logging.getLogger(__name__)
 
 class SettingsPanel(ctk.CTkToplevel):
     """Full settings panel with Features Active and configuration options."""
@@ -152,7 +154,7 @@ class SettingsPanel(ctk.CTkToplevel):
             if status.get("connected") and status.get("display_name"):
                 profile_name = status.get("display_name")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
         # Name
         self._create_input(section, "Display Name:", "profile_name",
@@ -510,7 +512,7 @@ class SettingsPanel(ctk.CTkToplevel):
                         self._inputs["profile_name"].delete(0, "end")
                         self._inputs["profile_name"].insert(0, profile_name)
                 except Exception:
-                    pass
+                    log.debug("suppressed", exc_info=True)
             messagebox.showinfo("SAGE API Connected", "SAGE API connected. API key saved locally.")
         else:
             messagebox.showerror("SAGE API Connect Failed", message)
@@ -559,14 +561,14 @@ class SettingsPanel(ctk.CTkToplevel):
             messagebox.showerror("SAGE Sync Failed", message)
 
     def _create_agents_section(self, parent):
-        """Show the real registered SAGE agents."""
+        """Show all 24 real SAGE agents as small compact role cards with icons."""
         section = self._create_section(parent, "SAGE Agents", row=3)
         try:
             from sage.agents.registry import list_default_agent_specs
+            from sage.gui.widgets.agent_strip import agent_icon
 
             specs = list_default_agent_specs()
         except Exception as exc:
-            specs = []
             error = ctk.CTkLabel(
                 section,
                 text=f"Could not load agent registry: {exc}",
@@ -574,29 +576,57 @@ class SettingsPanel(ctk.CTkToplevel):
                 text_color="#fca5a5",
                 anchor="w",
             )
-            error.grid(row=0, column=0, columnspan=2, padx=15, pady=8, sticky="ew")
+            error.grid(row=1, column=0, columnspan=2, padx=15, pady=8, sticky="ew")
+            return
 
-        if specs:
-            summary = ctk.CTkLabel(
-                section,
-                text=f"{len(specs)} real local agents registered. They run from SAGE command analysis and task execution.",
-                font=ctk.CTkFont(size=11),
-                text_color="gray65",
-                anchor="w",
-                wraplength=760,
+        summary = ctk.CTkLabel(
+            section,
+            text=(
+                f"All {len(specs)} real local agents. They fan out on every "
+                "'sage run' command to analyze the run in parallel."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color="gray65",
+            anchor="w",
+            wraplength=780,
+        )
+        summary.grid(row=1, column=0, columnspan=2, padx=15, pady=(4, 8), sticky="ew")
+
+        grid = ctk.CTkFrame(section, fg_color="transparent")
+        grid.grid(row=2, column=0, columnspan=2, padx=12, pady=(0, 12), sticky="ew")
+        columns = 3
+        for col in range(columns):
+            grid.grid_columnconfigure(col, weight=1, uniform="agentcards")
+
+        for index, spec in enumerate(specs):
+            card = ctk.CTkFrame(grid, fg_color="gray20", corner_radius=8)
+            card.grid(
+                row=index // columns,
+                column=index % columns,
+                padx=4,
+                pady=4,
+                sticky="ew",
             )
-            summary.grid(row=0, column=0, columnspan=2, padx=15, pady=(8, 4), sticky="ew")
+            card.grid_columnconfigure(0, weight=1)
 
-            names = ", ".join(spec.display_name for spec in specs)
-            names_label = ctk.CTkLabel(
-                section,
-                text=names,
-                font=ctk.CTkFont(size=12),
+            name = ctk.CTkLabel(
+                card,
+                text=f"{agent_icon(spec['type'])}  {spec['name']}",
+                font=ctk.CTkFont(size=11, weight="bold"),
+                anchor="w",
+            )
+            name.grid(row=0, column=0, padx=8, pady=(7, 1), sticky="ew")
+
+            role = ctk.CTkLabel(
+                card,
+                text=spec["description"],
+                font=ctk.CTkFont(size=9),
+                text_color="gray60",
                 anchor="w",
                 justify="left",
-                wraplength=760,
+                wraplength=210,
             )
-            names_label.grid(row=1, column=0, columnspan=2, padx=15, pady=(4, 12), sticky="ew")
+            role.grid(row=1, column=0, padx=8, pady=(0, 7), sticky="ew")
 
     def _create_git_section(self, parent):
         """Create git integration section."""
@@ -946,16 +976,172 @@ class SettingsPanel(ctk.CTkToplevel):
         note.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
 
     def _create_mcp_section(self, parent):
-        """Create MCP servers section."""
+        """Create MCP servers section with a real 'connect to any MCP server' input."""
         section = self._create_section(parent, "MCP Servers", row=5)
 
-        # MCP server command
-        self._create_input(section, "MCP Server Command:", "mcp_server_cmd",
+        # SAGE's own MCP server command (exposes SAGE tools to clients).
+        self._create_input(section, "SAGE MCP Command:", "mcp_server_cmd",
                           self.config.get("mcp_server_cmd", "sage mcp"), row=0)
-
-        # Auto-start MCP
-        self._create_switch(section, "Auto-start MCP server", "mcp_auto_start",
+        self._create_switch(section, "Auto-start SAGE MCP server", "mcp_auto_start",
                            self.config.get("mcp_auto_start", True), row=1)
+
+        note = ctk.CTkLabel(
+            section,
+            text=(
+                "Connect to ANY external MCP server. Use a stdio command "
+                "(e.g. npx -y @modelcontextprotocol/server-filesystem .) or an "
+                "http(s):// endpoint. SAGE runs the real initialize + tools/list "
+                "handshake and shows the discovered tools."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color="gray60",
+            anchor="w",
+            justify="left",
+            wraplength=780,
+        )
+        note.grid(row=3, column=0, columnspan=2, padx=15, pady=(6, 6), sticky="ew")
+
+        name_label = ctk.CTkLabel(
+            section, text="Server Name:", font=ctk.CTkFont(size=12), anchor="w", width=150
+        )
+        name_label.grid(row=4, column=0, padx=15, pady=6, sticky="w")
+        self.mcp_new_name_entry = ctk.CTkEntry(section, placeholder_text="my-server", font=ctk.CTkFont(size=12))
+        self.mcp_new_name_entry.grid(row=4, column=1, padx=(10, 15), pady=6, sticky="ew")
+
+        target_label = ctk.CTkLabel(
+            section, text="Command / URL:", font=ctk.CTkFont(size=12), anchor="w", width=150
+        )
+        target_label.grid(row=5, column=0, padx=15, pady=6, sticky="w")
+        self.mcp_new_target_entry = ctk.CTkEntry(
+            section,
+            placeholder_text="python -m sage.mcp.server  |  npx -y @modelcontextprotocol/server-filesystem .  |  https://host/mcp",
+            font=ctk.CTkFont(size=12),
+        )
+        self.mcp_new_target_entry.grid(row=5, column=1, padx=(10, 15), pady=6, sticky="ew")
+
+        actions = ctk.CTkFrame(section, fg_color="transparent")
+        actions.grid(row=6, column=0, columnspan=2, padx=15, pady=(4, 6), sticky="ew")
+
+        self.mcp_connect_btn = ctk.CTkButton(
+            actions, text="Test & Connect", command=self._connect_mcp_server, width=150
+        )
+        self.mcp_connect_btn.pack(side="left", padx=(0, 8))
+
+        remove_btn = ctk.CTkButton(
+            actions,
+            text="Remove Selected",
+            command=self._remove_selected_mcp_server,
+            width=150,
+            fg_color="#7f1d1d",
+            hover_color="#6b1515",
+        )
+        remove_btn.pack(side="left")
+
+        saved = self.config.get("mcp_servers", {})
+        self.mcp_saved_menu = ctk.CTkOptionMenu(
+            actions,
+            values=list(saved.keys()) or ["(none saved)"],
+            width=200,
+        )
+        self.mcp_saved_menu.set(next(iter(saved), "(none saved)"))
+        self.mcp_saved_menu.pack(side="left", padx=(8, 0))
+
+        self.mcp_status = ctk.CTkLabel(
+            section,
+            text=self._mcp_status_text(),
+            font=ctk.CTkFont(size=11),
+            text_color="gray65",
+            anchor="w",
+            justify="left",
+            wraplength=780,
+        )
+        self.mcp_status.grid(row=7, column=0, columnspan=2, padx=15, pady=(4, 12), sticky="ew")
+
+    def _mcp_status_text(self) -> str:
+        saved = self.config.get("mcp_servers", {})
+        if not saved:
+            return "No external MCP servers connected yet."
+        lines = ["Connected MCP servers:"]
+        for name, info in saved.items():
+            tools = info.get("tool_count", 0)
+            lines.append(f"  {name} [{info.get('transport', '?')}] — {tools} tools")
+        return "\n".join(lines)
+
+    def _connect_mcp_server(self):
+        """Run the real MCP handshake in a worker thread and save on success."""
+        name = self.mcp_new_name_entry.get().strip()
+        target = self.mcp_new_target_entry.get().strip()
+        if not target:
+            self.mcp_status.configure(text="Enter a command or URL to connect.", text_color="#fca5a5")
+            return
+        if not name:
+            name = target.split()[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "mcp-server"
+
+        self.mcp_connect_btn.configure(state="disabled", text="Connecting...")
+        self.mcp_status.configure(text=f"Connecting to '{name}'...", text_color="gray65")
+
+        def worker():
+            try:
+                from sage.mcp.client import connect_and_list
+
+                result = connect_and_list(target, timeout=12.0)
+            except Exception as exc:
+                message = str(exc)
+                self.after(0, lambda msg=message: self._finish_mcp_connect(name, target, None, msg))
+                return
+            self.after(0, lambda: self._finish_mcp_connect(name, target, result, ""))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _finish_mcp_connect(self, name: str, target: str, result, error: str):
+        self.mcp_connect_btn.configure(state="normal", text="Test & Connect")
+        if error or result is None or not result.ok:
+            reason = error or (result.error if result else "unknown error")
+            transport = getattr(result, "transport", None) or "MCP"
+            self.mcp_status.configure(
+                text=(
+                    f"Could not connect to '{name}' ({transport}): {reason}\n"
+                    "Check that the target is a real MCP server command or URL supported by the connected AI client."
+                ),
+                text_color="#fca5a5",
+            )
+            return
+
+        servers = dict(self.config.get("mcp_servers", {}))
+        servers[name] = {
+            "target": target,
+            "transport": result.transport,
+            "server_name": result.server_name,
+            "server_version": result.server_version,
+            "tool_count": len(result.tools),
+            "tools": result.tool_names[:64],
+        }
+        self.config.set("mcp_servers", servers)
+
+        tool_preview = ", ".join(result.tool_names[:8]) or "(no tools advertised)"
+        self.mcp_status.configure(
+            text=(
+                f"Connected '{name}' via {result.transport} — "
+                f"{result.server_name or 'server'} {result.server_version}\n"
+                f"{len(result.tools)} tools: {tool_preview}"
+            ),
+            text_color="#86efac",
+        )
+        if hasattr(self, "mcp_saved_menu"):
+            self.mcp_saved_menu.configure(values=list(servers.keys()))
+            self.mcp_saved_menu.set(name)
+
+    def _remove_selected_mcp_server(self):
+        if not hasattr(self, "mcp_saved_menu"):
+            return
+        name = self.mcp_saved_menu.get()
+        servers = dict(self.config.get("mcp_servers", {}))
+        if name in servers:
+            servers.pop(name)
+            self.config.set("mcp_servers", servers)
+            self.mcp_saved_menu.configure(values=list(servers.keys()) or ["(none saved)"])
+            self.mcp_saved_menu.set(next(iter(servers), "(none saved)"))
+            self.mcp_status.configure(text=self._mcp_status_text(), text_color="gray65")
 
     def _create_ai_commands_section(self, parent):
         """Create AI commands section."""

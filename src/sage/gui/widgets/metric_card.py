@@ -102,34 +102,34 @@ class TokenMetricCard(ctk.CTkFrame):
         self.label_widget = ctk.CTkLabel(
             self,
             text=label,
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=10),
             text_color=("#666666", "#999999"),
             anchor="w",
         )
         self.label_widget.grid(row=0, column=0, columnspan=2, padx=18, pady=(15, 6), sticky="ew")
 
-        self.all_title = self._make_label("All Time", 15, "bold", "w")
+        self.all_title = self._make_label("All Time", 13, "bold", "w")
         self.all_title.grid(row=1, column=0, padx=(18, 8), pady=(0, 0), sticky="w")
 
-        self.session_title = self._make_label("This Session", 15, "bold", "e")
+        self.session_title = self._make_label("This Session", 13, "bold", "e")
         self.session_title.grid(row=1, column=1, padx=(8, 18), pady=(0, 0), sticky="e")
 
-        self.all_header = self._make_label("Used | Saved", 13, "bold", "w")
+        self.all_header = self._make_label("Used | Saved", 11, "bold", "w")
         self.all_header.grid(row=2, column=0, padx=(18, 8), pady=(0, 0), sticky="w")
 
-        self.session_header = self._make_label("Used | Saved", 13, "bold", "e")
+        self.session_header = self._make_label("Used | Saved", 11, "bold", "e")
         self.session_header.grid(row=2, column=1, padx=(8, 18), pady=(0, 0), sticky="e")
 
-        self.all_value = self._make_label("0 | 0", 17, "bold", "w")
+        self.all_value = self._make_label("0 | 0", 15, "bold", "w")
         self.all_value.grid(row=3, column=0, padx=(18, 8), pady=(0, 8), sticky="w")
 
-        self.session_value = self._make_label("0 | 0", 17, "bold", "e")
+        self.session_value = self._make_label("0 | 0", 15, "bold", "e")
         self.session_value.grid(row=3, column=1, padx=(8, 18), pady=(0, 8), sticky="e")
 
         self.subtitle_widget = ctk.CTkLabel(
             self,
             text="No usage yet",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=10),
             text_color=("#888888", "#aaaaaa"),
             anchor="w",
         )
@@ -173,7 +173,11 @@ class DualMetricCard(ctk.CTkFrame):
     def __init__(self, master, label: str, **kwargs):
         kwargs.pop("value", None)
         kwargs.pop("subtitle", None)
-        kwargs["height"] = max(int(kwargs.get("height", 154)), 154)
+        label_font_size = int(kwargs.pop("label_font_size", 13))
+        title_font_size = int(kwargs.pop("title_font_size", 14))
+        value_font_size = int(kwargs.pop("value_font_size", 20))
+        muted_font_size = int(kwargs.pop("muted_font_size", 11))
+        kwargs["height"] = max(int(kwargs.get("height", 150)), 150)
         super().__init__(
             master,
             corner_radius=10,
@@ -183,26 +187,27 @@ class DualMetricCard(ctk.CTkFrame):
         self.grid_propagate(False)
         self.grid_columnconfigure(0, weight=1, uniform="metric")
         self.grid_columnconfigure(1, weight=1, uniform="metric")
+        self._muted_font_size = muted_font_size
 
         self.label_widget = ctk.CTkLabel(
             self,
             text=label,
-            font=ctk.CTkFont(size=13),
+            font=ctk.CTkFont(size=label_font_size),
             text_color=("#666666", "#999999"),
             anchor="w",
         )
         self.label_widget.grid(row=0, column=0, columnspan=2, padx=16, pady=(14, 8), sticky="ew")
 
-        self.total_title = self._make_label("Total", 14, "bold", "w")
+        self.total_title = self._make_label("Total", title_font_size, "bold", "w")
         self.total_title.grid(row=1, column=0, padx=(16, 8), sticky="w")
 
-        self.session_title = self._make_label("This Session", 14, "bold", "e")
+        self.session_title = self._make_label("This Session", title_font_size, "bold", "e")
         self.session_title.grid(row=1, column=1, padx=(8, 16), sticky="e")
 
-        self.total_value = self._make_label("0", 20, "bold", "w")
+        self.total_value = self._make_label("0", value_font_size, "bold", "w")
         self.total_value.grid(row=2, column=0, padx=(16, 8), pady=(4, 0), sticky="w")
 
-        self.session_value = self._make_label("0", 20, "bold", "e")
+        self.session_value = self._make_label("0", value_font_size, "bold", "e")
         self.session_value.grid(row=2, column=1, padx=(8, 16), pady=(4, 0), sticky="e")
 
         self.total_hint = self._make_muted_label("", "w")
@@ -231,7 +236,7 @@ class DualMetricCard(ctk.CTkFrame):
         return ctk.CTkLabel(
             self,
             text=text,
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(size=self._muted_font_size),
             text_color=("#777777", "#aaaaaa"),
             anchor=anchor,
             justify="right" if anchor == "e" else "left",

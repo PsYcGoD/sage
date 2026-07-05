@@ -492,8 +492,9 @@ class SettingsPanel(ctk.CTkToplevel):
             )
             self.after(0, lambda: self.sage_api_status.configure(text=message, text_color="#86efac"))
         except Exception as exc:
-            self.after(0, lambda: self.sage_api_status.configure(
-                text=f"SAGE API connected, but background sync failed: {exc}",
+            msg = f"SAGE API connected, but background sync failed: {exc}"
+            self.after(0, lambda m=msg: self.sage_api_status.configure(
+                text=m,
                 text_color="#fca5a5",
             ))
 

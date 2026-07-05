@@ -17,8 +17,7 @@ Current public proof includes:
 - Total commands processed through SAGE
 - Tokens processed, compressed, and saved
 - Compression rate and command success rate
-- ML prediction scoring from local command history
-- Private visitor stats for the owner through `sage api visitors`
+- ML prediction scoring from local command history (Right now only used by me)
 
 Latest verified snapshot:
 
@@ -31,6 +30,7 @@ Latest verified snapshot:
 | Compression rate | 93.02% |
 | Success rate | 96.69% |
 
+This stats are only after going Live - Since July for CLI commands Only.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
 ## What SAGE Does

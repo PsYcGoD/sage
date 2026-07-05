@@ -25,7 +25,7 @@ COMPLEX = "complex"
 
 _TIER = {SIMPLE: 0, MEDIUM: 1, COMPLEX: 2}
 
-# (agent_name, min_complexity_it_handles, friendly_label) — cheapest first
+# (agent_name, max_complexity_it_handles, friendly_label) — cheapest first
 _PROVIDERS: list[tuple[str, str, str]] = [
     ("ollama", SIMPLE,  "Ollama (local/free)"),
     ("codex",  MEDIUM,  "Codex CLI"),
@@ -158,8 +158,8 @@ def route(
     complexity = classify(prompt, history)
     level      = _TIER[complexity]
 
-    for name, min_c, label in _PROVIDERS:
-        if name in available and _TIER[min_c] <= level:
+    for name, max_c, label in _PROVIDERS:
+        if name in available and _TIER[max_c] >= level:
             return name, complexity, label
 
     # Nothing capable found — return first available regardless of tier

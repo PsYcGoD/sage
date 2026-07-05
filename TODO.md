@@ -3,8 +3,8 @@
 - [x] Rename the public PyPI distribution to `sage-cli` while keeping the CLI command `sage`.
 - [x] Change package classifier to `Development Status :: 4 - Beta`.
 - [x] Store SAGE API keys with OS keyring support.
-- [ ] Prepare or publish GitHub release `v2.0.0-cli-public`.
-- [ ] Attach release materials: `CHANGELOG.md`, install instructions, known limitations, and "GUI not included yet."
+- [x] Prepare or publish GitHub release `v2.0.0-cli-public`.
+- [x] Attach release materials: `CHANGELOG.md`, install instructions, known limitations, and "GUI not included yet."
 - [x] Add `SECURITY.md`.
 - [x] Add `CONTRIBUTING.md`.
 - [x] Add screenshots/GIFs for `sage run --`, `sage context report`, `sage mcp install`, and dashboard proof.

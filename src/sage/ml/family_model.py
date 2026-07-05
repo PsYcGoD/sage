@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Per-family failure prediction models.
 
 Each command family (pytest, npm, git, python, etc.) has unique failure modes.
@@ -5,7 +6,7 @@ A single global model struggles with this diversity. Per-family models learn
 specialized patterns for each tool's error signatures.
 """
 
-from __future__ import annotations
+import logging
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,7 +16,7 @@ from typing import Any
 import joblib
 import pandas as pd
 from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier, VotingClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import accuracy_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -23,9 +24,9 @@ from ..classify import classify_command
 from ..store import connect, data_dir
 from .features import FeatureExtractor
 
+log = logging.getLogger(__name__)
 
 MODEL_VERSION = 4  # v4: per-family models with tuned thresholds
-
 
 @dataclass(frozen=True)
 class FamilyTrainingResult:
@@ -37,7 +38,6 @@ class FamilyTrainingResult:
     fallback_accuracy: float
     fallback_samples: int
     message: str
-
 
 class FamilyFailureModel:
     """Per-family specialized failure prediction models."""
@@ -85,13 +85,12 @@ class FamilyFailureModel:
                 frame = self._training_frame(fam_cmds, fam_labels)
                 labels_series = pd.Series(fam_labels, name="failed")
 
-                # Build smaller, faster model for per-family
+                # Pick the threshold on a temporal holdout (newest 25%) so it is
+                # not tuned on the model's own training predictions, then refit
+                # the final model on the full family history.
+                threshold = self._holdout_threshold(frame, fam_labels)
                 model = self._build_family_model(len(fam_cmds))
                 model.fit(frame, labels_series)
-
-                # Calculate optimal threshold via ROC curve
-                predictions = model.predict_proba(frame)[:, 1]
-                threshold = self._optimal_threshold(fam_labels, predictions)
 
                 # Save model
                 model_path = self.models_dir / f"{family}.joblib"
@@ -114,7 +113,7 @@ class FamilyFailureModel:
                     "threshold": threshold,
                 }
                 trained_count += 1
-            except Exception as e:
+            except Exception:
                 # Skip families that fail to train
                 continue
 
@@ -126,11 +125,11 @@ class FamilyFailureModel:
                 frame = self._training_frame(commands, labels)
                 labels_series = pd.Series(labels, name="failed")
 
+                threshold = self._holdout_threshold(frame, labels, builder=self._build_fallback_model)
                 model = self._build_fallback_model()
                 model.fit(frame, labels_series)
 
                 predictions = model.predict_proba(frame)[:, 1]
-                threshold = self._optimal_threshold(labels, predictions)
 
                 fallback_path = self.models_dir / "fallback.joblib"
                 package = {
@@ -150,7 +149,7 @@ class FamilyFailureModel:
                 predictions_binary = (predictions >= threshold).astype(int)
                 fallback_accuracy = float(accuracy_score(labels, predictions_binary))
             except Exception:
-                pass
+                log.debug("suppressed", exc_info=True)
 
         return FamilyTrainingResult(
             trained=trained_count > 0,
@@ -221,7 +220,6 @@ class FamilyFailureModel:
         threshold = package.get("threshold", 0.5)
 
         # Extract features
-        from .history_features import HISTORY_FEATURE_NAMES
         row = self.extractor.extract(command)
         row.update(self._live_history_builder().features_for(command))
 
@@ -262,9 +260,11 @@ class FamilyFailureModel:
                 "SELECT command, exit_code FROM ml_training_examples ORDER BY created_at ASC, id ASC"
             ).fetchall()
 
+        from ..classify import label_failure
+
         rows = list(run_rows) + list(imported_rows)
         commands = [str(row["command"]) for row in rows]
-        labels = [1 if int(row["exit_code"]) != 0 else 0 for row in rows]
+        labels = [label_failure(command, int(row["exit_code"])) for command, row in zip(commands, rows)]
         return commands, labels
 
     def _feature_names(self) -> list[str]:
@@ -343,6 +343,30 @@ class FamilyFailureModel:
             weights=[2, 2, 1],
             n_jobs=-1,
         )
+
+    def _holdout_threshold(self, frame: pd.DataFrame, labels: list[int], builder=None) -> float:
+        """Pick the decision threshold on a temporal holdout (newest 25%).
+
+        Fits a throwaway model on the oldest 75% and tunes the threshold on the
+        newest 25%, so the threshold is chosen on rows the model never saw.
+        Falls back to 0.5 when the holdout is too small or single-class.
+        """
+        build = builder or (lambda: self._build_family_model(len(labels)))
+        split = int(len(labels) * 0.75)
+        head_labels, tail_labels = labels[:split], labels[split:]
+        if (
+            len(tail_labels) < 8
+            or len(set(tail_labels)) < 2
+            or len(set(head_labels)) < 2
+        ):
+            return 0.5
+        try:
+            probe = build()
+            probe.fit(frame.iloc[:split], pd.Series(head_labels, name="failed"))
+            tail_probabilities = probe.predict_proba(frame.iloc[split:])[:, 1]
+            return self._optimal_threshold(tail_labels, list(tail_probabilities))
+        except Exception:
+            return 0.5
 
     def _optimal_threshold(self, labels: list[int], probabilities: list[float]) -> float:
         """Find optimal classification threshold via F1 score."""

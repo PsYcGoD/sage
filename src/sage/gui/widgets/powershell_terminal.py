@@ -1,6 +1,7 @@
+from __future__ import annotations
 """Embedded PowerShell terminal widget for the SAGE desktop GUI."""
 
-from __future__ import annotations
+import logging
 
 import queue
 import json
@@ -13,6 +14,8 @@ from typing import Callable, Optional
 import customtkinter as ctk
 from sage.gui.ascii_art import SAGE_WELCOME
 
+log = logging.getLogger(__name__)
+
 try:
     import winpty
     from winpty import PtyProcess
@@ -23,7 +26,6 @@ except ImportError:
     PtyProcess = None
     HAS_WINPTY = False
 
-
 class PowerShellTerminal(ctk.CTkTextbox):
     """A real PowerShell session rendered inside a CustomTkinter textbox."""
 
@@ -32,20 +34,28 @@ class PowerShellTerminal(ctk.CTkTextbox):
         parent,
         on_reply_to_selection: Optional[Callable[[str], None]] = None,
         on_ai_response_complete: Optional[Callable[[str], None]] = None,
+        on_ai_stream_finished: Optional[Callable[[str | None], None]] = None,
         **kwargs,
     ):
         super().__init__(
             parent,
-            wrap="none",
+            wrap="word",
             font=ctk.CTkFont(family="Consolas", size=13),
             undo=False,
             **kwargs,
         )
+        try:
+            self._textbox.configure(wrap="word")
+        except Exception:
+            log.debug("suppressed", exc_info=True)
         self.on_reply_to_selection = on_reply_to_selection
         self.on_ai_response_complete = on_ai_response_complete
+        self.on_ai_stream_finished = on_ai_stream_finished
         self.pty = None
         self.reader_thread: threading.Thread | None = None
         self.output_queue: queue.Queue[str | None] = queue.Queue()
+        self._drain_scheduled = False
+        self._drain_lock = threading.Lock()
         self.running = False
         self._closed = False
         self.light_mode = False
@@ -63,6 +73,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
         self._capture_active = False
         self._captured_response_parts: list[str] = []
         self._finish_capture_after_append = False
+        self._ai_error_reported = False
 
         self.configure(fg_color="#050505", text_color="#d1d5db")
         self.tag_config("info", foreground="#7dd3fc")
@@ -157,9 +168,22 @@ class PowerShellTerminal(ctk.CTkTextbox):
 
             if output:
                 self.output_queue.put(output)
-                self._safe_after(0, self._drain_output_queue)
+                self._schedule_drain()
 
         self.running = False
+
+    def _schedule_drain(self) -> None:
+        """Coalesce UI drains: at most one pending drain regardless of read rate.
+
+        Two terminals each reading 4 KB chunks would otherwise schedule a flood
+        of after(0) callbacks and starve the Tk event loop. One pending drain
+        per terminal keeps the UI smooth even with several tabs streaming.
+        """
+        with self._drain_lock:
+            if self._drain_scheduled:
+                return
+            self._drain_scheduled = True
+        self._safe_after(16, self._drain_output_queue)
 
     def _safe_after(self, delay_ms: int, callback) -> None:
         """Schedule a UI callback only while the widget still exists."""
@@ -167,13 +191,26 @@ class PowerShellTerminal(ctk.CTkTextbox):
             if not self._closed and self.winfo_exists():
                 self.after(delay_ms, callback)
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def _drain_output_queue(self) -> None:
-        while not self.output_queue.empty():
-            item = self.output_queue.get_nowait()
+        with self._drain_lock:
+            self._drain_scheduled = False
+        # Combine everything queued so far into one render pass. Fewer state
+        # toggles and one see("end") per frame instead of one per read.
+        chunks: list[str] = []
+        while True:
+            try:
+                item = self.output_queue.get_nowait()
+            except queue.Empty:
+                break
             if item is not None:
-                self.append_text(item)
+                chunks.append(item)
+        if chunks:
+            self.append_text("".join(chunks))
+        # If more arrived while we were draining, schedule the next pass.
+        if not self.output_queue.empty():
+            self._schedule_drain()
 
     def write(self, text: str) -> None:
         """Write raw text to the PowerShell PTY."""
@@ -200,6 +237,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
         self._capture_active = True
         self._captured_response_parts = []
         self._answer_parts = []
+        self._ai_error_reported = False
         if ai_name.lower() == "claude":
             self._ai_stream_format = "claude"
             self._json_line_buffer = ""
@@ -215,13 +253,13 @@ class PowerShellTerminal(ctk.CTkTextbox):
             try:
                 self.pty.sendintr()
             except Exception:
-                pass
+                log.debug("suppressed", exc_info=True)
 
         # Write Ctrl+C character
         try:
             self.write("\x03")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
         # Show cancellation message after a tiny delay
         self._safe_after(100, lambda: self._show_stop_message())
@@ -234,7 +272,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
             self.see("end")
             self.configure(state="disabled")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def stop(self) -> None:
         """Close the embedded terminal."""
@@ -247,7 +285,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
                 elif hasattr(self.pty, "cancel_io"):
                     self.pty.cancel_io()
             except Exception:
-                pass
+                log.debug("suppressed", exc_info=True)
             self.pty = None
         while not self.output_queue.empty():
             try:
@@ -318,6 +356,25 @@ class PowerShellTerminal(ctk.CTkTextbox):
     def append_status_text(self, text: str) -> None:
         """Append GUI status text without adding it to captured AI memory."""
         self._append_raw(self._tk_safe(text), "info")
+
+    def append_expandable_section(
+        self,
+        title: str,
+        content: str,
+        tag: str | None = None,
+        collapsed: bool = False,
+    ) -> None:
+        """Compatibility renderer for OutputView-style structured sections."""
+        content = str(content or "").strip()
+        if not content:
+            return
+        section_tag = {
+            "thinking_text": "thinking",
+            "code": "tool",
+            "running": "dim",
+        }.get(str(tag or ""), tag or "info")
+        self.append_text(f"\n{title}\n", "info")
+        self.append_text(content + "\n", section_tag)
 
     def clear(self) -> None:
         self.configure(state="normal")
@@ -469,6 +526,9 @@ class PowerShellTerminal(ctk.CTkTextbox):
             kept.append(line)
 
         cleaned = "\n".join(kept)
+        # Collapse long runs of blank lines so answers read cleanly instead of
+        # scrolling through dead space left by suppressed wrapper/echo lines.
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         if cleaned and ended_with_newline:
             cleaned += "\n"
         return cleaned
@@ -523,6 +583,21 @@ class PowerShellTerminal(ctk.CTkTextbox):
         self._answer_parts = []
         if response and self.on_ai_response_complete:
             self.on_ai_response_complete(response)
+        if self.on_ai_stream_finished:
+            self.on_ai_stream_finished(None)
+
+    def _abort_ai_capture(self, message: str) -> None:
+        """Stop the current AI capture after a terminal CLI failure."""
+        self._capture_active = False
+        self._ai_stream_format = None
+        self._json_line_buffer = ""
+        self._current_block = None
+        self._tool_name = ""
+        self._tool_json = ""
+        self._captured_response_parts = []
+        self._answer_parts = []
+        if self.on_ai_stream_finished:
+            self.on_ai_stream_finished(message)
 
     @staticmethod
     def _memory_text_from_rendered(text: str) -> str:
@@ -573,6 +648,15 @@ class PowerShellTerminal(ctk.CTkTextbox):
             if not stripped:
                 continue
             if not stripped.startswith("{"):
+                if self._is_claude_retry_limit_error(stripped):
+                    if self._ai_error_reported:
+                        continue
+                    self._ai_error_reported = True
+                    message = self._format_claude_retry_limit_error(stripped)
+                    self._abort_ai_capture(message)
+                    self.interrupt()
+                    segments.append((f"\nERROR: {message}\n", "error"))
+                    continue
                 cleaned = self._clean_terminal_text(line + "\n")
                 if cleaned:
                     segments.append((cleaned, None))
@@ -581,6 +665,27 @@ class PowerShellTerminal(ctk.CTkTextbox):
             segments.extend(self._render_claude_event(stripped))
 
         return segments
+
+    @staticmethod
+    def _is_claude_retry_limit_error(text: str) -> bool:
+        lower = text.lower()
+        return (
+            "429" in lower
+            and (
+                "too many tokens per day" in lower
+                or "too many requests" in lower
+                or "rate limit" in lower
+            )
+        )
+
+    @staticmethod
+    def _format_claude_retry_limit_error(text: str) -> str:
+        clean = " ".join(str(text or "").split())
+        if "too many tokens per day" in clean.lower():
+            return "Claude API limit hit: too many tokens per day. Wait before trying again."
+        if clean:
+            return f"Claude API limit hit: {clean[:300]}"
+        return "Claude API limit hit. Wait before trying again."
 
     def _render_claude_event(self, line: str) -> list[tuple[str, str | None]]:
         try:

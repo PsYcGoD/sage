@@ -98,8 +98,9 @@ class LEDBorder(ctk.CTkCanvas):
 
         self.animation_frame += 1
 
-        # Continue animation
-        self.after(30, self._animate)
+        # Continue animation ONLY if still animating
+        if self.is_animating:
+            self.after(30, self._animate)
 
     def _draw_border_segment(self, start, end, perimeter, width, height, color, thickness):
         """Draw a continuous border segment."""
@@ -215,8 +216,9 @@ class ThinkingOverlay(ctk.CTkCanvas):
 
         self.animation_frame += 1
 
-        # Continue animation
-        self.after(30, self._animate)
+        # Continue animation ONLY if still animating
+        if self.is_animating:
+            self.after(30, self._animate)
 
     def _draw_border_segment(self, start, end, perimeter, width, height, color, thickness):
         """Draw a continuous border segment."""

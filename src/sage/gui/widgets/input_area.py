@@ -1,3 +1,4 @@
+import logging
 """
 Input Area Widget for SAGE Desktop GUI.
 
@@ -13,13 +14,14 @@ from typing import Callable, Optional, Any
 
 import customtkinter as ctk
 
+log = logging.getLogger(__name__)
+
 try:
     from PIL import ImageGrab
     HAS_PIL = True
 except ImportError:
     ImageGrab = None
     HAS_PIL = False
-
 
 class InputArea(ctk.CTkFrame):
     """Multi-line text input area with control buttons."""
@@ -377,7 +379,7 @@ class InputArea(ctk.CTkFrame):
         try:
             self.text_input.edit_undo()
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         return "break"
 
     def _on_redo_key(self, event):
@@ -387,7 +389,7 @@ class InputArea(ctk.CTkFrame):
         try:
             self.text_input.edit_redo()
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         return "break"
 
     def _on_ctrl_c_key(self, event):
@@ -557,7 +559,7 @@ class InputArea(ctk.CTkFrame):
             self.text_input.edit_reset()
             self.text_input.edit_separator()
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
 
     def set_enabled(self, enabled: bool):
         """

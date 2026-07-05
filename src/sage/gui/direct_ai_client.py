@@ -1,3 +1,4 @@
+import logging
 """Direct AI integration - runs IN the GUI process, no subprocess"""
 
 import os
@@ -5,6 +6,9 @@ import json
 from typing import Generator, Optional
 from pathlib import Path
 
+from sage.gui.model_defaults import bedrock_claude_model, claude_model
+
+log = logging.getLogger(__name__)
 
 class DirectBedrockClient:
     """Direct AWS Bedrock Claude integration"""
@@ -12,7 +16,7 @@ class DirectBedrockClient:
     def __init__(self, system_prompts: list[str] | None = None):
         self.system_prompts = system_prompts or []
         self.region = os.environ.get("AWS_REGION", "us-east-1")
-        self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"  # Latest Claude on Bedrock
+        self.model_id = bedrock_claude_model()
 
         # Check AWS credentials
         if not (os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY")):
@@ -86,7 +90,6 @@ class DirectBedrockClient:
         except Exception as e:
             yield ("error", f"\n[ERROR] Bedrock error: {e}\n")
 
-
 class DirectClaudeClient:
     """Direct Claude API integration using requests (no SDK dependency)"""
 
@@ -96,7 +99,7 @@ class DirectClaudeClient:
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
 
-        self.model = "claude-sonnet-4-20250514"
+        self.model = claude_model()
         self.api_url = "https://api.anthropic.com/v1/messages"
 
     def _build_system_prompt(self) -> str:
@@ -212,7 +215,6 @@ class DirectClaudeClient:
         except Exception as e:
             yield ("error", f"\n[ERROR] Unexpected error: {e}\n")
 
-
 class DirectOllamaClient:
     """Direct Ollama API integration (local)"""
 
@@ -230,7 +232,7 @@ class DirectOllamaClient:
                 try:
                     parts.append(prompt_path.read_text(encoding="utf-8"))
                 except Exception:
-                    pass
+                    log.debug("suppressed", exc_info=True)
         return "\n\n".join(parts) if parts else None
 
     def stream_response(self, prompt: str) -> Generator[tuple[str, str], None, None]:
@@ -290,7 +292,6 @@ class DirectOllamaClient:
         except Exception as e:
             yield ("error", f"\n[ERROR] {e}\n")
 
-
 def create_direct_client(ai_name: str, system_prompts: list[str] | None = None):
     """Factory to create direct AI client"""
     ai_name = ai_name.lower()
@@ -306,7 +307,6 @@ def create_direct_client(ai_name: str, system_prompts: list[str] | None = None):
         raise ValueError("Codex requires subprocess mode")
     else:
         raise ValueError(f"Direct integration not available for {ai_name}")
-
 
 def check_direct_available(ai_name: str) -> bool:
     """Check if direct integration is available"""

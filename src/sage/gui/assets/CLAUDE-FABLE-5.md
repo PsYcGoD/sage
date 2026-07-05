@@ -1383,7 +1383,7 @@ const response = await fetch("https://api.anthropic.com/v1/messages", {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    model: "claude-sonnet-4-20250514", // Always use Sonnet 4
+    model: "claude-sonnet-5", // Use the current Sonnet model
     max_tokens: 1000, // This is being handled already, so just always set this as 1000
     messages: [
       { role: "user", content: "Your prompt here" }

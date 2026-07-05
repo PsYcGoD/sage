@@ -1,6 +1,7 @@
+from __future__ import annotations
 """CLI client for SAGE Desktop GUI."""
 
-from __future__ import annotations
+import logging
 
 import os
 import json
@@ -13,14 +14,13 @@ import threading
 from pathlib import Path
 from typing import Generator, Optional
 
+log = logging.getLogger(__name__)
 
 WINDOWS_SCRIPT_EXTENSIONS = {".bat", ".cmd", ".ps1"}
-
 
 def _split_command(command: str) -> list[str]:
     """Split a configured command without breaking Windows paths."""
     return shlex.split(command, posix=False)
-
 
 def resolve_cli_command(command: str) -> Optional[list[str]]:
     """Resolve the executable in a configured CLI command."""
@@ -34,11 +34,9 @@ def resolve_cli_command(command: str) -> Optional[list[str]]:
 
     return [executable, *parts[1:]]
 
-
 def _needs_shell(executable: str) -> bool:
     """Windows needs a shell for npm .cmd shims and batch files."""
     return os.name == "nt" and Path(executable).suffix.lower() in WINDOWS_SCRIPT_EXTENSIONS
-
 
 def _clean_for_display(text: str) -> str:
     """Normalize common mojibake/error symbols for the GUI output."""
@@ -58,7 +56,6 @@ def _clean_for_display(text: str) -> str:
     text = re.sub(r" {2,}", " ", text)
     return text
 
-
 def _tool_call_summary(name: str, raw_json: str) -> str:
     """Build a `Tool(main argument)` label like the Claude CLI shows."""
     args = {}
@@ -77,7 +74,6 @@ def _tool_call_summary(name: str, raw_json: str) -> str:
     if len(detail) > 80:
         detail = detail[:77] + "..."
     return f"{name}({detail})"
-
 
 def _tool_result_summary(content) -> str:
     """Summarize a tool result the way the Claude CLI collapses it."""
@@ -101,7 +97,6 @@ def _tool_result_summary(content) -> str:
     if len(lines) > 1:
         summary += f" ... +{len(lines) - 1} lines"
     return summary
-
 
 class CLIClient:
     """Client that streams responses from local CLI commands."""
@@ -151,7 +146,7 @@ class CLIClient:
             try:
                 process.terminate()
             except Exception:
-                pass
+                log.debug("suppressed", exc_info=True)
 
     def stream_response(self, prompt: str) -> Generator[str, None, None]:
         """Stream CLI response lines for a prompt."""
@@ -464,7 +459,6 @@ class CLIClient:
             return prompt
 
         return "\n\n".join(system_content) + "\n\n---\n\nUser: " + prompt
-
 
 def check_cli_available(ai_name: str, custom_command: Optional[str] = None) -> bool:
     """Return true if the configured CLI command can be resolved."""

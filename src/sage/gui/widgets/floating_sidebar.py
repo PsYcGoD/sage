@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import tkinter as tk
 from typing import Callable, Optional
@@ -34,6 +36,7 @@ class FloatingSidebar(ctk.CTkFrame):
         self.on_chat_action = on_chat_action
         self.expanded_projects: set[str] = set()
         self._all_groups: list[dict] = []
+        self._last_groups_hash: str = ""  # Track when data actually changes
 
         self.grid_rowconfigure(3, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -146,6 +149,12 @@ class FloatingSidebar(ctk.CTkFrame):
 
     def _render_groups(self):
         groups, query = self._filtered_groups()
+
+        # Only rebuild if data actually changed (prevents sidebar blink every 2s)
+        current_hash = hashlib.md5(json.dumps(groups, sort_keys=True).encode()).hexdigest()
+        if current_hash == self._last_groups_hash and not query:
+            return
+        self._last_groups_hash = current_hash
 
         for widget in self.groups_container.winfo_children():
             widget.destroy()

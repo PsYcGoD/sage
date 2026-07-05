@@ -77,6 +77,9 @@ class SettingsPanel(ctk.CTkToplevel):
         # Git Integration section
         self._create_git_section(scroll_frame)
 
+        # OmniRoute section
+        self._create_omni_section(scroll_frame)
+
         # MCP Servers section
         self._create_mcp_section(scroll_frame)
 
@@ -976,9 +979,97 @@ class SettingsPanel(ctk.CTkToplevel):
         )
         note.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
 
+    def _create_omni_section(self, parent):
+        """OmniRoute — auto-select cheapest capable agent per message."""
+        section = self._create_section(parent, "OmniRoute", row=5)
+
+        desc = ctk.CTkLabel(
+            section,
+            text=(
+                "Automatically routes each message to the cheapest available agent "
+                "(Ollama → Codex → Claude), sharing session memory across all. "
+                "Falls back silently to the selected AI if routing fails."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color="gray65",
+            anchor="w",
+            wraplength=780,
+            justify="left",
+        )
+        desc.grid(row=1, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="ew")
+
+        enabled = getattr(self.parent_app, "_omni_enabled", True)
+        self._omni_switch = ctk.CTkSwitch(
+            section,
+            text="Enable OmniRoute  (auto-select cheapest available agent)",
+            font=ctk.CTkFont(size=12),
+            command=self._on_omni_toggle,
+        )
+        if enabled:
+            self._omni_switch.select()
+        self._omni_switch.grid(row=2, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="w")
+
+        status_row = ctk.CTkFrame(section, fg_color="transparent")
+        status_row.grid(row=3, column=0, columnspan=2, padx=15, pady=(0, 12), sticky="ew")
+        status_row.grid_columnconfigure(0, weight=1)
+
+        self._omni_status = ctk.CTkLabel(
+            status_row,
+            text="Checking agents…",
+            font=ctk.CTkFont(size=11),
+            text_color="gray55",
+            anchor="w",
+            justify="left",
+        )
+        self._omni_status.grid(row=0, column=0, sticky="w")
+
+        refresh_btn = ctk.CTkButton(
+            status_row,
+            text="Check Now",
+            width=90,
+            fg_color="gray35",
+            hover_color="gray28",
+            font=ctk.CTkFont(size=11),
+            command=lambda: threading.Thread(
+                target=self._refresh_omni_status, daemon=True
+            ).start(),
+        )
+        refresh_btn.grid(row=0, column=1, padx=(8, 0), sticky="e")
+
+        threading.Thread(target=self._refresh_omni_status, daemon=True).start()
+
+    def _on_omni_toggle(self):
+        try:
+            self.parent_app._omni_enabled = bool(self._omni_switch.get())
+        except Exception:
+            pass
+
+    def _refresh_omni_status(self):
+        try:
+            from sage.gui import omni_router
+            available = omni_router.detect_available(force=True)
+            icons = {"ollama": "\U0001f7e2", "codex": "\U0001f7e2", "claude": "\U0001f7e2"}
+            all_names = ["ollama", "codex", "claude"]
+            labels = {"ollama": "Ollama (local)", "codex": "Codex CLI", "claude": "Claude API"}
+            parts = []
+            for name in all_names:
+                if name in available:
+                    parts.append(f"{icons[name]} {labels[name]}")
+                else:
+                    parts.append(f"⚫ {labels[name]}")
+            text = "Detected:   " + "    ·    ".join(parts)
+            color = "gray65"
+        except Exception as exc:
+            text = f"Could not detect agents: {exc}"
+            color = "#fca5a5"
+        try:
+            self._omni_status.configure(text=text, text_color=color)
+        except Exception:
+            pass
+
     def _create_mcp_section(self, parent):
         """Create MCP servers section with a real 'connect to any MCP server' input."""
-        section = self._create_section(parent, "MCP Servers", row=5)
+        section = self._create_section(parent, "MCP Servers", row=6)
 
         # SAGE's own MCP server command (exposes SAGE tools to clients).
         self._create_input(section, "SAGE MCP Command:", "mcp_server_cmd",
@@ -1155,7 +1246,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_prompts_section(self, parent):
         """Create system prompts section."""
-        section = self._create_section(parent, "System Prompts", row=6)
+        section = self._create_section(parent, "System Prompts", row=7)
 
         # Claude prompts
         prompts = self.config.get_system_prompts("claude")
@@ -1165,7 +1256,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_runtime_section(self, parent):
         """Create runtime behavior settings."""
-        section = self._create_section(parent, "Runtime", row=7)
+        section = self._create_section(parent, "Runtime", row=8)
         self._create_switch(
             section,
             "Run AI inside SAGE terminal",
@@ -1194,7 +1285,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_danger_zone_section(self, parent):
         """Create reset/delete controls for local SAGE data."""
-        section = self._create_section(parent, "Reset / Delete", row=8)
+        section = self._create_section(parent, "Reset / Delete", row=9)
 
         note = ctk.CTkLabel(
             section,

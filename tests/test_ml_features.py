@@ -92,20 +92,20 @@ def test_mcp_run_command_includes_prediction():
     }
 
 
-def test_default_agent_catalog_has_24_roles():
-    assert len(DEFAULT_AGENT_SPECS) == 24
+def test_default_agent_catalog_has_seven_roles():
+    assert len(DEFAULT_AGENT_SPECS) == 7
 
-    selected = select_agents_for_command("pytest failed with sqlite migration error")
+    selected = select_agents_for_command("pytest failed with a missing module error")
     selected_types = {agent.type for agent in selected}
 
-    assert len(selected) == 24
+    assert len(selected) == 7
     assert "test" in selected_types
-    assert "database" in selected_types or "debug" in selected_types
+    assert "dependency" in selected_types or "debug" in selected_types
 
 
-def test_expanded_agent_catalog_routes_memory_and_security_triads():
-    memory_selected = {agent.type for agent in select_agents_for_command("persistent session memory wastes context tokens")}
-    security_selected = {agent.type for agent in select_agents_for_command("red-team attack needs blue-team mitigation and auditor evidence")}
+def test_agent_catalog_routes_security_and_code():
+    security_selected = {agent.type for agent in select_agents_for_command("security audit found a leaked token and auth vulnerability")}
+    code_selected = {agent.type for agent in select_agents_for_command("python refactor with a failing pytest")}
 
-    assert "memory" in memory_selected
-    assert {"redteam", "blueteam", "auditor"} & security_selected
+    assert "security" in security_selected
+    assert {"code", "test"} <= code_selected

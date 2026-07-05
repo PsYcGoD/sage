@@ -442,30 +442,13 @@ def _run_agent_analysis(
         "agent_brief": _agent_brief(spec.type),
     }
     analyzers = {
+        "code": _code_result,
         "debug": _debug_result,
         "test": _test_result,
-        "dependency": _dependency_result,
-        "database": _database_result,
-        "frontend": _frontend_result,
-        "security": _security_result,
-        "performance": _performance_result,
-        "docs": _docs_result,
-        "workflow": _workflow_result,
-        "release": _release_result,
         "research": _research_result,
-        "code": _code_result,
-        "architecture": _architecture_result,
-        "review": _review_result,
-        "refactor": _refactor_result,
-        "devops": _devops_result,
-        "api": _api_result,
-        "ml": _ml_result,
-        "memory": _memory_result,
-        "telemetry": _telemetry_result,
-        "privacy": _privacy_result,
-        "redteam": _redteam_result,
-        "blueteam": _blueteam_result,
-        "auditor": _auditor_result,
+        "security": _security_result,
+        "dependency": _dependency_result,
+        "frontend": _frontend_result,
     }
     base.update(analyzers.get(spec.type, _generic_result)(command, output, exit_code, summary))
     return base
@@ -485,30 +468,13 @@ def _common_signals(command: str, output: str, summary: str) -> dict[str, Any]:
 
 def _agent_brief(agent_type: str) -> str:
     briefs = {
-        "code": "Checks implementation shape, local patterns, and scoped edit risk.",
+        "code": "Checks syntax/indentation, scoped edits, changed files, and leaked secrets.",
         "debug": "Finds the first useful failure signal and the smallest reproduction path.",
         "test": "Looks for regression coverage, failing tests, and narrow verification commands.",
-        "research": "Flags when current or primary-source evidence is needed.",
+        "research": "Extracts sources and flags time-sensitive claims that lack a primary source.",
         "security": "Checks secrets, auth, permissions, and dependency risk.",
-        "performance": "Looks for latency, timeout, and measurement signals before optimization.",
-        "docs": "Keeps user-facing claims tied to verified evidence.",
         "dependency": "Diagnoses package manager, environment, and missing-module failures.",
-        "workflow": "Checks CI, automation, and YAML/pipeline behavior.",
-        "database": "Protects schema compatibility, migrations, and persisted data.",
-        "frontend": "Reviews UI polish, layout, accessibility, and animation craft.",
-        "release": "Checks packaging, versioning, and release readiness.",
-        "architecture": "Checks module boundaries, contracts, and system-level tradeoffs.",
-        "review": "Looks for behavioral regressions and missing tests.",
-        "refactor": "Keeps cleanup behavior-preserving and separately verifiable.",
-        "devops": "Checks runtime, ports, services, and deployment assumptions.",
-        "api": "Protects request/response contracts and client compatibility.",
-        "ml": "Checks model features, thresholds, and validation behavior.",
-        "memory": "Checks session persistence, context reuse, and token waste.",
-        "telemetry": "Verifies proof counters, metrics, and sync behavior stay safe.",
-        "privacy": "Checks redaction, retention, local-only handling, and PII risk.",
-        "redteam": "Models plausible abuse paths and attacker-controlled inputs.",
-        "blueteam": "Checks mitigations, hardening, and control effectiveness.",
-        "auditor": "Ranks evidence, severity, assumptions, and next actions.",
+        "frontend": "Checks UI render errors, accessibility gaps, and layout/overflow.",
     }
     return briefs.get(agent_type, "Performs specialist analysis for this run.")
 
@@ -573,25 +539,50 @@ def _dependency_result(command: str, output: str, exit_code: int, summary: str) 
     }
 
 
-def _database_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    important = _important_lines(output or summary, ["sqlite", "database", "schema", "migration", "sql"])
-    return {
-        "finding": "database/schema path involved" if important else "no database signal detected",
-        "evidence": important[:8],
-        "next_action": "Check schema migration compatibility and preserve existing data." if important else "No database action needed.",
-        "follow_up_command": "sage doctor" if important else "",
-        "actions": ["Inspect schema changes.", "Use additive migrations.", "Verify existing rows still read."] if important else ["No database action needed."],
-    }
-
-
 def _frontend_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    important = _important_lines(output or summary, ["gui", "ui", "window", "card", "render", "layout", "tkinter"])
+    """Design/UI checks — embodies design-master-pro as a deterministic checklist.
+
+    Flags render errors, accessibility gaps, and layout/overflow signals in the
+    output; no LLM. The bound design-master-pro skill is what the real CLI loads.
+    """
+    text = output or summary
+    lowered = command.lower()
+    ui_hits = _important_lines(text, ["gui", "ui", "window", "card", "render", "layout", "tkinter", "css", "component", "button", "modal", "widget"])
+    a11y = _important_lines(text, ["aria", "alt=", "label", "contrast", "focus", "tabindex", "role="])
+    overflow = _important_lines(text, ["overflow", "clipped", "cut off", "truncat", "responsive", "viewport", "not fit"])
+    render_err = _first_important_line(text, ["uncaught", "console error", "render error", "tclerror", "tkinter", "traceback"])
+    is_ui = bool(ui_hits) or any(
+        token in lowered for token in ["gui", "ui", "frontend", "css", "tkinter", "component", ".tsx", ".jsx", ".css", ".html", "widget", "layout"]
+    )
+
+    if render_err:
+        finding = "UI render error — fix before any polish"
+        next_action = "Fix the render/console error first, then smoke-test the screen."
+    elif is_ui:
+        finding = "frontend/ui path involved"
+        next_action = "Smoke-test the screen; check nothing is clipped and every control has a label."
+    else:
+        finding = "no frontend signal detected"
+        next_action = "No frontend action needed."
+
+    evidence: list[str] = []
+    for item in ([render_err] if render_err else []) + a11y[:3] + overflow[:3] + ui_hits[:3]:
+        if item and item not in evidence:
+            evidence.append(item)
+    actions = [
+        "Smoke-test the screen; check nothing overflows or is clipped.",
+        "Every input needs a label; keep visible focus states and 44px tap targets.",
+        "Keep one clear primary action and preserve the existing design.",
+    ] if is_ui else ["No frontend action needed."]
     return {
-        "finding": "frontend/gui path involved" if important else "no frontend signal detected",
-        "evidence": important[:8],
-        "next_action": "Smoke test visual state and check text fitting after changes." if important else "No frontend action needed.",
-        "follow_up_command": "python -m sage gui" if important else "",
-        "actions": ["Smoke test startup.", "Check text fitting.", "Check terminal streaming."] if important else ["No frontend action needed."],
+        "finding": finding,
+        "evidence": evidence[:8],
+        "render_error": render_err,
+        "accessibility_signals": a11y[:6],
+        "layout_signals": overflow[:6],
+        "next_action": next_action,
+        "follow_up_command": "python -m sage gui" if is_ui else "",
+        "actions": actions,
     }
 
 
@@ -609,141 +600,110 @@ def _security_result(command: str, output: str, exit_code: int, summary: str) ->
     }
 
 
-def _performance_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    lines = _important_lines(output or summary, ["slow", "timeout", "duration", "seconds", "ms"])
-    return {
-        "finding": "performance signal found" if lines else "no performance signal detected",
-        "evidence": lines[:8],
-        "next_action": "Measure before optimizing; keep benchmark output in run history." if lines else "No performance action needed.",
-        "follow_up_command": _rerun_command(command) if lines else "",
-        "actions": ["Record baseline duration.", "Change one bottleneck at a time.", "Rerun benchmark."] if lines else ["No performance action needed."],
-    }
-
-
-def _docs_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    touched_docs = any(token in command.lower() for token in ["readme", ".md", "docs", "changelog"])
-    return {
-        "finding": "documentation command detected" if touched_docs else "no docs signal detected",
-        "evidence": _extract_file_paths(command, output)[:8],
-        "next_action": "Keep claims aligned with verified test results." if touched_docs else "No docs action needed.",
-        "follow_up_command": "",
-        "actions": ["Use exact tested numbers.", "Keep UTF-8 valid.", "Avoid unverified claims."] if touched_docs else ["No docs action needed."],
-    }
-
-
-def _workflow_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    important = _important_lines(output or summary, ["workflow", "yaml", "ci", "pipeline"])
-    return {
-        "finding": "workflow path involved" if important else "no workflow signal detected",
-        "evidence": important[:8],
-        "next_action": "Validate YAML and execute the narrow workflow before broad CI." if important else "No workflow action needed.",
-        "follow_up_command": _rerun_command(command) if important else "",
-        "actions": ["Validate YAML syntax.", "Run individual workflow steps.", "Keep failure output inspectable."] if important else ["No workflow action needed."],
-    }
-
-
-def _release_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    signal = any(token in command.lower() for token in ["build", "version", "package", "release"])
-    return {
-        "finding": "release readiness path involved" if signal else "no release signal detected",
-        "evidence": _important_lines(output or summary, ["build", "wheel", "version", "package"])[:8],
-        "next_action": "Run packaging checks and verify metadata before release." if signal else "No release action needed.",
-        "follow_up_command": _rerun_command(command) if signal else "",
-        "actions": ["Check metadata.", "Run compile/tests.", "Record verification commands."] if signal else ["No release action needed."],
-    }
-
-
 def _research_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
+    """Source checks — embodies research-master-pro as a deterministic checklist.
+
+    Extracts source links and flags time-sensitive claims that ship without a
+    primary source; no LLM. research-master-pro is what the real CLI loads.
+    """
+    text = output or summary
+    lowered = command.lower()
+    urls = _extract_urls(f"{text}\n{command}")
+    time_sensitive = [
+        word for word in ["latest", "current", "today", "now", "2025", "2026", "price", "version", "release", "recent", "newest", "who is"]
+        if word in lowered
+    ]
+    is_research = bool(time_sensitive) or any(token in lowered for token in ["research", "compare", "find", "investigate", "verify", "source"])
+
+    if time_sensitive and not urls:
+        finding = "time-sensitive claim without a primary source"
+        next_action = "Verify current facts against a live primary source before trusting them."
+    elif urls:
+        finding = f"{len(urls)} source link(s) found"
+        next_action = "Prefer primary/official sources and attach one to each claim."
+    elif is_research:
+        finding = "research requested"
+        next_action = "Use current primary sources when external facts can change."
+    else:
+        finding = "no research action needed"
+        next_action = "No research action needed."
+
+    evidence = urls[:6] or _important_lines(text, ["source", "according", "study", "report", "http"])[:6]
+    actions = [
+        "Prefer primary/official sources over aggregators.",
+        "Attach a source link to each factual claim.",
+        "Note the date for anything that can change.",
+    ] if is_research else ["No research action needed."]
+    if time_sensitive:
+        actions.insert(0, f"Re-check live: {', '.join(time_sensitive[:3])}.")
     return {
-        "finding": "research requested" if "research" in command.lower() else "no research action needed",
-        "evidence": _important_lines(output or summary, ["http", "source", "latest"])[:8],
-        "next_action": "Use current primary sources when external facts can change.",
+        "finding": finding,
+        "evidence": evidence,
+        "sources": urls[:8],
+        "time_sensitive_terms": time_sensitive,
+        "next_action": next_action,
         "follow_up_command": "",
-        "actions": ["Use primary/current sources.", "Summarize evidence.", "Store source links when relevant."],
+        "actions": actions,
     }
 
 
 def _code_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
+    """Code checks — embodies coding-master-pro as a deterministic checklist.
+
+    Detects syntax/indentation errors, inspects changed files, and flags leaked
+    secrets; no LLM. coding-master-pro is what the real CLI loads.
+    """
+    text = output or summary
+    lowered = command.lower()
     files = _inspect_files(_extract_file_paths(command, output))
+    syntax = _first_important_line(
+        text,
+        ["syntaxerror", "indentationerror", "invalid syntax", "unexpected indent", "unterminated", "unexpected eof", "taberror"],
+    )
+    secret_matches = redact_text(f"{command}\n{text}").count
+    is_code = any(
+        token in lowered for token in ["python", "node", "npm", "pytest", "git", "compile", "build", "ruff", "mypy", ".py", ".js", ".ts"]
+    )
+
+    if syntax:
+        finding = "syntax/indentation error — fix before running"
+        next_action = "Fix the first syntax error, then rerun py_compile / the focused test."
+    elif exit_code:
+        finding = "code command failed — inspect before patching"
+        next_action = "Read the failure, patch minimally, then rerun the focused check."
+    elif is_code:
+        finding = "code command clean"
+        next_action = "Keep edits scoped and rerun the focused verification command."
+    else:
+        finding = "general command"
+        next_action = "Keep edits scoped and rerun the focused verification command."
+
+    evidence: list[str] = []
+    if syntax:
+        evidence.append(syntax)
+    evidence += files[:6]
+    if secret_matches:
+        evidence.append(f"secret-like matches: {secret_matches}")
+    if not evidence:
+        evidence = _important_lines(text, ["modified", "changed", "diff", "compile", "error"])[:6]
+
+    actions = [
+        "Read local patterns before editing; keep the patch minimal.",
+        "Leave unrelated dirty files untouched.",
+        "Run the focused verification command after editing.",
+    ]
+    if secret_matches:
+        actions.insert(0, "Move exposed secrets to env/ignored files and rotate them.")
     return {
-        "finding": "code command detected" if any(token in command.lower() for token in ["python", "node", "git", "pytest"]) else "general command",
-        "evidence": files or _important_lines(output or summary, ["modified", "changed", "diff", "compile"])[:8],
+        "finding": finding,
+        "evidence": evidence[:8],
         "file_inspection": files,
-        "next_action": "Keep edits scoped and rerun the focused verification command.",
-        "follow_up_command": _rerun_command(command),
-        "actions": ["Read local patterns before editing.", "Keep unrelated dirty files untouched.", "Run focused verification."],
-    }
-
-
-def _keyword_agent_result(
-    *,
-    name: str,
-    command: str,
-    output: str,
-    summary: str,
-    keywords: list[str],
-    finding_hit: str,
-    finding_miss: str,
-    next_action: str,
-    actions: list[str],
-) -> dict[str, Any]:
-    evidence = _important_lines(output or summary or command, keywords)[:8]
-    return {
-        "finding": finding_hit if evidence or any(token in command.lower() for token in keywords) else finding_miss,
-        "evidence": evidence,
+        "syntax_error": syntax,
+        "secret_matches": secret_matches,
         "next_action": next_action,
-        "follow_up_command": _rerun_command(command) if evidence else "",
+        "follow_up_command": _rerun_command(command),
         "actions": actions,
-        "agent_focus": name,
     }
-
-
-def _architecture_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="architecture", command=command, output=output, summary=summary, keywords=["architecture", "boundary", "contract", "module", "interface"], finding_hit="architecture/design signal found", finding_miss="no architecture risk detected", next_action="Check module boundaries and public contracts before editing.", actions=["Identify ownership boundaries.", "Avoid cross-layer shortcuts.", "Keep public contracts explicit."])
-
-
-def _review_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="review", command=command, output=output, summary=summary, keywords=["diff", "review", "regression", "risk", "changed"], finding_hit="review/regression signal found", finding_miss="no review-specific risk detected", next_action="Review behavior changes and missing tests before shipping.", actions=["Scan diff for behavioral changes.", "Look for missing regression tests.", "Prioritize user-visible risk."])
-
-
-def _refactor_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="refactor", command=command, output=output, summary=summary, keywords=["refactor", "cleanup", "dedupe", "rename", "simplify"], finding_hit="refactor signal found", finding_miss="no refactor signal detected", next_action="Keep refactors behavior-preserving and separately verified.", actions=["Separate cleanup from feature work.", "Preserve public behavior.", "Run focused tests before broad tests."])
-
-
-def _devops_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="devops", command=command, output=output, summary=summary, keywords=["deploy", "docker", "server", "runtime", "env", "port"], finding_hit="deployment/runtime signal found", finding_miss="no devops signal detected", next_action="Verify runtime environment, ports, and deployment assumptions.", actions=["Check env vars.", "Validate service startup.", "Record deployment command output."])
-
-
-def _api_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="api", command=command, output=output, summary=summary, keywords=["api", "endpoint", "http", "json", "schema", "status"], finding_hit="API contract signal found", finding_miss="no API signal detected", next_action="Validate request/response shape and compatibility.", actions=["Check schema changes.", "Verify status codes.", "Keep clients backward compatible."])
-
-
-def _ml_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="ml", command=command, output=output, summary=summary, keywords=["ml", "model", "predict", "training", "feature", "confidence"], finding_hit="ML/prediction signal found", finding_miss="no ML signal detected", next_action="Validate model thresholds and feature behavior with deterministic tests.", actions=["Check feature extraction.", "Validate thresholds.", "Compare model and heuristic behavior."])
-
-
-def _memory_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="memory", command=command, output=output, summary=summary, keywords=["memory", "session", "history", "context", "persistent"], finding_hit="memory/session signal found", finding_miss="no memory signal detected", next_action="Verify session ids, saved turns, and context reuse.", actions=["Reuse existing session ids.", "Avoid duplicate context injection.", "Hydrate saved history on load."])
-
-
-def _telemetry_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="telemetry", command=command, output=output, summary=summary, keywords=["telemetry", "metrics", "sync", "proof", "dashboard", "tokens"], finding_hit="telemetry/proof signal found", finding_miss="no telemetry signal detected", next_action="Verify counters stay privacy-safe and non-blocking.", actions=["Check queue behavior.", "Keep raw data local at low levels.", "Avoid blocking command completion."])
-
-
-def _privacy_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="privacy", command=command, output=output, summary=summary, keywords=["privacy", "redact", "retention", "secret", "token", "pii"], finding_hit="privacy/redaction signal found", finding_miss="no privacy signal detected", next_action="Verify redaction, retention, and local-only guarantees.", actions=["Scan for secrets.", "Check retention policy.", "Avoid exposing paths or raw logs."])
-
-
-def _redteam_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="redteam", command=command, output=output, summary=summary, keywords=["attack", "exploit", "abuse", "threat", "malware", "prompt injection"], finding_hit="attack-path signal found", finding_miss="no obvious attack-path signal detected", next_action="Model how this could be abused before trusting automation.", actions=["Identify attacker-controlled inputs.", "Look for unsafe execution paths.", "Preserve evidence for mitigation."])
-
-
-def _blueteam_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="blueteam", command=command, output=output, summary=summary, keywords=["mitigate", "harden", "control", "defense", "allowlist", "denylist"], finding_hit="mitigation/hardening signal found", finding_miss="no mitigation signal detected", next_action="Check whether controls actually block the identified abuse path.", actions=["Verify deny/allow policy.", "Prefer least privilege.", "Add tests for controls."])
-
-
-def _auditor_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    return _keyword_agent_result(name="auditor", command=command, output=output, summary=summary, keywords=["audit", "evidence", "priority", "risk", "finding"], finding_hit="audit/evidence signal found", finding_miss="no audit signal detected", next_action="Synthesize findings by severity, evidence, and next action.", actions=["Rank risks.", "Tie every finding to evidence.", "Separate confirmed issues from assumptions."])
 
 
 def _generic_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
@@ -901,6 +861,16 @@ def _important_lines(text: str, keywords: list[str]) -> list[str]:
 def _first_important_line(text: str, keywords: list[str]) -> str:
     lines = _important_lines(text, keywords)
     return lines[0] if lines else ""
+
+
+def _extract_urls(text: str) -> list[str]:
+    """Return de-duplicated http(s) links found in the text, order preserved."""
+    seen: list[str] = []
+    for match in re.findall(r"https?://[^\s\)\]\}<>\"']+", text or ""):
+        url = match.rstrip(".,;")
+        if url not in seen:
+            seen.append(url)
+    return seen
 
 
 def _traceback_block(text: str) -> str:

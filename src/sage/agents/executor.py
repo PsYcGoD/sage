@@ -16,7 +16,7 @@ from typing import Any
 
 from ..security import redact_text
 from ..store import connect, data_dir
-from .registry import AgentSpec, agent_skill_profile, ensure_default_agents, select_agents_for_command
+from .registry import AgentSpec, agent_skill_file, agent_skill_profile, ensure_default_agents, select_agents_for_command
 
 AGENT_STATES = {"queued", "running", "waiting_for_tool", "completed", "failed", "cancelled"}
 RESULT_CONTRACT_KEYS = {
@@ -89,7 +89,14 @@ def execute_agents_for_run(
     )
     worker_count = _agent_worker_count(len(specs))
     run_agent_worker_once(run_id=run_id, max_workers=worker_count, limit=max(len(specs), 16))
-    return [task["result"] | {"task_id": task["id"]} for task in get_agent_tasks_for_run(run_id)]
+    return [
+        task["result"] | {
+            "task_id": task["id"],
+            "agent": task.get("agent_name") or "Agent",
+            "agent_type": task.get("agent_type") or "generic",
+        }
+        for task in get_agent_tasks_for_run(run_id)
+    ]
 
 
 def _agent_worker_count(agent_count: int) -> int:
@@ -431,6 +438,7 @@ def _run_agent_analysis(
         "confidence": _confidence(spec, command, output, summary),
         "token_strategy": _token_strategy(output),
         "skill_profile": list(agent_skill_profile(spec.type)),
+        "skill_file": agent_skill_file(spec.type),
         "agent_brief": _agent_brief(spec.type),
     }
     analyzers = {

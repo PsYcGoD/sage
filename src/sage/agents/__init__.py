@@ -4,6 +4,7 @@ from .base_agent import BaseAgent, AgentRecord
 from .orchestrator import Orchestrator
 from .registry import (
     DEFAULT_AGENT_SPECS,
+    agent_skill_file,
     agent_skill_profile,
     ensure_default_agents,
     list_default_agent_specs,

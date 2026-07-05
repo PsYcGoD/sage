@@ -689,6 +689,26 @@ class OutputView(ctk.CTkFrame):
             self.scroll_to_bottom()
         return section_id
 
+    def append_to_expandable_section(self, section_id: str | None, text: str) -> None:
+        """Append more text to an existing expandable section's body in-place."""
+        if not section_id or not text:
+            return
+        section = self.collapsed_sections.get(section_id)
+        if not section:
+            return
+        should_follow = self._is_scrolled_to_bottom()
+        body_tag = section["body_tag"]
+        append_text = text if text.endswith("\n") else f"{text}\n"
+        self.text_widget.configure(state="normal")
+        # tag_ranges returns all (start, end) pairs; insert before the last end
+        ranges = self.text_widget.tag_ranges(body_tag)
+        if ranges:
+            self.text_widget.insert(str(ranges[-1]), append_text, (body_tag, "running"))
+        self.text_widget.configure(state="disabled")
+        self._visible_chars += len(append_text)
+        if self.auto_scroll and should_follow:
+            self.scroll_to_bottom()
+
     def toggle_expandable_section(self, section_id: str) -> None:
         """Toggle a section created by append_expandable_section."""
         section = self.collapsed_sections.get(section_id)

@@ -1670,6 +1670,19 @@ class SAGEApp(ctk.CTk):
                 # Try streaming from persistent client
                 had_output = False
                 assistant_chunks: list[str] = []
+                # Tool Activity: one growing section per response (mutable holder for closure)
+                tool_sid: list[str | None] = [None]
+
+                def _queue_tool_event(c: str) -> None:
+                    def _run(c=c, view=output_view, holder=tool_sid):
+                        if holder[0] is None:
+                            holder[0] = view.append_expandable_section(
+                                "Tool Activity", c, "running", collapsed=False
+                            )
+                        else:
+                            view.append_to_expandable_section(holder[0], c)
+                    queue_ui_op(_run)
+
                 for event_type, content in client.send_message(prompt):
                     current_tab = self.output_tabs.get(tab_id)
                     if current_tab and not current_tab.get("ai_running"):
@@ -1686,7 +1699,7 @@ class SAGEApp(ctk.CTk):
                         queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Coding", c, "code", collapsed=False))
                     elif event_type == "tool":
                         assistant_chunks.append(content)
-                        queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Tool Activity", c, "running", collapsed=False))
+                        _queue_tool_event(content)
                     elif event_type == "text":
                         assistant_chunks.append(content)
                         queue_ui_text(content)

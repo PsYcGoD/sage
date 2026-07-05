@@ -110,16 +110,20 @@ class PersistentAIClient:
             if not has_aws_creds and aws_creds_file.exists():
                 has_aws_creds = True
 
-            # Default to Bedrock if AWS is configured
-            use_bedrock = has_aws_creds or os.getenv("USE_BEDROCK", "").lower() in ("true", "1", "yes")
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            base_url = os.getenv("ANTHROPIC_BASE_URL")
+
+            # Default to Bedrock if AWS is configured, unless a provider-compatible
+            # Anthropic endpoint is explicitly configured for Claude Code/CLI.
+            use_bedrock = (
+                not base_url
+                and (has_aws_creds or os.getenv("USE_BEDROCK", "").lower() in ("true", "1", "yes"))
+            )
 
             LOG.info("Claude session region=%s bedrock=%s", aws_region, use_bedrock)
 
             # Create client - match Claude Code's exact setup
             try:
-                api_key = os.getenv("ANTHROPIC_API_KEY")
-                base_url = os.getenv("ANTHROPIC_BASE_URL")
-
                 if use_bedrock or os.getenv("CLAUDE_CODE_USE_BEDROCK") == "1":
                     # AWS Bedrock client - uses boto3 credentials
                     self.client = anthropic.AnthropicBedrock(aws_region=aws_region)
@@ -473,10 +477,13 @@ class PersistentAIClient:
                 process.stdin.close()
 
             output_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
+            stderr_lines: list[str] = []
 
             def read_stream(stream, stream_name: str):
                 try:
                     for line in iter(stream.readline, ""):
+                        if stream_name == "stderr":
+                            stderr_lines.append(line)
                         output_queue.put((stream_name, line))
                 finally:
                     output_queue.put((stream_name, None))
@@ -513,6 +520,10 @@ class PersistentAIClient:
             if exit_code != 0:
                 if not saw_error:
                     yield ("error", f"Codex CLI exited with code {exit_code}")
+                # Surface any stderr that wasn't already shown as a proper error event
+                stderr_dump = "".join(stderr_lines).strip()
+                if stderr_dump and not saw_error:
+                    yield ("error", f"Codex stderr:\n{stderr_dump[:2000]}\n")
                 return
 
             self.codex_has_session = True
@@ -531,8 +542,17 @@ class PersistentAIClient:
             yield ("error", f"Codex CLI error: {str(e)}")
 
     def _build_initial_codex_prompt(self, prompt: str) -> str:
-        """Return the user's prompt without injecting large system files."""
-        return prompt
+        """Prepend CWD and recent history so Codex starts with correct context."""
+        parts: list[str] = [f"# Working directory: {self.project_cwd}\n"]
+        if self.conversation_history:
+            parts.append("# Recent conversation:\n")
+            for msg in self.conversation_history[-4:]:
+                role = msg["role"].upper()
+                snippet = msg["content"][:400].replace("\n", " ")
+                parts.append(f"{role}: {snippet}\n")
+            parts.append("\n")
+        parts.append(prompt)
+        return "".join(parts)
 
     def _codex_command(self, *, resume: bool, output_path: Path) -> list[str]:
         # CRITICAL FIX: Run codex directly to prevent cmd.exe spawn
@@ -880,6 +900,10 @@ class PersistentAIClient:
         if any(marker in lowered for marker in api_error_markers):
             detail = " ".join(text.split())
             return detail[:500]
+
+        codex_error_markers = ("codex_core::", "tools::router", "error=exit code", "exit code:")
+        if any(marker in lowered for marker in codex_error_markers):
+            return " ".join(text.split())[:500]
 
         return ""
 

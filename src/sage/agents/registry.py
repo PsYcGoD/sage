@@ -120,6 +120,7 @@ def list_default_agent_specs() -> list[dict]:
             "triggers": list(spec.triggers),
             "description": spec.description,
             "skill_profile": list(agent_skill_profile(spec.type)),
+            "skill_file": agent_skill_file(spec.type),
         }
         for spec in DEFAULT_AGENT_SPECS
     ]
@@ -128,6 +129,22 @@ def list_default_agent_specs() -> list[dict]:
 def agent_skill_profile(agent_type: str) -> tuple[str, ...]:
     """Return the built-in specialist training profile for an agent type."""
     return AGENT_SKILL_PROFILES.get(agent_type, ())
+
+
+def agent_skill_file(agent_type: str) -> str | None:
+    """Return the bundled SKILL.md folder bound to an agent type, if any.
+
+    Bindings live in ``sage.skills.AGENT_SKILL_FILES`` (code -> coding-master-pro,
+    research -> research-master-pro, frontend -> design-master-pro). The skill is
+    auto-installed into the Claude Code / Codex skill folders so the CLI that
+    drives the run loads it and routes by the skill's description.
+    """
+    try:
+        from ..skills import agent_skill_file as _lookup
+
+        return _lookup(agent_type)
+    except Exception:
+        return None
 
 
 def select_agents_for_command(command: str, limit: int | None = None) -> list[AgentSpec]:

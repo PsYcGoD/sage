@@ -1,4 +1,4 @@
-"""OmniRouter — classify query complexity, pick cheapest capable agent.
+"""API-Travel — classify query complexity, pick cheapest capable agent.
 
 Routing order (cheapest first):
   Ollama (local/free) → handles simple queries
@@ -127,7 +127,7 @@ def detect_available(force: bool = False) -> list[str]:
 
     _cache    = fresh
     _cache_ts = now
-    log.debug("OmniRouter available: %s", [n for n, v in fresh.items() if v])
+    log.debug("API-Travel available: %s", [n for n, v in fresh.items() if v])
     return [n for n, _, _ in _PROVIDERS if fresh.get(n)]
 
 

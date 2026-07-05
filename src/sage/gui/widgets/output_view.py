@@ -298,7 +298,7 @@ class OutputView(ctk.CTkFrame):
 
         self.text_widget.tag_config(
             "routing",
-            foreground="#2dd4bf",   # teal — OmniRouter routing badge
+            foreground="#2dd4bf",   # teal — API-Travel routing badge
             justify="left",
             lmargin1=12,
             spacing1=2,
@@ -388,7 +388,7 @@ class OutputView(ctk.CTkFrame):
         self.append_user_message(text)
 
     def begin_ai_stream(self, ai_name: str, route_label: str | None = None):
-        """Start a left-aligned assistant response, with optional OmniRoute badge."""
+        """Start a left-aligned assistant response, with optional API-Travel badge."""
         display = ai_name.capitalize()
         self._insert_text(f"\n{display}\n", "assistant_label")
         if route_label:

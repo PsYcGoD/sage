@@ -77,8 +77,8 @@ class SettingsPanel(ctk.CTkToplevel):
         # Git Integration section
         self._create_git_section(scroll_frame)
 
-        # OmniRoute section
-        self._create_omni_section(scroll_frame)
+        # API-Travel section
+        self._create_api_travel_section(scroll_frame)
 
         # MCP Servers section
         self._create_mcp_section(scroll_frame)
@@ -979,14 +979,14 @@ class SettingsPanel(ctk.CTkToplevel):
         )
         note.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
 
-    def _create_omni_section(self, parent):
-        """OmniRoute — auto-select cheapest capable agent per message."""
-        section = self._create_section(parent, "OmniRoute", row=5)
+    def _create_api_travel_section(self, parent):
+        """API-Travel — auto-select cheapest capable agent per message."""
+        section = self._create_section(parent, "API-Travel", row=5)
 
         desc = ctk.CTkLabel(
             section,
             text=(
-                "Automatically routes each message to the cheapest available agent "
+                "API-Travel automatically routes each message to the cheapest available agent "
                 "(Ollama → Codex → Claude), sharing session memory across all. "
                 "Falls back silently to the selected AI if routing fails."
             ),
@@ -998,22 +998,22 @@ class SettingsPanel(ctk.CTkToplevel):
         )
         desc.grid(row=1, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="ew")
 
-        enabled = getattr(self.parent_app, "_omni_enabled", True)
-        self._omni_switch = ctk.CTkSwitch(
+        enabled = getattr(self.parent_app, "_api_travel_enabled", True)
+        self._api_travel_switch = ctk.CTkSwitch(
             section,
-            text="Enable OmniRoute  (auto-select cheapest available agent)",
+            text="Enable API-Travel  (auto-select cheapest available agent)",
             font=ctk.CTkFont(size=12),
-            command=self._on_omni_toggle,
+            command=self._on_api_travel_toggle,
         )
         if enabled:
-            self._omni_switch.select()
-        self._omni_switch.grid(row=2, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="w")
+            self._api_travel_switch.select()
+        self._api_travel_switch.grid(row=2, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="w")
 
         status_row = ctk.CTkFrame(section, fg_color="transparent")
         status_row.grid(row=3, column=0, columnspan=2, padx=15, pady=(0, 12), sticky="ew")
         status_row.grid_columnconfigure(0, weight=1)
 
-        self._omni_status = ctk.CTkLabel(
+        self._api_travel_status = ctk.CTkLabel(
             status_row,
             text="Checking agents…",
             font=ctk.CTkFont(size=11),
@@ -1021,7 +1021,7 @@ class SettingsPanel(ctk.CTkToplevel):
             anchor="w",
             justify="left",
         )
-        self._omni_status.grid(row=0, column=0, sticky="w")
+        self._api_travel_status.grid(row=0, column=0, sticky="w")
 
         refresh_btn = ctk.CTkButton(
             status_row,
@@ -1031,23 +1031,23 @@ class SettingsPanel(ctk.CTkToplevel):
             hover_color="gray28",
             font=ctk.CTkFont(size=11),
             command=lambda: threading.Thread(
-                target=self._refresh_omni_status, daemon=True
+                target=self._refresh_api_travel_status, daemon=True
             ).start(),
         )
         refresh_btn.grid(row=0, column=1, padx=(8, 0), sticky="e")
 
-        threading.Thread(target=self._refresh_omni_status, daemon=True).start()
+        threading.Thread(target=self._refresh_api_travel_status, daemon=True).start()
 
-    def _on_omni_toggle(self):
+    def _on_api_travel_toggle(self):
         try:
-            self.parent_app._omni_enabled = bool(self._omni_switch.get())
+            self.parent_app._api_travel_enabled = bool(self._api_travel_switch.get())
         except Exception:
             pass
 
-    def _refresh_omni_status(self):
+    def _refresh_api_travel_status(self):
         try:
-            from sage.gui import omni_router
-            available = omni_router.detect_available(force=True)
+            from sage.gui import api_travel
+            available = api_travel.detect_available(force=True)
             icons = {"ollama": "\U0001f7e2", "codex": "\U0001f7e2", "claude": "\U0001f7e2"}
             all_names = ["ollama", "codex", "claude"]
             labels = {"ollama": "Ollama (local)", "codex": "Codex CLI", "claude": "Claude API"}
@@ -1063,7 +1063,7 @@ class SettingsPanel(ctk.CTkToplevel):
             text = f"Could not detect agents: {exc}"
             color = "#fca5a5"
         try:
-            self._omni_status.configure(text=text, text_color=color)
+            self._api_travel_status.configure(text=text, text_color=color)
         except Exception:
             pass
 

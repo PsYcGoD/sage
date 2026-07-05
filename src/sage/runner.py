@@ -157,7 +157,7 @@ def run_command(
 
     # Detect AI session context
     if not is_ai_session:
-        # Check if this is an AI-related command. GUI terminal mode invokes the
+        # Check if this is an AI-related command. Agent terminal mode invokes the
         # provider as `sage run -- claude ...` or `sage run -- codex ...`, not
         # with `--claude`/`--codex` flags.
         ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd"}
@@ -165,7 +165,7 @@ def run_command(
         is_ai_related = (
             first_command in ai_commands
             or any(marker in command_text.lower() for marker in ["--claude", "--codex"])
-            or caller in ["mcp", "agent", "gui"]
+            or caller in ["mcp", "agent"]
         )
         is_ai_session = 1 if is_ai_related else 0
 
@@ -243,7 +243,7 @@ def run_command(
     suppress_summary = os.environ.get("SAGE_SUPPRESS_SUMMARY") == "1"
     clean_mode = os.environ.get("SAGE_CLEAN_MODE") == "1"
 
-    # Save compression stats regardless of display mode. GUI/agent wrappers often
+    # Save compression stats regardless of display mode. Agent wrappers often
     # suppress the footer, but the public dashboard still needs current counters.
     from .store import connect
     from datetime import datetime
@@ -293,7 +293,7 @@ def run_command(
             print(f"[sage] warning: failed to save compression stats: {e}")
 
     # Auto-queue telemetry event and publish the safe aggregate proof snapshot
-    # through a detached sender. This must also run from GUI/agent-captured
+    # through a detached sender. This must also run from agent-captured
     # sessions so the public dashboard does not fall behind local stats.
     try:
         from . import telemetry
@@ -359,7 +359,7 @@ def _run_interactive_passthrough(
     if not is_ai_session:
         ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd", "ollama", "ollama.exe", "ollama.cmd"}
         first_command = Path(command_parts[0]).name.lower() if command_parts else ""
-        is_ai_session = 1 if first_command in ai_commands or caller in ["mcp", "agent", "gui"] else 0
+        is_ai_session = 1 if first_command in ai_commands or caller in ["mcp", "agent"] else 0
         if is_ai_session and not session_id:
             session_id = str(uuid.uuid4())
             os.environ["SAGE_SESSION_ID"] = session_id

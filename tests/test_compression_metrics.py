@@ -1,6 +1,5 @@
 """Test Real Compression Metrics - Verify 887k Token Savings"""
 
-import pytest
 from sage.store import connect
 from sage.context.compression import ContextCompressor
 
@@ -50,25 +49,6 @@ class TestCompressionMetrics:
 
                 assert saved > 0, "Should have saved tokens if records exist"
                 assert compression_rate > 0, "Should have positive compression rate"
-
-    @pytest.mark.gui
-    def test_format_large_numbers(self):
-        """Test: Large token counts format correctly"""
-        from sage.gui.app import SAGEApp
-
-        # Create temporary app instance to test formatting
-        app = SAGEApp()
-
-        # Test 887k formatting
-        assert app._format_count(887000) == "887K"
-        assert app._format_count(887654) == "887K"
-
-        # Test other sizes
-        assert app._format_count(1234) == "1K"
-        assert app._format_count(1500000) == "1.5M"
-        assert app._format_count(500) == "500"
-
-        app.destroy()
 
     def test_session_baseline_calculation(self):
         """Test: Session metrics calculate correctly from baseline"""

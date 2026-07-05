@@ -32,7 +32,7 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     tasks = get_agent_tasks_for_run(run_id)
 
     assert results
-    assert len(results) == 24
+    assert len(results) == 7
     assert len(tasks) == len(results)
     assert {task["run_id"] for task in tasks} == {run_id}
     assert "test" in {task["agent_type"] for task in tasks}
@@ -67,33 +67,33 @@ def test_agent_task_queue_rebinds_for_new_event_loop():
     assert first_queue_id != second_queue_id
 
 
-def test_execute_agents_for_run_exercises_expanded_agents(monkeypatch, tmp_path):
+def test_execute_agents_for_run_covers_seven_specialists(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     run_id = save_run(
         project=str(tmp_path),
-        command="audit persistent session memory telemetry privacy red-team blue-team",
-        exit_code=0,
+        command="python build with a missing module and a leaked token",
+        exit_code=1,
         duration_ms=45,
-        stdout="context retention, metrics proof, redaction, attack mitigation evidence",
+        stdout="ModuleNotFoundError: No module named 'x'; SyntaxError: invalid syntax; secret=abc",
         stderr="",
-        summary="expanded agent catalog smoke",
+        summary="seven specialist smoke",
     )
 
     execute_agents_for_run(
         run_id=run_id,
-        command="audit persistent session memory telemetry privacy red-team blue-team",
-        stdout="context retention, metrics proof, redaction, attack mitigation evidence",
+        command="python build with a missing module and a leaked token",
+        stdout="ModuleNotFoundError: No module named 'x'; SyntaxError: invalid syntax; secret=abc",
         stderr="",
-        exit_code=0,
-        summary="expanded agent catalog smoke",
+        exit_code=1,
+        summary="seven specialist smoke",
         limit=8,
     )
 
     agent_types = {task["agent_type"] for task in get_agent_tasks_for_run(run_id)}
 
-    assert {"memory", "telemetry", "privacy"} <= agent_types
-    assert {"redteam", "blueteam"} & agent_types
+    # The trimmed roster is exactly these seven deterministic specialists.
+    assert agent_types == {"code", "debug", "test", "research", "security", "dependency", "frontend"}
 
 
 def test_run_command_executes_agents_for_saved_run(monkeypatch, tmp_path):

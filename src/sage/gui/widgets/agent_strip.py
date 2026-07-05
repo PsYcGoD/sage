@@ -1,8 +1,9 @@
-"""Compact live status cards for all 24 SAGE agents.
+"""Compact live status cards for the SAGE specialist agents.
 
 Green = active (running/queued/waiting) on the latest run, orange = idle/stopped.
 The strip pulls live state from the agents + agent_runs tables so it reflects
-the real fan-out that `sage run` performs on every command.
+the real fan-out that `sage run` performs on every command. The card list is
+driven by DEFAULT_AGENT_SPECS, so it always matches the active roster.
 """
 
 from __future__ import annotations
@@ -82,17 +83,18 @@ class AgentCard(ctk.CTkFrame):
 
 
 class AgentStrip(ctk.CTkFrame):
-    """Wrapping grid of all 24 agent cards with a live-active count header."""
+    """Wrapping grid of specialist agent cards with a live-active count header."""
 
-    COLUMNS = 8
+    COLUMNS = 7
 
     def __init__(self, master, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         self.grid_columnconfigure(tuple(range(self.COLUMNS)), weight=1, uniform="agentcard")
 
+        self._agent_count = len(DEFAULT_AGENT_SPECS)
         self.title = ctk.CTkLabel(
             self,
-            text="Agents (24) — 0 active",
+            text=f"Agents ({self._agent_count}) — 0 active",
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color="gray60",
             anchor="w",
@@ -111,4 +113,4 @@ class AgentStrip(ctk.CTkFrame):
     def update_active(self, active_types: set[str]) -> None:
         for agent_type, card in self.cards.items():
             card.set_active(agent_type in active_types)
-        self.title.configure(text=f"Agents (24) — {len(active_types)} active")
+        self.title.configure(text=f"Agents ({self._agent_count}) — {len(active_types)} active")

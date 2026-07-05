@@ -328,7 +328,7 @@
                     commandList.innerHTML = commands.map(cmd => `
                         <li class="command-item ${cmd.exit_code === 0 ? 'success' : 'failure'}">
                             <div class="command-header">
-                                <span><strong>#${cmd.id}</strong> - ${new Date(cmd.timestamp * 1000).toLocaleTimeString()}</span>
+                                <span><strong>#${cmd.id}</strong> - ${formatTimestamp(cmd.timestamp)}</span>
                                 <span class="status-badge ${cmd.exit_code === 0 ? 'status-success' : 'status-error'}">
                                     ${cmd.exit_code === 0 ? 'SUCCESS' : 'FAILED'}
                                 </span>
@@ -369,6 +369,12 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function formatTimestamp(value) {
+            const numeric = Number(value);
+            const date = Number.isFinite(numeric) ? new Date(numeric * 1000) : new Date(value);
+            return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleTimeString();
         }
 
         // Load data on page load

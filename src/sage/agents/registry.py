@@ -19,30 +19,16 @@ class AgentSpec:
 
 
 DEFAULT_AGENT_SPECS: tuple[AgentSpec, ...] = (
-    AgentSpec("code", "Code Agent", ("implement", "refactor", "review"), ("python", "node", "code", "refactor", "implement"), "Writes and reviews code changes."),
+    # Seven deterministic specialists — real pattern-based analysis, zero tokens.
+    # code/research/frontend embody their bound skills (coding/research/design)
+    # as heuristic checklists; debug/test/dependency/security do proven parsing.
+    AgentSpec("code", "Code Agent", ("implement", "refactor", "review"), ("python", "node", "code", "refactor", "implement"), "Inspects code changes: syntax, scoped edits, leaked secrets."),
     AgentSpec("debug", "Debug Agent", ("trace", "root_cause", "fix_plan"), ("error", "traceback", "failed", "exception"), "Investigates failures and root causes."),
     AgentSpec("test", "Test Agent", ("pytest", "coverage", "regression"), ("test", "pytest", "unittest", "jest"), "Runs and improves tests."),
-    AgentSpec("research", "Research Agent", ("research", "compare", "summarize"), ("research", "find", "compare", "latest"), "Gathers and synthesizes external or local evidence."),
+    AgentSpec("research", "Research Agent", ("research", "compare", "summarize"), ("research", "find", "compare", "latest"), "Checks sources and flags stale/unsourced claims."),
     AgentSpec("security", "Security Agent", ("audit", "secrets", "dependency_risk"), ("security", "secret", "token", "auth", "vulnerability"), "Checks security-sensitive changes."),
-    AgentSpec("performance", "Performance Agent", ("profile", "optimize", "benchmark"), ("slow", "performance", "profile", "optimize"), "Finds bottlenecks and optimizations."),
-    AgentSpec("docs", "Docs Agent", ("readme", "docs", "release_notes"), ("readme", "docs", "document", "changelog"), "Keeps docs and user-facing text accurate."),
     AgentSpec("dependency", "Dependency Agent", ("install", "package", "env"), ("pip", "npm", "yarn", "install", "requirements"), "Handles packages and environment issues."),
-    AgentSpec("workflow", "Workflow Agent", ("ci", "automation", "yaml"), ("workflow", "ci", "pipeline", "yaml"), "Builds and validates workflows."),
-    AgentSpec("database", "Database Agent", ("schema", "migration", "queries"), ("database", "sqlite", "schema", "migration", "db"), "Protects data, schemas, and migrations."),
-    AgentSpec("frontend", "Frontend Agent", ("gui", "ui", "accessibility"), ("gui", "ui", "frontend", "window", "card"), "Improves interface reliability and polish."),
-    AgentSpec("release", "Release Agent", ("version", "package", "ship"), ("release", "build", "version", "package"), "Checks packaging and release readiness."),
-    AgentSpec("architecture", "Architecture Agent", ("boundaries", "contracts", "system_design"), ("architecture", "design", "boundary", "contract", "system"), "Checks module boundaries and system design."),
-    AgentSpec("review", "Review Agent", ("code_review", "risk", "regression"), ("review", "pr", "diff", "regression", "risk"), "Reviews changes for bugs and regressions."),
-    AgentSpec("refactor", "Refactor Agent", ("simplify", "deduplicate", "migration"), ("refactor", "cleanup", "dedupe", "simplify"), "Plans safe refactors without changing behavior."),
-    AgentSpec("devops", "DevOps Agent", ("deploy", "runtime", "ops"), ("deploy", "docker", "server", "runtime", "ops"), "Checks deployment and runtime operations."),
-    AgentSpec("api", "API Agent", ("contracts", "http", "schema"), ("api", "endpoint", "http", "json", "schema"), "Protects API contracts and integrations."),
-    AgentSpec("ml", "ML Agent", ("prediction", "validation", "features"), ("ml", "model", "predict", "training", "feature"), "Checks model, feature, and validation behavior."),
-    AgentSpec("memory", "Memory Agent", ("session", "persistence", "context"), ("memory", "session", "history", "context", "persistent"), "Protects session memory and context reuse."),
-    AgentSpec("telemetry", "Telemetry Agent", ("metrics", "sync", "proof"), ("telemetry", "metrics", "sync", "proof", "dashboard"), "Checks metrics, sync, and proof counters."),
-    AgentSpec("privacy", "Privacy Agent", ("redaction", "retention", "local_data"), ("privacy", "redact", "retention", "pii", "local-only"), "Checks privacy, retention, and redaction behavior."),
-    AgentSpec("redteam", "Red Team Agent", ("attack_paths", "abuse_cases", "threats"), ("red-team", "attack", "exploit", "abuse", "threat"), "Finds plausible abuse paths and exploit chains."),
-    AgentSpec("blueteam", "Blue Team Agent", ("mitigation", "hardening", "controls"), ("blue-team", "mitigate", "harden", "control", "defense"), "Evaluates mitigations and hardening controls."),
-    AgentSpec("auditor", "Auditor Agent", ("synthesis", "priorities", "evidence"), ("audit", "auditor", "evidence", "priority", "risk assessment"), "Synthesizes findings into prioritized evidence."),
+    AgentSpec("frontend", "Frontend Agent", ("gui", "ui", "accessibility"), ("gui", "ui", "frontend", "window", "card"), "Checks UI render errors, accessibility, and layout."),
 )
 
 AGENT_SKILL_PROFILES: dict[str, tuple[str, ...]] = {
@@ -51,36 +37,18 @@ AGENT_SKILL_PROFILES: dict[str, tuple[str, ...]] = {
     "test": ("regression design", "pytest/unittest/jest signals", "coverage risk", "narrow reruns"),
     "research": ("primary-source evidence", "current-fact checks", "comparison", "source synthesis"),
     "security": ("secrets handling", "auth review", "dependency risk", "permission boundaries"),
-    "performance": ("baseline measurement", "bottleneck detection", "benchmark discipline", "latency signals"),
-    "docs": ("claim verification", "release notes", "user-facing clarity", "README accuracy"),
     "dependency": ("package managers", "environment diagnosis", "version pinning", "install failures"),
-    "workflow": ("CI steps", "YAML validation", "automation safety", "pipeline debugging"),
-    "database": ("SQLite/schema safety", "migration review", "query compatibility", "data preservation"),
     "frontend": ("interface taste", "layout polish", "accessibility", "animation craft", "Framer Motion/Motion patterns"),
-    "release": ("packaging", "version readiness", "metadata checks", "shipping risk"),
-    "architecture": ("module boundaries", "contracts", "system design", "ownership lines"),
-    "review": ("bug finding", "behavioral regression", "missing tests", "risk prioritization"),
-    "refactor": ("deduplication", "behavior preservation", "migration sequencing", "simplification"),
-    "devops": ("runtime environment", "ports/services", "deployment assumptions", "ops checks"),
-    "api": ("HTTP contracts", "JSON/schema shape", "client compatibility", "status semantics"),
-    "ml": ("feature validation", "model thresholds", "prediction quality", "training data hygiene"),
-    "memory": ("session persistence", "context reuse", "history hydration", "token waste control"),
-    "telemetry": ("proof counters", "privacy-safe metrics", "queue behavior", "sync reliability"),
-    "privacy": ("redaction", "retention", "local-only guarantees", "PII minimization"),
-    "redteam": ("abuse paths", "prompt injection", "exploit thinking", "attacker-controlled inputs"),
-    "blueteam": ("mitigation", "hardening", "least privilege", "control verification"),
-    "auditor": ("evidence synthesis", "severity ranking", "assumption separation", "final triage"),
 }
 
 _UNIVERSAL_PRIORITY = {
     "code": 24,
     "debug": 23,
     "test": 22,
-    "review": 21,
-    "auditor": 20,
-    "architecture": 19,
-    "security": 18,
-    "frontend": 17,
+    "security": 21,
+    "frontend": 20,
+    "research": 19,
+    "dependency": 18,
 }
 
 

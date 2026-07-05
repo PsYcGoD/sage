@@ -20,7 +20,7 @@ def send_batch_background(limit: int = 200) -> None:
 
         # Quick check: if no API configured, exit immediately
         config = telemetry.load_config()
-        if not config.get("api_endpoint") or not config.get("api_key"):
+        if not config.get("api_endpoint") or not telemetry.resolve_api_key(config):
             return
 
         snapshot_result = None

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+  <title id="title">sage context report terminal capture</title>
+  <desc id="desc">Terminal-style capture showing a SAGE context compression report.</desc>
+  <rect width="900" height="420" rx="12" fill="#111827"/>
+  <rect x="0" y="0" width="900" height="44" rx="12" fill="#030712"/>
+  <circle cx="24" cy="22" r="6" fill="#ef4444"/>
+  <circle cx="44" cy="22" r="6" fill="#f59e0b"/>
+  <circle cx="64" cy="22" r="6" fill="#22c55e"/>
+  <text x="24" y="78" fill="#e5e7eb" font-family="Consolas, monospace" font-size="20">$ sage context report</text>
+  <text x="24" y="120" fill="#f8fafc" font-family="Consolas, monospace" font-size="18">SAGE context compression report</text>
+  <text x="24" y="152" fill="#bfdbfe" font-family="Consolas, monospace" font-size="18">Verified tokenizer: tiktoken</text>
+  <text x="24" y="184" fill="#bfdbfe" font-family="Consolas, monospace" font-size="18">Rows: 4,023</text>
+  <text x="24" y="216" fill="#bfdbfe" font-family="Consolas, monospace" font-size="18">Original tokens: 16,242,678</text>
+  <text x="24" y="248" fill="#bfdbfe" font-family="Consolas, monospace" font-size="18">Compressed tokens: 1,133,424</text>
+  <text x="24" y="280" fill="#a7f3d0" font-family="Consolas, monospace" font-size="18">Saved tokens: 15,109,254 (93.0%)</text>
+  <text x="24" y="324" fill="#e5e7eb" font-family="Consolas, monospace" font-size="18">Strategies:</text>
+  <text x="44" y="356" fill="#d1d5db" font-family="Consolas, monospace" font-size="18">- test_output: saved=8,912,114 rate=94.1% rows=1,806</text>
+</svg>

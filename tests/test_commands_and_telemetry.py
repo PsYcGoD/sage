@@ -292,6 +292,34 @@ def test_background_sender_publishes_snapshot_before_batch(monkeypatch):
     assert calls[-1] == "snapshot"
 
 
+def test_api_key_storage_uses_keyring(monkeypatch):
+    import types
+    import sys
+
+    from sage import telemetry
+
+    stored = {}
+
+    fake_keyring = types.SimpleNamespace(
+        set_password=lambda service, account, password: stored.__setitem__((service, account), password),
+        get_password=lambda service, account: stored.get((service, account)),
+        delete_password=lambda service, account: stored.pop((service, account), None),
+    )
+    monkeypatch.setitem(sys.modules, "keyring", fake_keyring)
+
+    config = {"installation_id": "install-test"}
+    storage = telemetry._store_api_key(config, "sage_live_secret", "key_test")
+
+    assert storage == "keyring"
+    assert config["api_key_storage"] == "keyring"
+    assert "api_key" not in config
+    assert telemetry.resolve_api_key(config) == "sage_live_secret"
+
+    telemetry._delete_api_key(config)
+
+    assert telemetry.resolve_api_key(config) == ""
+
+
 def test_run_command_spawns_sender_when_output_is_captured(monkeypatch, tmp_path):
     from sage import runner
     from sage import telemetry

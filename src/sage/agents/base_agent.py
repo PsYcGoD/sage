@@ -35,15 +35,31 @@ class BaseAgent:
         self.capabilities = capabilities
         self.status = "idle"
         self.task_queue: Optional[asyncio.Queue[Task]] = None
+        self._task_queue_loop: Optional[asyncio.AbstractEventLoop] = None
         self.db_id: Optional[int] = None
+
+    def ensure_task_queue(self) -> asyncio.Queue[Task]:
+        """Return a task queue owned by the current running event loop."""
+        loop = asyncio.get_running_loop()
+        if self.task_queue is None or self._task_queue_loop is not loop:
+            self.task_queue = asyncio.Queue()
+            self._task_queue_loop = loop
+        return self.task_queue
+
+    def _reset_task_queue(self) -> None:
+        self.task_queue = None
+        self._task_queue_loop = None
+
+    @staticmethod
+    def _is_event_loop_queue_error(exc: Exception) -> bool:
+        message = str(exc)
+        return "is bound to a different event loop" in message and "Queue" in message
 
     async def start(self) -> None:
         """Start the agent."""
         from ..store import connect
 
-        # Create Queue in the current event loop (lazy initialization)
-        if self.task_queue is None:
-            self.task_queue = asyncio.Queue()
+        self.ensure_task_queue()
 
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with connect() as conn:
@@ -90,23 +106,30 @@ class BaseAgent:
 
     async def run(self) -> None:
         """Main agent loop - process tasks from queue."""
-        # Ensure queue is initialized
-        if self.task_queue is None:
-            self.task_queue = asyncio.Queue()
-
         while True:
             try:
-                task = await self.task_queue.get()
-                await self.update_status("busy")
+                queue = self.ensure_task_queue()
+                task = await queue.get()
+                try:
+                    await self.update_status("busy")
 
-                result = await self.execute_task(task)
+                    result = await self.execute_task(task)
 
-                # Save task result
-                await self._save_task_result(task, result)
+                    # Save task result
+                    await self._save_task_result(task, result)
 
-                await self.update_status("idle")
-                self.task_queue.task_done()
-            except Exception as e:
+                    await self.update_status("idle")
+                except Exception as e:
+                    print(f"[SAGE] Agent {self.name} error: {e}")
+                    await self.update_status("error")
+                finally:
+                    queue.task_done()
+            except RuntimeError as e:
+                if self._is_event_loop_queue_error(e):
+                    self._reset_task_queue()
+                    await self.update_status("idle")
+                    await asyncio.sleep(0.1)
+                    continue
                 print(f"[SAGE] Agent {self.name} error: {e}")
                 await self.update_status("error")
 

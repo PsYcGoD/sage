@@ -61,6 +61,9 @@ class ContextManager:
             compressed_tokens = result.compressed_tokens
 
         original_tokens = result.original_tokens
+        if compressed_tokens > original_tokens:
+            compressed_tokens = original_tokens
+        token_savings = max(0, original_tokens - compressed_tokens)
 
         # Record usage
         if run_id:
@@ -70,8 +73,8 @@ class ContextManager:
             'summary': compressed,
             'full_output': combined,
             'compressed_output': compressed,
-            'token_savings': original_tokens - compressed_tokens,
-            'compression_ratio': f"{(1 - compressed_tokens / original_tokens) * 100:.1f}%" if original_tokens > 0 else "0%",
+            'token_savings': token_savings,
+            'compression_ratio': f"{(token_savings / original_tokens) * 100:.1f}%" if original_tokens > 0 else "0%",
             'original_tokens': original_tokens,
             'compressed_tokens': compressed_tokens,
             'strategy': result.strategy,

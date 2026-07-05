@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import os
 import subprocess
@@ -17,6 +18,7 @@ from .context import ContextManager
 from .context.tokens import is_real_tokenizer
 from .security import command_hash, evaluate_command, load_policy, redact_text, retention_expiry
 
+log = logging.getLogger(__name__)
 
 def _configure_stdio() -> None:
     """Keep Windows terminals from crashing or corrupting UTF-8 AI output."""
@@ -24,8 +26,7 @@ def _configure_stdio() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
-            pass
-
+            log.debug("suppressed", exc_info=True)
 
 def _print_stream(text: str, *, stderr: bool = False) -> None:
     """Print one streamed chunk without losing the saved original text."""
@@ -35,7 +36,6 @@ def _print_stream(text: str, *, stderr: bool = False) -> None:
     except UnicodeEncodeError:
         safe = text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
         print(safe, end="", file=target, flush=True)
-
 
 def run_command(
     command_parts: list[str],
@@ -142,8 +142,16 @@ def run_command(
 
     # Detect AI session context
     if not is_ai_session:
-        # Check if this is an AI-related command
-        is_ai_related = any(marker in command_text for marker in ["--claude", "--codex"]) or caller in ["mcp", "agent"]
+        # Check if this is an AI-related command. GUI terminal mode invokes the
+        # provider as `sage run -- claude ...` or `sage run -- codex ...`, not
+        # with `--claude`/`--codex` flags.
+        ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd"}
+        first_command = Path(command_parts[0]).name.lower() if command_parts else ""
+        is_ai_related = (
+            first_command in ai_commands
+            or any(marker in command_text.lower() for marker in ["--claude", "--codex"])
+            or caller in ["mcp", "agent", "gui"]
+        )
         is_ai_session = 1 if is_ai_related else 0
 
         # Generate new session ID for AI commands

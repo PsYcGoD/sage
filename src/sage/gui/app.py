@@ -1236,7 +1236,7 @@ class SAGEApp(ctk.CTk):
             return True
 
         try:
-            if ai_name in {"claude", "codex", "ollama"}:
+            if self._terminal_agent_mode_enabled() and ai_name in {"claude", "codex", "ollama"}:
                 return self._connect_terminal_ai_session(ai_name, show_status=show_status)
 
             if self.active_output_tab_id in self.output_tabs:
@@ -1448,6 +1448,11 @@ class SAGEApp(ctk.CTk):
         terminal.send_command(command, wrap_with_sage=False)
         return True
 
+    def _terminal_agent_mode_enabled(self) -> bool:
+        """Return true only for explicit debug opt-in terminal-agent mode."""
+        value = os.environ.get("SAGE_GUI_TERMINAL_AGENTS", "").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
     def _interactive_terminal_command(self, ai_name: str) -> tuple[str, dict]:
         """Return the interactive CLI command and resume metadata for a provider."""
         project = os.getcwd()
@@ -1594,7 +1599,37 @@ class SAGEApp(ctk.CTk):
         """Connect to Ollama with selected model."""
         try:
             self._selected_ollama_model = model
-            self._connect_terminal_ai_session("ollama", show_status=True)
+            self._set_selected_model("ollama", model)
+            if self._terminal_agent_mode_enabled():
+                self._connect_terminal_ai_session("ollama", show_status=True)
+                return
+
+            ai_name = "ollama"
+            system_prompts = self.config.get_system_prompts(ai_name)
+            if self.active_output_tab_id in self.output_tabs:
+                self.output_tabs[self.active_output_tab_id]["ai_name"] = ai_name
+
+            self.persistent_client = PersistentAIClient(
+                ai_name,
+                system_prompts,
+                permission_mode=self.config.get_permission_mode(),
+                project_cwd=os.getcwd(),
+            )
+            if not self.persistent_client.start_session():
+                diagnostic = getattr(self.persistent_client, "last_error", "") or "Ollama is not reachable."
+                self.ai_connected = False
+                self.status_indicator.configure(text_color="red")
+                self.output_view.append_text(f"ERROR: Could not start Ollama session.\n\n{diagnostic}\n", "error")
+                return
+
+            self.current_client = CLIClient(ai_name, system_prompts, f"sage run -- ollama run {model}")
+            self.ai_connected = True
+            self.connect_btn.configure(text="Disconnect")
+            self.status_indicator.configure(text_color="green")
+            self.ai_selector.configure(state="disabled")
+            self._save_active_output_tab_state()
+            self._render_output_tabs()
+            self.output_view.append_text(f"[OK] Persistent Ollama session started ({model})\n", "info")
 
         except Exception as err:
             self.ai_connected = False

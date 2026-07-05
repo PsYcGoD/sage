@@ -33,13 +33,26 @@ class OutputView(ctk.CTkFrame):
     CODING_PATTERN = r"━━━ Coding ━━━"
     COMPLETE_PATTERN = r"━━━ Complete ━━━"
 
+    # SAGE palette — blue/purple accents, Claude Desktop smoothness
+    CL_ACCENT = "#8b5cf6"  # purple accent (like Claude's brand chip)
+    CL_BLUE   = "#3b82f6"  # primary blue
+    CL_TEXT   = "#ededec"  # primary text
+    CL_TEXT2  = "#a0a0a0"  # secondary
+    CL_TEXT3  = "#6b6b6b"  # muted
+    CL_PURPLE = "#c4b5fd"  # thinking / assistant
+    CL_GREEN  = "#4ade80"  # success
+    CL_RED    = "#f87171"  # error
+    CL_GOLD   = "#fbbf24"  # amber
+    CL_YELLOW = "#e8cf6f"  # inline code
+    CL_USER   = "#c084fc"  # user message purple
+
     # Color schemes for different block types
     BLOCK_COLORS = {
-        BlockType.THINKING: "#9b87f5",  # Purple
-        BlockType.RUNNING: "#3b82f6",   # Blue
-        BlockType.CODING: "#10b981",    # Green
-        BlockType.COMPLETE: "#f59e0b",  # Amber
-        BlockType.NORMAL: None          # Default color
+        BlockType.THINKING: "#9b87f5",  # purple
+        BlockType.RUNNING: "#3b82f6",   # blue
+        BlockType.CODING: "#10b981",    # green
+        BlockType.COMPLETE: "#f59e0b",  # amber
+        BlockType.NORMAL: None
     }
 
     def __init__(
@@ -69,7 +82,9 @@ class OutputView(ctk.CTkFrame):
         self.text_widget = ctk.CTkTextbox(
             self,
             wrap="word",  # Wrap at word boundaries
-            font=ctk.CTkFont(family="Consolas", size=12),
+            fg_color=("#f9fafb", "#1a1a1a"),
+            text_color=("#111827", "#ededec"),
+            font=ctk.CTkFont(family="Segoe UI", size=14),
             state="disabled"
         )
         self.text_widget.pack(fill="both", expand=True, padx=5, pady=5)
@@ -158,125 +173,55 @@ class OutputView(ctk.CTkFrame):
                     foreground=color
                 )
 
-        # Special tags
-        self.text_widget.tag_config(
-            "block_header",
-            foreground="#60a5fa"
-        )
+        # ── SAGE blue/purple palette ─────────────────────────────────────────
+        self.text_widget.tag_config("block_header",    foreground="#60a5fa")
+        self.text_widget.tag_config("section_header",  foreground="#60a5fa")
+        self.text_widget.tag_config("success",         foreground=self.CL_GREEN)
+        self.text_widget.tag_config("error",           foreground=self.CL_RED)
+        self.text_widget.tag_config("code",            foreground="#a78bfa")
+        self.text_widget.tag_config("info",            foreground="#9ca3af", justify="left")
+        self.text_widget.tag_config("running",         foreground="#e5e7eb", justify="left")
 
-        self.text_widget.tag_config(
-            "success",
-            foreground="#10b981"
-        )
+        # Thinking / reasoning / coding collapsible headers
+        self.text_widget.tag_config("thinking_header",  foreground="#9b87f5", underline=1)
+        self.text_widget.tag_config("thinking_text",    foreground=self.CL_PURPLE)
+        self.text_widget.tag_config("reasoning_header", foreground=self.CL_BLUE, underline=1)
+        self.text_widget.tag_config("coding_header",    foreground="#10b981", underline=1)
+        self.text_widget.tag_config("answer_header",    foreground="#f59e0b")
+        self.text_widget.tag_config("collapsible_header", underline=1)
 
-        self.text_widget.tag_config(
-            "error",
-            foreground="#ef4444"
-        )
-
-        self.text_widget.tag_config(
-            "code",
-            foreground="#a78bfa"
-        )
-
-        self.text_widget.tag_config(
-            "info",
-            foreground="#9ca3af"
-        )
-
-        self.text_widget.tag_config(
-            "running",
-            foreground="#e5e7eb",
-            justify="left"
-        )
-
-        # Thinking/reasoning/coding tags
-        self.text_widget.tag_config(
-            "thinking_header",
-            foreground="#9b87f5",
-            underline=1  # Make it look clickable
-        )
-
-        self.text_widget.tag_config(
-            "thinking_text",
-            foreground="#c4b5fd"
-        )
-
-        self.text_widget.tag_config(
-            "reasoning_header",
-            foreground="#3b82f6",
-            underline=1  # Make it look clickable
-        )
-
-        self.text_widget.tag_config(
-            "coding_header",
-            foreground="#10b981",
-            underline=1  # Make it look clickable
-        )
-
-        self.text_widget.tag_config(
-            "answer_header",
-            foreground="#f59e0b"
-        )
-
-        # Collapsible section tags
-        self.text_widget.tag_config(
-            "collapsible_header",
-            underline=1
-        )
-
-        # Bind click event to collapsible headers
-        self.text_widget.tag_bind("thinking_header", "<Button-1>", self._toggle_section)
+        self.text_widget.tag_bind("thinking_header",  "<Button-1>", self._toggle_section)
         self.text_widget.tag_bind("reasoning_header", "<Button-1>", self._toggle_section)
-        self.text_widget.tag_bind("coding_header", "<Button-1>", self._toggle_section)
+        self.text_widget.tag_bind("coding_header",    "<Button-1>", self._toggle_section)
 
-        # Diff syntax highlighting (like Claude Code)
-        self.text_widget.tag_config(
-            "diff_removed",
-            foreground="#ef4444",  # Red
-            background="#4c1d1d"    # Dark red background
-        )
+        # Diff syntax
+        self.text_widget.tag_config("diff_removed", foreground="#ef4444", background="#4c1d1d")
+        self.text_widget.tag_config("diff_added",   foreground="#10b981", background="#1d4c34")
+        self.text_widget.tag_config("diff_context", foreground="#9ca3af")
+        self.text_widget.tag_config("code_line_num", foreground="#6b7280")
 
-        self.text_widget.tag_config(
-            "diff_added",
-            foreground="#10b981",  # Green
-            background="#1d4c34"    # Dark green background
-        )
-
-        self.text_widget.tag_config(
-            "diff_context",
-            foreground="#9ca3af"  # Gray
-        )
-
-        self.text_widget.tag_config(
-            "code_line_num",
-            foreground="#6b7280"  # Dim gray for line numbers
-        )
-
+        # Chat message layout — user right in purple, assistant left in green label
         self.text_widget.tag_config(
             "user_label",
             foreground="#ffffff",
             justify="right",
-            spacing1=10
+            spacing1=10,
         )
-
         self.text_widget.tag_config(
             "user_message",
-            foreground="#c084fc",
+            foreground=self.CL_USER,
             justify="right",
             rmargin=12,
             lmargin1=80,
             lmargin2=80,
-            spacing3=8
+            spacing3=8,
         )
-
         self.text_widget.tag_config(
             "assistant_label",
             foreground="#86efac",
             justify="left",
-            spacing1=10
+            spacing1=10,
         )
-
         self.text_widget.tag_config(
             "assistant_message",
             foreground="#f3f4f6",
@@ -284,9 +229,10 @@ class OutputView(ctk.CTkFrame):
             lmargin1=12,
             lmargin2=12,
             rmargin=80,
-            spacing3=4
+            spacing3=4,
         )
 
+        # Terminal / raw CLI output
         self.text_widget.tag_config(
             "terminal",
             foreground="#d1d5db",
@@ -296,9 +242,10 @@ class OutputView(ctk.CTkFrame):
             rmargin=0,
         )
 
+        # API-Travel routing badge — teal
         self.text_widget.tag_config(
             "routing",
-            foreground="#2dd4bf",   # teal — API-Travel routing badge
+            foreground="#2dd4bf",
             justify="left",
             lmargin1=12,
             spacing1=2,
@@ -422,7 +369,7 @@ class OutputView(ctk.CTkFrame):
             self.text_widget.tag_config("error", foreground="#ff6b6b")
             self.text_widget.tag_config("success", foreground="#4ade80")
         else:
-            self.text_widget.configure(font=ctk.CTkFont(family="Consolas", size=12))
+            self.text_widget.configure(font=ctk.CTkFont(family="Segoe UI", size=14))
         self.text_widget.configure(state="disabled")
         if not enabled:
             self.set_light_mode(self.light_mode)
@@ -440,36 +387,33 @@ class OutputView(ctk.CTkFrame):
 
         self.configure(fg_color="#ffffff" if enabled else "transparent")
         self.text_widget.configure(
-            fg_color="#ffffff" if enabled else ("#f9fafb", "#1f2937"),
-            text_color="#111827" if enabled else "#f3f4f6",
+            fg_color="#ffffff" if enabled else ("#f9fafb", "#1a1a1a"),
+            text_color="#111827" if enabled else self.CL_TEXT,
         )
 
         self.text_widget.configure(state="normal")
-        self.text_widget.tag_config("info", foreground="#4b5563" if enabled else "#9ca3af")
-        self.text_widget.tag_config("running", foreground="#111827" if enabled else "#e5e7eb")
-        self.text_widget.tag_config("user_label", foreground="#7c3aed" if enabled else "#ffffff")
-        self.text_widget.tag_config("user_message", foreground="#7e22ce" if enabled else "#c084fc")
-        self.text_widget.tag_config("assistant_label", foreground="#166534" if enabled else "#86efac")
+        # fmt: off
+        self.text_widget.tag_config("info",              foreground="#4b5563" if enabled else "#9ca3af")
+        self.text_widget.tag_config("running",           foreground="#111827" if enabled else "#e5e7eb")
+        self.text_widget.tag_config("user_label",        foreground="#7c3aed" if enabled else "#ffffff")
+        self.text_widget.tag_config("user_message",      foreground="#7e22ce" if enabled else self.CL_USER)
+        self.text_widget.tag_config("assistant_label",   foreground="#166534" if enabled else "#86efac")
         self.text_widget.tag_config("assistant_message", foreground="#000000" if enabled else "#f3f4f6")
-        self.text_widget.tag_config("code", foreground="#6d28d9" if enabled else "#a78bfa")
-        self.text_widget.tag_config("error", foreground="#b91c1c" if enabled else "#ef4444")
-        self.text_widget.tag_config("success", foreground="#15803d" if enabled else "#10b981")
-
-        # Diff colors for light/dark mode
-        self.text_widget.tag_config(
-            "diff_removed",
+        self.text_widget.tag_config("code",              foreground="#6d28d9" if enabled else "#a78bfa")
+        self.text_widget.tag_config("error",             foreground="#b91c1c" if enabled else "#ef4444")
+        self.text_widget.tag_config("success",           foreground="#15803d" if enabled else "#10b981")
+        self.text_widget.tag_config("routing",           foreground="#0f766e" if enabled else "#2dd4bf")
+        self.text_widget.tag_config("section_header",    foreground="#1d4ed8" if enabled else "#60a5fa")
+        self.text_widget.tag_config("diff_removed",
             foreground="#b91c1c" if enabled else "#ef4444",
-            background="#fee2e2" if enabled else "#4c1d1d"
+            background="#fee2e2" if enabled else "#4c1d1d",
         )
-        self.text_widget.tag_config(
-            "diff_added",
+        self.text_widget.tag_config("diff_added",
             foreground="#15803d" if enabled else "#10b981",
-            background="#d1fae5" if enabled else "#1d4c34"
+            background="#d1fae5" if enabled else "#1d4c34",
         )
-        self.text_widget.tag_config(
-            "code_line_num",
-            foreground="#9ca3af" if enabled else "#6b7280"
-        )
+        self.text_widget.tag_config("code_line_num", foreground="#9ca3af" if enabled else "#6b7280")
+        # fmt: on
 
         self.text_widget.configure(state="disabled")
 

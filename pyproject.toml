@@ -66,6 +66,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "sage.gui" = ["assets/*"]
+"sage.skills" = ["*/SKILL.md"]
 
 
 [tool.pytest.ini_options]

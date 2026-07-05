@@ -49,6 +49,7 @@ class FloatingSidebar(ctk.CTkFrame):
             header_frame,
             text="SAGE",
             font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#8b5cf6",
             anchor="w",
         )
         header.grid(row=0, column=0, sticky="w")

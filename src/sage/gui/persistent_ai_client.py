@@ -205,26 +205,30 @@ class PersistentAIClient:
                 return False
 
             env = self._codex_cli_env()
-            result = subprocess.run(
-                [codex_command, "login", "status"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=15,
-                env=env,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
-            )
-            combined_output = f"{result.stdout}\n{result.stderr}"
-            if result.returncode != 0 or "Logged in" not in combined_output:
-                self.last_error = (
-                    "Codex CLI login check failed.\n"
-                    f"Command: {codex_command} login status\n"
-                    f"Exit code: {result.returncode}\n"
-                    f"Output:\n{combined_output.strip() or '(no output)'}"
+
+            # API-key auth: if OPENAI_API_KEY is configured, skip the OAuth
+            # login check — the key will be used directly by the Codex CLI.
+            if not env.get("OPENAI_API_KEY"):
+                result = subprocess.run(
+                    [codex_command, "login", "status"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=15,
+                    env=env,
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
                 )
-                LOG.warning("%s", self.last_error)
-                return False
+                combined_output = f"{result.stdout}\n{result.stderr}"
+                if result.returncode != 0 or "Logged in" not in combined_output:
+                    self.last_error = (
+                        "Codex CLI login check failed.\n"
+                        f"Command: {codex_command} login status\n"
+                        f"Exit code: {result.returncode}\n"
+                        f"Output:\n{combined_output.strip() or '(no output)'}"
+                    )
+                    LOG.warning("%s", self.last_error)
+                    return False
 
             self.codex_command = codex_command
             self.conversation_history = []
@@ -263,10 +267,12 @@ class PersistentAIClient:
         return ""
 
     def _codex_cli_env(self) -> dict:
-        """Return an environment that forces Codex CLI auth instead of env API keys."""
-        env = os.environ.copy()
-        env.pop("OPENAI_API_KEY", None)
-        return env
+        """Return the process environment for Codex CLI.
+
+        Keep OPENAI_API_KEY when present — it enables API-key auth so users
+        who stored a key via the credentials manager don't need OAuth login.
+        """
+        return os.environ.copy()
 
     def _start_ollama_session(self) -> bool:
         """Start persistent Ollama session."""

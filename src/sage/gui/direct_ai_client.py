@@ -100,7 +100,8 @@ class DirectClaudeClient:
             raise ValueError("ANTHROPIC_API_KEY not set")
 
         self.model = claude_model()
-        self.api_url = "https://api.anthropic.com/v1/messages"
+        base_url = (os.environ.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com").rstrip("/")
+        self.api_url = f"{base_url}/v1/messages"
 
     def _build_system_prompt(self) -> str:
         """Build combined system prompt from files"""

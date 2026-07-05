@@ -70,6 +70,15 @@ class SAGEApp(ctk.CTk):
         self.config.inject_env()  # push stored API key/base URL into env before any client is created
         self._restore_current_project()
         ensure_default_agents()
+        # Install bundled Agent Skills into the Claude Code / Codex skill folders
+        # so the CLIs SAGE spawns auto-load them (code->coding, research->research,
+        # frontend->design). Idempotent, safe on every launch.
+        try:
+            from sage.skills import install_skills
+
+            install_skills()
+        except Exception:
+            log.debug("skill install skipped", exc_info=True)
 
         # Configure grid layout: sidebar (0) | center content (1) | right metrics (2)
         self.grid_columnconfigure(1, weight=1)
@@ -103,11 +112,12 @@ class SAGEApp(ctk.CTk):
         header_frame.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="ew")
         header_frame.grid_columnconfigure(0, weight=1)
 
-        # Title on left — small header with product branding
+        # Title on left — SAGE branding in purple accent
         self.header = ctk.CTkLabel(
             header_frame,
-            text="Sage Desktop - By PsYcGoD AI&ML",
-            font=ctk.CTkFont(size=15, weight="bold")
+            text="SAGE  ·  PsYcGoD AI&ML",
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            text_color="#8b5cf6",
         )
         self.header.grid(row=0, column=0, sticky="w")
 
@@ -181,14 +191,15 @@ class SAGEApp(ctk.CTk):
         self.ai_selector.set(self.config.get_default_ai().capitalize())
         self.ai_selector.pack(side="left", padx=(0, 5))
 
-        # Connect button
+        # Connect button — default blue theme
         self.connect_btn = ctk.CTkButton(
             ai_frame,
             text="Connect",
             command=self.on_connect_ai,
             width=80,
             height=28,
-            font=ctk.CTkFont(size=12)
+            text_color="#ffffff",
+            font=ctk.CTkFont(size=12),
         )
         self.connect_btn.pack(side="left")
 
@@ -198,7 +209,10 @@ class SAGEApp(ctk.CTk):
             command=self.copy_debug_bundle,
             width=64,
             height=28,
-            font=ctk.CTkFont(size=12)
+            fg_color="#2a2a2a",
+            hover_color="#363636",
+            text_color="#a0a0a0",
+            font=ctk.CTkFont(size=12),
         )
         self.debug_btn.pack(side="left", padx=(5, 0))
 
@@ -210,7 +224,7 @@ class SAGEApp(ctk.CTk):
         self._manual_active_agent_types: set[str] = set()
 
         # Right metrics panel: the 4 cards stacked vertically, autofit.
-        metrics_panel = ctk.CTkFrame(self, fg_color=("#DEDEDE", "#1c1c1c"), width=232)
+        metrics_panel = ctk.CTkFrame(self, fg_color=("#f0f0f0", "#161616"), width=232)
         metrics_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=0)
         metrics_panel.grid_propagate(False)
         metrics_panel.grid_columnconfigure(0, weight=1)
@@ -220,8 +234,8 @@ class SAGEApp(ctk.CTk):
         metrics_title = ctk.CTkLabel(
             metrics_panel,
             text="Live Metrics",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="gray60",
+            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
+            text_color="#8b5cf6",
             anchor="w",
         )
         metrics_title.grid(row=0, column=0, padx=12, pady=(12, 4), sticky="ew")
@@ -272,6 +286,9 @@ class SAGEApp(ctk.CTk):
             command=self.add_output_tab,
             width=32,
             height=28,
+            fg_color="#2a2a2a",
+            hover_color="#363636",
+            text_color="#a0a0a0",
             font=ctk.CTkFont(size=15, weight="bold"),
         )
         self.add_tab_btn.grid(row=0, column=98, padx=(6, 0), pady=0, sticky="e")
@@ -438,10 +455,7 @@ class SAGEApp(ctk.CTk):
                     "SELECT COUNT(*), SUM(CASE WHEN exit_code = 0 THEN 1 ELSE 0 END), "
                     "SUM(CASE WHEN exit_code != 0 THEN 1 ELSE 0 END) FROM runs"
                 ).fetchone()
-                compression = conn.execute(
-                    "SELECT COALESCE(SUM(original_tokens),0), COALESCE(SUM(compressed_tokens),0), "
-                    "COALESCE(SUM(saved_tokens),0) FROM context_compression"
-                ).fetchone()
+                compression = self._fetch_context_token_totals(conn)
                 redactions = conn.execute(
                     "SELECT COALESCE(SUM(stdout_redactions + stderr_redactions + summary_redactions),0) FROM runs"
                 ).fetchone()[0]
@@ -524,7 +538,8 @@ class SAGEApp(ctk.CTk):
                 width=138,
                 height=28,
                 fg_color="#2563eb" if active else "gray25",
-                hover_color="#1d4ed8" if active else "gray35",
+                hover_color="#1d4ed8" if active else "gray30",
+                text_color="#ffffff" if active else "gray60",
                 font=ctk.CTkFont(size=12, weight="bold" if active else "normal"),
             )
             btn.grid(row=0, column=column, padx=(0, 4), pady=0, sticky="w")
@@ -535,8 +550,9 @@ class SAGEApp(ctk.CTk):
                 command=lambda tid=tab_id: self.close_output_tab(tid),
                 width=28,
                 height=28,
-                fg_color="#1f2937" if active else "gray20",
+                fg_color="#2a2a2a" if active else "#1e1e1e",
                 hover_color="#7f1d1d",
+                text_color="#6b6b6b",
                 font=ctk.CTkFont(size=12, weight="bold"),
             )
             close_btn.grid(row=0, column=column, padx=(0, 8), pady=0, sticky="w")
@@ -838,8 +854,7 @@ class SAGEApp(ctk.CTk):
                     "SELECT COUNT(*) FROM runs WHERE exit_code = 0"
                 ).fetchone()[0]
 
-                self._ensure_context_compression_table(conn)
-                token_row = self._fetch_ai_token_totals(conn)
+                token_row = self._fetch_context_token_totals(conn)
                 raw_original_tokens = token_row[0] or 0
                 raw_compressed_tokens = token_row[1] or 0
                 raw_token_savings = token_row[2] or 0
@@ -880,12 +895,14 @@ class SAGEApp(ctk.CTk):
                 latest_agent_active = latest_agent_row["active"] or 0
 
                 # Which agent *types* are currently active, for the live strip.
+                # Only count running/waiting — queued agents haven't started yet
+                # so lighting them all green at enqueue time causes mass flicker.
                 active_type_rows = conn.execute(
                     """
                     SELECT DISTINCT a.type
                     FROM agent_runs ar
                     JOIN agents a ON a.id = ar.agent_id
-                    WHERE ar.status IN ('queued', 'running', 'waiting_for_tool')
+                    WHERE ar.status IN ('running', 'waiting_for_tool')
                       AND ar.run_id = (SELECT MAX(run_id) FROM agent_runs)
                     """
                 ).fetchall()
@@ -938,7 +955,7 @@ class SAGEApp(ctk.CTk):
             # Update UI on main thread
             self.after(0, lambda: self._update_ui_metrics(
                 total_commands, session_commands,
-                compressed_tokens, token_savings, token_rate, session_used, session_saved,
+                original_tokens, compressed_tokens, token_savings, token_rate, session_used, session_saved,
                 total_agents, active_agents, agent_tasks, session_agent_tasks,
                 success_rate, session_success_rate, successful_commands, session_successes,
                 session_token_rate, queued_agents, running_agents, waiting_agents,
@@ -953,6 +970,7 @@ class SAGEApp(ctk.CTk):
         self,
         total_commands,
         session_commands,
+        original_tokens,
         compressed_tokens,
         token_savings,
         token_rate,
@@ -985,15 +1003,16 @@ class SAGEApp(ctk.CTk):
 
         all_used_k = self._format_count(compressed_tokens)
         all_saved_k = self._format_count(token_savings)
+        all_estimated_k = self._format_count(original_tokens)
         sess_used_k = self._format_count(session_used)
         sess_saved_k = self._format_count(session_saved)
 
         self.tokens_card.update_metric(
             total_value=f"{all_used_k} | {all_saved_k}",
             session_value=f"{sess_used_k} | {sess_saved_k}",
-            total_hint=f"Used | Saved\n{token_rate:.1f}% est.",
+            total_hint=f"Used | Saved\n{all_estimated_k} total est.",
             session_hint=f"Used | Saved\n{session_token_rate:.1f}% est.",
-            detail="Real prompt context compression",
+            detail=f"Matches sage context stats ({token_rate:.1f}% saved)",
         )
 
         self.agents_card.update_metric(
@@ -1052,8 +1071,7 @@ class SAGEApp(ctk.CTk):
                     "SELECT COUNT(*) FROM agent_tasks"
                 ).fetchone()[0]
 
-                self._ensure_context_compression_table(conn)
-                token_row = self._fetch_ai_token_totals(conn)
+                token_row = self._fetch_context_token_totals(conn)
                 raw_compressed_tokens = token_row[1] or 0
                 raw_token_savings = token_row[2] or 0
                 self.session_start_commands = raw_commands
@@ -1115,6 +1133,24 @@ class SAGEApp(ctk.CTk):
             FROM context_compression
             """
         ).fetchone()
+
+    def _fetch_context_token_totals(self, conn):
+        """Return the same all-time token totals used by `sage context stats`."""
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='token_usage'"
+        ).fetchone()
+        if not table:
+            return (0, 0, 0)
+        row = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(estimated_tokens), 0) as total_estimated,
+                COALESCE(SUM(compressed_tokens), 0) as total_compressed,
+                COALESCE(SUM(savings), 0) as total_savings
+            FROM token_usage
+            """
+        ).fetchone()
+        return row or (0, 0, 0)
 
     def on_ai_changed(self, ai_name: str):
         """Callback when AI selection changes"""
@@ -1197,11 +1233,12 @@ class SAGEApp(ctk.CTk):
                     self.status_indicator.configure(text_color="red")
                     self._save_active_output_tab_state()
                     self._render_output_tabs()
-                    self.output_view.append_text(
-                        "ERROR: Claude CLI not available or not logged in.\n\n"
-                        "Run: claude auth login\n",
-                        "error",
-                    )
+                    if show_status:
+                        self.output_view.append_text(
+                            "ERROR: Claude CLI not available or not logged in.\n\n"
+                            "Run: claude auth login\n",
+                            "error",
+                        )
                     return False
 
                 self.persistent_client = None
@@ -1237,18 +1274,19 @@ class SAGEApp(ctk.CTk):
                 self.status_indicator.configure(text_color="red")
                 self._save_active_output_tab_state()
                 self._render_output_tabs()
-                diagnostic = getattr(self.persistent_client, "last_error", "") or "No diagnostic was reported."
-                self.output_view.append_text(
-                    f"ERROR: Could not start {ai_name.capitalize()} persistent session!\n\n"
-                    f"Diagnostic:\n{diagnostic}\n\n"
-                    f"Requirements:\n"
-                    f"- Claude: ANTHROPIC_API_KEY env var or logged in via 'claude auth login'\n"
-                    f"- Codex: logged in via 'codex login'\n"
-                    f"- Ollama: Running at http://localhost:11434\n\n"
-                    f"Install SDKs:\n"
-                    f"- pip install anthropic requests\n",
-                    "error"
-                )
+                if show_status:
+                    diagnostic = getattr(self.persistent_client, "last_error", "") or "No diagnostic was reported."
+                    self.output_view.append_text(
+                        f"ERROR: Could not start {ai_name.capitalize()} persistent session!\n\n"
+                        f"Diagnostic:\n{diagnostic}\n\n"
+                        f"Requirements:\n"
+                        f"- Claude: ANTHROPIC_API_KEY env var or logged in via 'claude auth login'\n"
+                        f"- Codex: OPENAI_API_KEY env var or logged in via 'codex login'\n"
+                        f"- Ollama: Running at http://localhost:11434\n\n"
+                        f"Install SDKs:\n"
+                        f"- pip install anthropic requests\n",
+                        "error"
+                    )
                 return False
 
             # Hydrate the fresh session from this project's SHARED memory so a
@@ -1464,7 +1502,8 @@ class SAGEApp(ctk.CTk):
 
         # Auto-connect on first prompt.
         if not self.ai_connected or (not self.persistent_client and not self.current_client):
-            if not self._connect_selected_ai(show_status=False):
+            connected = self._connect_selected_ai(show_status=False)
+            if not connected and not getattr(self, "_api_travel_enabled", True):
                 return False
 
         # Get selected AI
@@ -1488,36 +1527,51 @@ class SAGEApp(ctk.CTk):
         self._set_manual_active_agents(set())
         self._spawn_agents_if_needed(command)
 
-        # ── API-Travel: auto-select cheapest capable agent ────────────────────
-        if getattr(self, "_api_travel_enabled", True):
-            try:
-                avail  = api_travel.detect_available()
-                routed, complexity, label = api_travel.route(command, self.conversation_turns, avail)
-                travel_c = self._get_travel_client(routed)
-                if travel_c is not None:
-                    # Tag the client so begin_ai_stream can show the badge
-                    travel_c._api_travel_label = f"{label}  ·  {complexity}"
-                    # Inject shared session history into this agent
-                    try:
-                        msgs = self.session_manager.get_messages(
-                            os.getcwd(), str(self.current_session_id or "")
-                        )
-                        if msgs:
-                            travel_c.load_history(msgs[-8:])
-                    except Exception:
-                        pass
-                    return self._run_persistent_client(
-                        command, routed, visible_prompt=command, _travel_client=travel_c
-                    )
-            except Exception:
-                pass  # Fall through to normal dispatch on any router error
-        # ── end API-Travel ─────────────────────────────────────────────────────
-
+        # ── Selected AI is authoritative. Try it first. ──────────────────────
         if ai_name == "claude":
-            return self._run_claude_cli_stream(contextual_command, visible_prompt=command)
+            result = self._run_claude_cli_stream(contextual_command, visible_prompt=command)
+        else:
+            result = self._run_persistent_client(contextual_command, ai_name, visible_prompt=command)
 
-        # Persistent clients already carry conversation history; send raw text to avoid token waste.
-        return self._run_persistent_client(contextual_command, ai_name, visible_prompt=command)
+        if result:
+            return True
+
+        # ── API-Travel is a FALLBACK ONLY — kicks in when the selected agent
+        # failed to start (no client, no auth, etc). Never auto-reroutes when
+        # the selected agent is working. This matches Sensei's original flow:
+        # "if claude isnt working codex should".
+        if not getattr(self, "_api_travel_enabled", True):
+            return False
+
+        try:
+            avail = set(api_travel.detect_available())
+            # Prefer any working agent other than the one that just failed
+            for candidate in ("claude", "codex", "ollama"):
+                if candidate == ai_name or candidate not in avail:
+                    continue
+                travel_c = self._get_travel_client(candidate)
+                if travel_c is None:
+                    continue
+                travel_c._api_travel_label = f"Fallback → {candidate.capitalize()}"
+                try:
+                    msgs = self.session_manager.get_messages(
+                        os.getcwd(), str(self.current_session_id or "")
+                    )
+                    if msgs:
+                        travel_c.load_history(msgs[-8:])
+                except Exception:
+                    pass
+                self.output_view.append_text(
+                    f"\n[Fallback] {ai_name.capitalize()} unavailable — routing to {candidate.capitalize()}\n",
+                    "info",
+                )
+                return self._run_persistent_client(
+                    command, candidate, visible_prompt=command, _travel_client=travel_c
+                )
+        except Exception as e:
+            LOG.warning("API-Travel fallback failed: %s", e)
+
+        return False
 
     def _run_claude_cli_stream(self, prompt: str, visible_prompt: str | None = None) -> bool:
         """Run Claude through SAGE while rendering structured thinking/tool events."""
@@ -1680,14 +1734,37 @@ class SAGEApp(ctk.CTk):
                 # Try streaming from persistent client
                 had_output = False
                 assistant_chunks: list[str] = []
-                # Tool Activity: one growing section per response (mutable holder for closure)
-                tool_sid: list[str | None] = [None]
+                # Collapsible sections: one growing section per event type per response.
+                # Mutable holders so the closures can update the section id in-place.
+                tool_sid:     list[str | None] = [None]
+                thinking_sid: list[str | None] = [None]
+                coding_sid:   list[str | None] = [None]
 
                 def _queue_tool_event(c: str) -> None:
                     def _run(c=c, view=output_view, holder=tool_sid):
                         if holder[0] is None:
                             holder[0] = view.append_expandable_section(
                                 "Tool Activity", c, "running", collapsed=False
+                            )
+                        else:
+                            view.append_to_expandable_section(holder[0], c)
+                    queue_ui_op(_run)
+
+                def _queue_thinking_event(c: str) -> None:
+                    def _run(c=c, view=output_view, holder=thinking_sid):
+                        if holder[0] is None:
+                            holder[0] = view.append_expandable_section(
+                                "Thinking", c, "thinking_text", collapsed=False
+                            )
+                        else:
+                            view.append_to_expandable_section(holder[0], c)
+                    queue_ui_op(_run)
+
+                def _queue_coding_event(c: str) -> None:
+                    def _run(c=c, view=output_view, holder=coding_sid):
+                        if holder[0] is None:
+                            holder[0] = view.append_expandable_section(
+                                "Coding", c, "code", collapsed=False
                             )
                         else:
                             view.append_to_expandable_section(holder[0], c)
@@ -1703,10 +1780,10 @@ class SAGEApp(ctk.CTk):
 
                     if event_type == "thinking":
                         assistant_chunks.append(content)
-                        queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Thinking", c, "thinking_text", collapsed=False))
+                        _queue_thinking_event(content)
                     elif event_type == "coding":
                         assistant_chunks.append(content)
-                        queue_ui_op(lambda c=content, view=output_view: view.append_expandable_section("Coding", c, "code", collapsed=False))
+                        _queue_coding_event(content)
                     elif event_type == "tool":
                         assistant_chunks.append(content)
                         _queue_tool_event(content)
@@ -1729,10 +1806,39 @@ class SAGEApp(ctk.CTk):
                         if run_id:
                             self._record_context_compression(run_id, output_view)
 
-                        # EXECUTE AGENTS NOW - create database run and execute agents
+                        # Post-response footer — agent used, token stats, compression %
+                        route_label = getattr(client, "_api_travel_label", None) or ai_name.capitalize()
+
+                        def _append_response_footer(rlbl=route_label, rid=run_id):
+                            orig = 0
+                            saved = 0
+                            try:
+                                from sage.store import connect as _store_connect
+                                with _store_connect() as _conn:
+                                    row = _conn.execute(
+                                        "SELECT original_tokens, tokens_saved FROM context_compression WHERE run_id = ?",
+                                        (rid,)
+                                    ).fetchone() if rid else None
+                                    if row:
+                                        orig  = int(row[0] or 0)
+                                        saved = int(row[1] or 0)
+                            except Exception:
+                                pass
+                            pct = int(saved * 100 / max(orig, 1)) if orig else 0
+                            parts = [f"via {rlbl}"]
+                            if orig:
+                                parts.append(f"{orig:,} tokens")
+                            if saved:
+                                parts.append(f"saved {saved:,} ({pct}%)")
+                            footer = "  ·  ".join(parts)
+                            output_view.append_text(f"\n{'─' * 56}\n{footer}\n", "info")
+
+                        queue_ui_op(_append_response_footer)
+
+                        # EXECUTE AGENTS NOW — reuse the run_id from the saved AI run
                         threading.Thread(
                             target=self._execute_agents_for_response,
-                            args=(prompt, visible_prompt),
+                            args=(prompt, visible_prompt, run_id, output_view),
                             daemon=True,
                         ).start()
 
@@ -1748,18 +1854,17 @@ class SAGEApp(ctk.CTk):
                 self.after(0, lambda: self._run_real_cli_in_pty(prompt, ai_name, visible_prompt))
             finally:
                 self.after(0, flush_ui_buffer)
-                if not fallback_used:
-                    current_tab = self.output_tabs.get(tab_id)
-                    if current_tab:
-                        current_tab["ai_running"] = False
-                    if tab_id == self.active_output_tab_id:
-                        self.ai_running = False
-                        self.after(0, self.thinking_overlay.hide)
-                        self.after(0, lambda: self._set_run_status("Idle", "gray60"))
-                        self.after(0, lambda: self._set_manual_active_agents(set()))
-                    self.after(1500, self.update_metrics)
-                    # REMOVED: load_sidebar_data() - causes sidebar flicker on every command
-                    self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
+                current_tab = self.output_tabs.get(tab_id)
+                if current_tab:
+                    current_tab["ai_running"] = False
+                if tab_id == self.active_output_tab_id:
+                    self.ai_running = False
+                    self.after(0, self.thinking_overlay.hide)
+                    self.after(0, lambda: self._set_run_status("Idle", "gray60"))
+                    self.after(0, lambda: self._set_manual_active_agents(set()))
+                self.after(1500, self.update_metrics)
+                # REMOVED: load_sidebar_data() - causes sidebar flicker on every command
+                self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
 
         self.ai_thread = threading.Thread(target=stream_worker, daemon=True)
         self._save_active_output_tab_state()
@@ -2454,7 +2559,12 @@ class SAGEApp(ctk.CTk):
     def _external_terminal_command(self, ai_name: str, human_readable: bool = True) -> str:
         """Build the real command shown/run in the external terminal."""
         command = self.config.get_ai_command(ai_name)
-        if self.current_client and getattr(self.current_client, "command", ""):
+        # Only borrow current_client.command when it belongs to the same agent.
+        # If ai_name is "codex" but current_client is a Claude CLIClient, using
+        # its command would run Claude in the terminal instead of Codex.
+        if (self.current_client
+                and getattr(self.current_client, "command", "")
+                and getattr(self.current_client, "ai_name", None) == ai_name):
             command = self.current_client.command
 
         if not command.strip().lower().startswith("sage run --"):
@@ -3038,96 +3148,166 @@ class SAGEApp(ctk.CTk):
             except Exception as e:
                 print(f"[SAGE] Could not spawn agents: {e}")
 
-    def _execute_agents_for_response(self, command: str, visible_command: str):
+    def _execute_agents_for_response(
+        self,
+        command: str,
+        visible_command: str,
+        run_id: int | None = None,
+        output_view=None,
+    ):
         """Execute agents through the REAL executor.py system after AI response."""
+        if run_id is None:
+            return  # No saved run to attach agents to
         try:
             from sage.agents.executor import execute_agents_for_run
-            from sage.store import connect
 
-            # Create a database run entry for this AI response
-            now = datetime.now().isoformat()
-            with connect() as conn:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO command_runs
-                    (command, working_dir, status, started_at, completed_at, exit_code, summary)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        visible_command,
-                        os.getcwd(),
-                        "completed",
-                        now,
-                        now,
-                        0,  # AI responses are always "successful"
-                        f"AI response to: {visible_command[:100]}"
-                    )
-                )
-                run_id = cursor.lastrowid
-                conn.commit()
-
-            # Execute agents for this run - they'll analyze the command
-            print(f"[SAGE] Executing agents for run #{run_id}")
+            started = time.perf_counter()
             results = execute_agents_for_run(
                 run_id=run_id,
                 command=visible_command,
-                stdout="",  # AI response is the "output"
+                stdout="",
                 stderr="",
                 exit_code=0,
                 summary=f"AI processing: {visible_command[:200]}",
-                limit=4,  # Spawn up to 4 agents
+                limit=4,
             )
+            duration_ms = int((time.perf_counter() - started) * 1000)
 
-            # Display agent results in output view
             if results:
-                self.after(0, lambda: self._display_agent_results(results))
+                view = output_view
+                self.after(
+                    0,
+                    lambda r=results, v=view, rid=run_id, ms=duration_ms: self._display_agent_results(
+                        r, v, rid, ms
+                    ),
+                )
                 LOG.info("%s agents completed analysis", len(results))
 
         except Exception as e:
             LOG.warning("Agent execution failed: %s", e, exc_info=LOG.isEnabledFor(logging.DEBUG))
 
-    def _display_agent_results(self, results: list[dict]):
-        """Display agent analysis results in the output view."""
-        if not self.output_view or not results:
+    def _display_agent_results(
+        self,
+        results: list[dict],
+        output_view=None,
+        run_id: int | None = None,
+        duration_ms: int | None = None,
+    ):
+        """Display agent analysis results in the active tab's output view."""
+        view = output_view or self.output_view
+        if not view or not results:
             return
 
         try:
-            self.output_view.append_text("\n━━━ Agent Analysis ━━━\n", "section_header")
-
+            agent_names = []
             for result in results:
-                agent_name = result.get("agent", "Unknown Agent")
-                agent_type = result.get("agent_type", "generic")
-                finding = result.get("finding", "Analysis complete")
-                evidence = result.get("evidence", [])
-                severity = result.get("severity", "info")
-                confidence = result.get("confidence", 0.5)
-                next_action = result.get("next_action", "")
+                label = self._agent_display_label(result)
+                if label not in agent_names:
+                    agent_names.append(label)
 
-                # Color based on severity
-                severity_colors = {
-                    "high": "error",
-                    "medium": "warning",
-                    "low": "info",
-                    "info": "section_header"
-                }
-                severity_tag = severity_colors.get(severity, "section_header")
+            used_tokens, saved_tokens = self._agent_analysis_token_totals(run_id)
+            ml_line = self._agent_analysis_ml_line(results)
+            error_line = self._agent_analysis_error_line(results)
 
-                self.output_view.append_text(f"\n[{agent_type.upper()}] ", "section_header")
-                self.output_view.append_text(f"{finding}\n", severity_tag)
-                self.output_view.append_text(f"  Confidence: {confidence:.0%} | Severity: {severity}\n", "info")
-
-                if evidence:
-                    self.output_view.append_text("  Evidence:\n", "section_header")
-                    for ev in evidence[:3]:  # Show first 3 evidence items
-                        self.output_view.append_text(f"    - {ev}\n", "info")
-
-                if next_action:
-                    self.output_view.append_text(f"  → {next_action}\n", "section_header")
-
-            self.output_view.append_text("\n", "info")
+            view.append_text("\nAgent Analysis -\n", "section_header")
+            view.append_text(f"Agents - {', '.join(agent_names)}\n", "info")
+            if error_line:
+                view.append_text(f"Result - {error_line}\n", "warning")
+            view.append_text(f"Token - Used {used_tokens:,} / Saved {saved_tokens:,}\n", "info")
+            view.append_text(f"ML - {ml_line}\n", "info")
+            view.append_text(f"Time took to complete - {self._format_agent_duration(duration_ms)}\n", "info")
+            view.append_text("\n", "info")
 
         except Exception as e:
             print(f"[SAGE] Failed to display agent results: {e}")
+
+    def _agent_display_label(self, result: dict) -> str:
+        agent_type = str(result.get("agent_type") or "").strip().lower()
+        labels = {
+            "api": "API",
+            "architecture": "Architecture",
+            "auditor": "Auditor",
+            "blueteam": "Blue Team",
+            "code": "Coding",
+            "database": "Database",
+            "debug": "Debug",
+            "dependency": "Dependency",
+            "devops": "DevOps",
+            "docs": "Docs",
+            "frontend": "Frontend",
+            "memory": "Memory",
+            "ml": "ML",
+            "performance": "Performance",
+            "privacy": "Privacy",
+            "redteam": "Red Team",
+            "refactor": "Refactor",
+            "release": "Release",
+            "research": "Research",
+            "review": "Review",
+            "security": "Security",
+            "telemetry": "Telemetry",
+            "test": "Test",
+            "workflow": "Workflow",
+        }
+        if agent_type in labels:
+            return labels[agent_type]
+        agent_name = str(result.get("agent") or result.get("agent_name") or "Agent").strip()
+        return agent_name.replace(" Agent", "").strip() or "Agent"
+
+    def _agent_analysis_token_totals(self, run_id: int | None) -> tuple[int, int]:
+        if not run_id:
+            return 0, 0
+        try:
+            with connect() as conn:
+                row = conn.execute(
+                    """
+                    SELECT compressed_tokens, saved_tokens
+                    FROM context_compression
+                    WHERE run_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (run_id,),
+                ).fetchone()
+            if row:
+                return int(row[0] or 0), int(row[1] or 0)
+        except Exception:
+            LOG.debug("Could not load agent analysis token totals", exc_info=True)
+        return 0, 0
+
+    def _agent_analysis_ml_line(self, results: list[dict]) -> str:
+        ml_result = next((item for item in results if str(item.get("agent_type") or "").lower() == "ml"), None)
+        if ml_result:
+            return str(ml_result.get("finding") or "ML analysis complete").strip()
+
+        highest = max((float(item.get("confidence") or 0.0) for item in results), default=0.0)
+        if any(str(item.get("severity") or "").lower() in {"high", "medium"} for item in results):
+            return f"Risk signals reviewed ({highest:.0%} confidence)"
+        return f"No blocking risk predicted ({highest:.0%} confidence)"
+
+    def _agent_analysis_error_line(self, results: list[dict]) -> str:
+        caught = []
+        for result in results:
+            severity = str(result.get("severity") or "info").lower()
+            signals = result.get("signals") if isinstance(result.get("signals"), dict) else {}
+            has_error = (
+                bool(result.get("error"))
+                or bool(signals.get("has_error"))
+                or severity in {"high", "medium"}
+            )
+            if not has_error:
+                continue
+            label = self._agent_display_label(result)
+            finding = str(result.get("finding") or "error signal found").strip()
+            caught.append(f"{label} caught: {finding}")
+        return "; ".join(caught[:3])
+
+    def _format_agent_duration(self, duration_ms: int | None) -> str:
+        if duration_ms is None:
+            return "unknown"
+        if duration_ms < 1000:
+            return f"{duration_ms} ms"
+        return f"{duration_ms / 1000:.1f}s"
 
     def _handle_slash_command(self, command: str) -> bool:
         """Handle local SAGE slash commands before any AI call."""
@@ -3403,10 +3583,17 @@ class SAGEApp(ctk.CTk):
         """Scan local skill folders for SKILL.md files."""
         home = Path.home()
         roots = [
+            (home / ".claude" / "skills", "Claude"),
             (home / ".codex" / "skills", "Codex"),
             (home / ".agents" / "skills", "Personal"),
             (home / ".codex" / "plugins" / "cache", "Plugin"),
         ]
+        try:
+            from sage.skills import SKILLS_DIR
+
+            roots.insert(0, (SKILLS_DIR, "SAGE"))
+        except Exception:
+            pass
 
         found = {}
         for root, source in roots:
@@ -3740,24 +3927,18 @@ class SAGEApp(ctk.CTk):
                 self._remember_conversation_turn("user", visible_prompt)
                 self._remember_conversation_turn(ai_name, assistant_text)
 
-            if tab_id in self.output_tabs:
-                self.output_tabs[tab_id]["ai_running"] = False
-            if tab_id == self.active_output_tab_id:
-                self.ai_running = False
-            self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
-
         except Exception as err:
-            if tab_id in self.output_tabs:
-                self.output_tabs[tab_id]["ai_running"] = False
-            if tab_id == self.active_output_tab_id:
-                self.ai_running = False
-            self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
             error_msg = str(err)
             LOG.warning("AI stream worker failed: %s", err, exc_info=LOG.isEnabledFor(logging.DEBUG))
+            self.after(0, lambda msg=error_msg, view=output_view: view.append_text(f"\nERROR: {msg}\n", "error"))
+        finally:
+            if tab_id in self.output_tabs:
+                self.output_tabs[tab_id]["ai_running"] = False
             if tab_id == self.active_output_tab_id:
+                self.ai_running = False
                 self.after(0, self.thinking_overlay.hide)
                 self.after(0, lambda: self._set_run_status("Idle", "gray60"))
-            self.after(0, lambda msg=error_msg, view=output_view: view.append_text(f"\nERROR: {msg}\n", "error"))
+            self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
 
     def _format_tool_result(self, result_content):
         """Format and display a tool result."""
@@ -4314,6 +4495,7 @@ class SAGEApp(ctk.CTk):
             self._update_ui_metrics(
                 total_commands,
                 0,
+                original_tokens,
                 compressed_tokens,
                 token_savings,
                 token_rate,
@@ -4321,6 +4503,7 @@ class SAGEApp(ctk.CTk):
                 0,
                 totals.get("total_agents", 0),
                 totals.get("active_agents", 0),
+                totals.get("total_agent_tasks", 0),
                 0,
                 success_rate,
                 0,
@@ -4404,7 +4587,6 @@ class SAGEApp(ctk.CTk):
 
     def _read_current_metric_totals(self, conn) -> dict:
         """Return current raw metric totals for non-destructive reset offsets."""
-        self._ensure_context_compression_table(conn)
         run_row = conn.execute(
             """
             SELECT
@@ -4413,7 +4595,7 @@ class SAGEApp(ctk.CTk):
             FROM runs
             """
         ).fetchone()
-        token_row = self._fetch_ai_token_totals(conn)
+        token_row = self._fetch_context_token_totals(conn)
         agent_row = conn.execute(
             """
             SELECT
@@ -4774,6 +4956,7 @@ class SAGEApp(ctk.CTk):
         terminal = tab.get("terminal") if tab else self.output_view
         if terminal and hasattr(terminal, "interrupt"):
             terminal.interrupt()
+        self._set_run_status("Idle", "gray60")
 
     def open_permission_settings(self):
         """Open full settings panel (from sidebar button)."""

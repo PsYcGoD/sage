@@ -124,7 +124,7 @@ class InputArea(ctk.CTkFrame):
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
         button_frame.grid(row=3, column=0, columnspan=4, padx=5, pady=(0, 5), sticky="ew")
 
-        # Attach button (bottom-left): pick files, or paste images/files with Ctrl+V
+        # Attach button
         self.attach_button = ctk.CTkButton(
             button_frame,
             text="+",
@@ -133,41 +133,42 @@ class InputArea(ctk.CTkFrame):
             height=28,
             fg_color="gray35",
             hover_color="gray28",
-            font=ctk.CTkFont(size=17, weight="bold")
+            font=ctk.CTkFont(size=17, weight="bold"),
         )
         self.attach_button.pack(side="left", padx=5)
 
-        # Create Send button
+        # Send button — default blue theme
         self.send_button = ctk.CTkButton(
             button_frame,
             text="Send",
             command=self._on_send_clicked,
             width=80,
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=ctk.CTkFont(size=13, weight="bold"),
         )
         self.send_button.pack(side="right", padx=5)
 
-        # Create Clear button
+        # Clear button
         self.clear_button = ctk.CTkButton(
             button_frame,
             text="Clear",
             command=self._on_clear_clicked,
             width=80,
             fg_color="gray40",
-            hover_color="gray30"
+            hover_color="gray30",
         )
         self.clear_button.pack(side="right", padx=5)
 
-        # Create Permission dropdown (replaces settings button)
+        # Permission dropdown
         self.permission_menu = ctk.CTkOptionMenu(
             button_frame,
             values=["🛡️ Ask for approval", "⚡ Approve for me", "🔓 Full access"],
             command=self._on_permission_changed,
             width=180,
-            font=ctk.CTkFont(size=12)
+            font=ctk.CTkFont(size=12),
         )
         self.permission_menu.pack(side="right", padx=5)
 
+        # Theme toggle button
         self.output_theme_button = ctk.CTkButton(
             button_frame,
             text="☀",
@@ -176,7 +177,7 @@ class InputArea(ctk.CTkFrame):
             height=28,
             fg_color="gray35",
             hover_color="gray28",
-            font=ctk.CTkFont(size=15)
+            font=ctk.CTkFont(size=15),
         )
         self.output_theme_button.pack(side="right", padx=5)
 
@@ -414,21 +415,21 @@ class InputArea(ctk.CTkFrame):
     def _on_send_clicked(self):
         """Handle Send button click."""
         text = self.get_text()
-        if text or self.attachments:
-            if text:
-                self.command_history.append(text)
-                self.command_history = self.command_history[-100:]
-                self.history_index = len(self.command_history)
-            self._hide_slash_suggestions()
-            outgoing = self._compose_outgoing_text(text or "Look at the attached files.")
-            sent = True
-            if self.on_send:
-                sent = self.on_send(outgoing) is not False
-            if sent:
-                self._clear_attachments()
-                self.clear()
-            else:
-                self.set_text(text)
+        if not (text or self.attachments):
+            return
+        if text:
+            self.command_history.append(text)
+            self.command_history = self.command_history[-100:]
+            self.history_index = len(self.command_history)
+        self._hide_slash_suggestions()
+        outgoing = self._compose_outgoing_text(text or "Look at the attached files.")
+        # Clear input ALWAYS on send — user pressed Enter, the text is gone.
+        # If dispatch fails, the error surfaces in the output view; the input
+        # never stays sticky. Fixes the "typing text still there after Enter" bug.
+        self._clear_attachments()
+        self.clear()
+        if self.on_send:
+            self.on_send(outgoing)
 
     def _on_clear_clicked(self):
         """Handle Clear button click."""

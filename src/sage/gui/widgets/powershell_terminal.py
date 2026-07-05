@@ -84,6 +84,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
         self.tag_config("thinking_header", foreground="#9b87f5")
         self.tag_config("tool", foreground="#e0af68")
         self.tag_config("prompt", foreground="#ffffff")
+        self.tag_config("routing", foreground="#2dd4bf")
         self.configure(state="disabled")
 
         self.bind("<Key>", self._on_key)
@@ -232,12 +233,14 @@ class PowerShellTerminal(ctk.CTkTextbox):
         self._hide_echo(command)
         self.write(command + "\r\n")
 
-    def begin_ai_stream(self, ai_name: str) -> None:
+    def begin_ai_stream(self, ai_name: str, route_label: str | None = None) -> None:
         """Prepare the output renderer for a structured AI stream."""
         self._capture_active = True
         self._captured_response_parts = []
         self._answer_parts = []
         self._ai_error_reported = False
+        if route_label:
+            self._append_raw(self._tk_safe(f"-> {route_label}\n"), "routing")
         if ai_name.lower() == "claude":
             self._ai_stream_format = "claude"
             self._json_line_buffer = ""

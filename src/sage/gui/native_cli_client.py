@@ -16,13 +16,12 @@ class NativeCLIClient:
         self.process = None
 
     def _subprocess_env(self) -> dict | None:
-        """Force Codex to use its CLI login instead of a possibly stale API key env var."""
+        """Return subprocess environment, or None to inherit parent env as-is."""
         if self.ai_name != "codex":
             return None
-
-        env = os.environ.copy()
-        env.pop("OPENAI_API_KEY", None)
-        return env
+        # Keep OPENAI_API_KEY — credential-store users authenticate via API key,
+        # not OAuth, so the key must be visible to the Codex subprocess.
+        return os.environ.copy()
 
     def stream_response(self, prompt: str) -> Generator[tuple[str, str], None, None]:
         """Stream response from native CLI"""
@@ -137,10 +136,16 @@ def check_native_cli_available(ai_name: str) -> bool:
         if not shutil.which("claude"):
             return False
 
+        # Claude CLI can be fully usable through provider-compatible env vars
+        # even when `claude auth status` reports no first-party login.
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return True
+
         # Check auth status
         try:
             result = subprocess.run(
                 ["claude", "auth", "status"],
+                env=os.environ.copy(),
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -155,20 +160,22 @@ def check_native_cli_available(ai_name: str) -> bool:
         if not shutil.which("codex"):
             return False
 
-        # Check login status
+        # API key auth: if OPENAI_API_KEY is set, treat codex as available
+        # without running a login check (the key is used directly by codex).
+        if os.environ.get("OPENAI_API_KEY"):
+            return True
+
+        # OAuth check — only when no API key is configured
         try:
-            env = os.environ.copy()
-            env.pop("OPENAI_API_KEY", None)
             result = subprocess.run(
                 ["sage", "run", "--", "codex", "login", "status"],
                 capture_output=True,
                 text=True,
                 timeout=15,
-                env=env
+                env=os.environ.copy(),
             )
-            # If logged in, output will say "Logged in"
             return "Logged in" in f"{result.stdout}\n{result.stderr}"
-        except:
+        except Exception:
             return False
 
     return False

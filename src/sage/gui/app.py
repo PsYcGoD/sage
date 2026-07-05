@@ -67,6 +67,7 @@ class SAGEApp(ctk.CTk):
 
         # Load configuration
         self.config = GUIConfig()
+        self.config.inject_env()  # push stored API key/base URL into env before any client is created
         self._restore_current_project()
         ensure_default_agents()
 
@@ -1533,7 +1534,12 @@ class SAGEApp(ctk.CTk):
             tab["ai_running"] = True
         self.thinking_overlay.show()
         self._set_run_status("Running Claude...", "#facc15")
-        command = self._external_terminal_command("claude", human_readable=False)
+        # Some Claude-compatible third-party gateways work through the Claude CLI
+        # in normal print mode but do not support Claude's stream-json event mode.
+        command = self._external_terminal_command(
+            "claude",
+            human_readable=self._claude_provider_uses_plain_print(),
+        )
         self.current_client.command = command
         output_view = self.output_view
         client = self.current_client
@@ -1564,6 +1570,10 @@ class SAGEApp(ctk.CTk):
             tab["ai_thread"] = self.ai_thread
         self.ai_thread.start()
         return True
+
+    def _claude_provider_uses_plain_print(self) -> bool:
+        """Use plain Claude CLI output for provider-compatible custom endpoints."""
+        return bool(os.environ.get("ANTHROPIC_BASE_URL"))
 
     def _get_travel_client(self, agent_name: str) -> PersistentAIClient | None:
         """Get or lazily create a pooled persistent client for API-Travel."""

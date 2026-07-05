@@ -178,6 +178,8 @@ class GUIConfig:
         config.setdefault("current_project", "")
         config.setdefault("run_in_external_terminal", False)
         config.setdefault("run_in_embedded_terminal", True)
+        config.setdefault("anthropic_api_key", "")
+        config.setdefault("anthropic_base_url", "")
         return config
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -231,6 +233,26 @@ class GUIConfig:
         """Set the permission mode."""
         if mode in ["ask", "approve", "full"]:
             self.config["permission_mode"] = mode
+
+    def get_anthropic_api_key(self) -> str:
+        return self.config.get("anthropic_api_key", "")
+
+    def get_anthropic_base_url(self) -> str:
+        return self.config.get("anthropic_base_url", "")
+
+    def set_anthropic_endpoint(self, api_key: str, base_url: str) -> None:
+        self.config["anthropic_api_key"] = api_key.strip()
+        self.config["anthropic_base_url"] = base_url.strip()
+        self.save()
+
+    def inject_env(self) -> None:
+        """Push stored Anthropic credentials into os.environ so all subprocesses inherit them."""
+        key = self.get_anthropic_api_key()
+        url = self.get_anthropic_base_url()
+        if key:
+            os.environ["ANTHROPIC_API_KEY"] = key
+        if url:
+            os.environ["ANTHROPIC_BASE_URL"] = url
 
 
 # Global config instance

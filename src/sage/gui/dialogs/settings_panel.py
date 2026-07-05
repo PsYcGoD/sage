@@ -77,6 +77,9 @@ class SettingsPanel(ctk.CTkToplevel):
         # Git Integration section
         self._create_git_section(scroll_frame)
 
+        # Custom Endpoint section (3rd-party / self-hosted API key + base URL)
+        self._create_custom_endpoint_section(scroll_frame)
+
         # API-Travel section
         self._create_api_travel_section(scroll_frame)
 
@@ -979,9 +982,107 @@ class SettingsPanel(ctk.CTkToplevel):
         )
         note.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
 
+    def _create_custom_endpoint_section(self, parent):
+        """Custom Endpoint — persist 3rd-party API key + base URL so SAGE inherits them on launch."""
+        section = self._create_section(parent, "Custom Endpoint", row=5)
+
+        desc = ctk.CTkLabel(
+            section,
+            text=(
+                "Set a custom API key and base URL once here and SAGE will inject them on every launch — "
+                "no need to set env vars in a terminal before opening SAGE."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color="gray60",
+            anchor="w",
+            justify="left",
+            wraplength=780,
+        )
+        desc.grid(row=0, column=0, columnspan=3, padx=15, pady=(6, 10), sticky="ew")
+
+        # API Key row
+        key_label = ctk.CTkLabel(section, text="API Key:", font=ctk.CTkFont(size=12), anchor="w", width=130)
+        key_label.grid(row=1, column=0, padx=15, pady=6, sticky="w")
+
+        self._endpoint_key_var = ctk.StringVar(value=self.config.get_anthropic_api_key())
+        self._endpoint_key_entry = ctk.CTkEntry(
+            section,
+            textvariable=self._endpoint_key_var,
+            placeholder_text="sk-ant-... or your provider's key",
+            show="•",
+            font=ctk.CTkFont(size=12),
+        )
+        self._endpoint_key_entry.grid(row=1, column=1, padx=(10, 6), pady=6, sticky="ew")
+
+        self._endpoint_show_key = ctk.BooleanVar(value=False)
+        show_btn = ctk.CTkCheckBox(
+            section,
+            text="Show",
+            variable=self._endpoint_show_key,
+            command=lambda: self._endpoint_key_entry.configure(
+                show="" if self._endpoint_show_key.get() else "•"
+            ),
+            font=ctk.CTkFont(size=11),
+            width=60,
+        )
+        show_btn.grid(row=1, column=2, padx=(0, 15), pady=6, sticky="w")
+
+        # Base URL row
+        url_label = ctk.CTkLabel(section, text="Base URL:", font=ctk.CTkFont(size=12), anchor="w", width=130)
+        url_label.grid(row=2, column=0, padx=15, pady=6, sticky="w")
+
+        self._endpoint_url_var = ctk.StringVar(value=self.config.get_anthropic_base_url())
+        url_entry = ctk.CTkEntry(
+            section,
+            textvariable=self._endpoint_url_var,
+            placeholder_text="https://api.anthropic.com  (leave blank for default)",
+            font=ctk.CTkFont(size=12),
+        )
+        url_entry.grid(row=2, column=1, columnspan=2, padx=(10, 15), pady=6, sticky="ew")
+
+        # Save button + status
+        action_row = ctk.CTkFrame(section, fg_color="transparent")
+        action_row.grid(row=3, column=0, columnspan=3, padx=15, pady=(4, 10), sticky="ew")
+
+        self._endpoint_status = ctk.CTkLabel(
+            action_row,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="gray60",
+            anchor="w",
+        )
+        self._endpoint_status.pack(side="left", padx=(0, 12))
+
+        save_btn = ctk.CTkButton(
+            action_row,
+            text="Save & Apply",
+            width=130,
+            command=self._save_custom_endpoint,
+        )
+        save_btn.pack(side="right")
+
+        section.grid_columnconfigure(1, weight=1)
+
+    def _save_custom_endpoint(self):
+        key = self._endpoint_key_var.get().strip()
+        url = self._endpoint_url_var.get().strip()
+        self.config.set_anthropic_endpoint(key, url)
+        # Apply immediately to the running process
+        self.config.inject_env()
+        if key:
+            self._endpoint_status.configure(
+                text=f"✅ Saved — active on next message (key: ...{key[-6:]})",
+                text_color="#4ade80",
+            )
+        else:
+            self._endpoint_status.configure(
+                text="➖ Cleared — will fall back to Claude CLI login",
+                text_color="gray60",
+            )
+
     def _create_api_travel_section(self, parent):
         """API-Travel — auto-select best available agent per message."""
-        section = self._create_section(parent, "API-Travel", row=5)
+        section = self._create_section(parent, "API-Travel", row=6)
 
         desc = ctk.CTkLabel(
             section,
@@ -1068,7 +1169,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_mcp_section(self, parent):
         """Create MCP servers section with a real 'connect to any MCP server' input."""
-        section = self._create_section(parent, "MCP Servers", row=6)
+        section = self._create_section(parent, "MCP Servers", row=7)
 
         # SAGE's own MCP server command (exposes SAGE tools to clients).
         self._create_input(section, "SAGE MCP Command:", "mcp_server_cmd",
@@ -1245,7 +1346,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_prompts_section(self, parent):
         """Create system prompts section."""
-        section = self._create_section(parent, "System Prompts", row=7)
+        section = self._create_section(parent, "System Prompts", row=8)
 
         # Claude prompts
         prompts = self.config.get_system_prompts("claude")
@@ -1255,7 +1356,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_runtime_section(self, parent):
         """Create runtime behavior settings."""
-        section = self._create_section(parent, "Runtime", row=8)
+        section = self._create_section(parent, "Runtime", row=9)
         self._create_switch(
             section,
             "Run AI inside SAGE terminal",
@@ -1284,7 +1385,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_danger_zone_section(self, parent):
         """Create reset/delete controls for local SAGE data."""
-        section = self._create_section(parent, "Reset / Delete", row=9)
+        section = self._create_section(parent, "Reset / Delete", row=10)
 
         note = ctk.CTkLabel(
             section,

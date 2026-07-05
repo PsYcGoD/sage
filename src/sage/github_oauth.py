@@ -177,7 +177,7 @@ def github_device_flow(
 ) -> dict[str, Any]:
     """Run GitHub device flow and return an access token.
 
-    This is the no-GitHub-CLI path for the desktop GUI. It requires Device Flow
+    This is the no-GitHub-CLI path for CLI and device clients. It requires Device Flow
     to be enabled on the GitHub OAuth app, but it does not require a client
     secret on the user's PC.
     """
@@ -196,7 +196,7 @@ def github_device_flow(
         headers={
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "SAGE-Desktop/0.1",
+            "User-Agent": "SAGE-CLI/0.1",
         },
         method="POST",
     )
@@ -243,7 +243,7 @@ def github_device_flow(
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "SAGE-Desktop/0.1",
+                "User-Agent": "SAGE-CLI/0.1",
             },
             method="POST",
         )

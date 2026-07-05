@@ -318,7 +318,7 @@ class SklearnFailureModel:
     def _synthetic_training_rows(self, target: int) -> tuple[list[str], list[int]]:
         commands: list[str] = []
         labels: list[int] = []
-        packages = ["requests", "numpy", "pandas", "fastapi", "missing_pkg", "private_lib", "pytest", "pywinpty"]
+        packages = ["requests", "numpy", "pandas", "fastapi", "missing_pkg", "private_lib", "pytest"]
         files = ["app.py", "tests/test_app.py", "src/sage/runner.py", "missing_file.py", "package.json", "pyproject.toml"]
         scripts = ["test", "build", "lint", "missing-script", "dev", "typecheck"]
         branches = ["main", "feature/ml", "release", "bad-ref"]

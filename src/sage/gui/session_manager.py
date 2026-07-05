@@ -126,6 +126,35 @@ class SessionManager:
 
         self._save()
 
+    def get_provider_state(self, project_path: str, session_id: str, provider: str) -> dict:
+        """Return saved provider resume metadata for a GUI chat session."""
+        session = self.get_session(project_path, session_id)
+        if not session:
+            return {}
+        providers = session.get("providers")
+        if not isinstance(providers, dict):
+            return {}
+        state = providers.get(provider.lower())
+        return state if isinstance(state, dict) else {}
+
+    def set_provider_state(self, project_path: str, session_id: str, provider: str, state: dict):
+        """Persist provider resume metadata for a GUI chat session."""
+        session = self.get_session(project_path, session_id)
+        if not session:
+            return
+        providers = session.setdefault("providers", {})
+        if not isinstance(providers, dict):
+            providers = {}
+            session["providers"] = providers
+        current = providers.get(provider.lower())
+        if not isinstance(current, dict):
+            current = {}
+        current.update(state)
+        current["updated_at"] = datetime.now(timezone.utc).isoformat()
+        providers[provider.lower()] = current
+        session["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self._save()
+
     def get_messages(self, project_path: str, session_id: str) -> list[dict]:
         """Get all messages for a session."""
         session = self.get_session(project_path, session_id)

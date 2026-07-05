@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import threading
 import time
+import uuid
 from pathlib import Path
 from PIL import Image
 from typing import Optional
@@ -258,6 +259,7 @@ class SAGEApp(ctk.CTk):
         self._bind_project_memory(os.getcwd())
         self.max_context_chars = 14000
         self.pending_context_compression = None
+        self._omniroute_enabled = True  # proactive route vs fallback-only
 
         # Session management
         self.session_manager = SessionManager()
@@ -511,6 +513,8 @@ class SAGEApp(ctk.CTk):
             "ai_running": False,
             "ai_thread": None,
             "ai_process": None,
+            "terminal_ai_mode": False,
+            "terminal_ai_resume": None,
             "pending_prompts": [],
         }
         self._render_output_tabs()
@@ -610,6 +614,8 @@ class SAGEApp(ctk.CTk):
         tab["ai_running"] = self.ai_running
         tab["ai_thread"] = self.ai_thread
         tab["ai_process"] = self.ai_process
+        tab.setdefault("terminal_ai_mode", False)
+        tab.setdefault("terminal_ai_resume", None)
 
     def _active_tab_state(self) -> dict | None:
         if self.active_output_tab_id is None:
@@ -1160,6 +1166,7 @@ class SAGEApp(ctk.CTk):
             tab["ai_connected"] = False
             tab["persistent_client"] = None
             tab["current_client"] = None
+            tab["terminal_ai_mode"] = False
             self.ai_connected = False
             self.persistent_client = None
             self.current_client = None
@@ -1177,6 +1184,19 @@ class SAGEApp(ctk.CTk):
             try:
                 self.ai_connected = False
                 history = "CLI session"
+                tab = self._active_tab_state()
+
+                if tab and tab.get("terminal_ai_mode"):
+                    terminal = tab.get("terminal") or self.output_view
+                    try:
+                        if ai_name in {"claude", "codex"}:
+                            terminal.write("/exit\r\n")
+                        elif ai_name == "ollama":
+                            terminal.interrupt()
+                    except Exception:
+                        log.debug("suppressed", exc_info=True)
+                    history = str(tab.get("terminal_ai_resume") or "interactive terminal session")
+                    tab["terminal_ai_mode"] = False
 
                 # Stop persistent client session
                 if self.persistent_client:
@@ -1215,6 +1235,9 @@ class SAGEApp(ctk.CTk):
             return True
 
         try:
+            if ai_name in {"claude", "codex", "ollama"}:
+                return self._connect_terminal_ai_session(ai_name, show_status=show_status)
+
             if self.active_output_tab_id in self.output_tabs:
                 self.output_tabs[self.active_output_tab_id]["ai_name"] = ai_name
                 self._render_output_tabs()
@@ -1368,6 +1391,113 @@ class SAGEApp(ctk.CTk):
             # Cannot determine auth state; do not block the user.
             return ""
 
+    def _connect_terminal_ai_session(self, ai_name: str, show_status: bool = True) -> bool:
+        """Launch the real interactive AI CLI inside the embedded PowerShell."""
+        if self.active_output_tab_id not in self.output_tabs:
+            return False
+        tab = self.output_tabs[self.active_output_tab_id]
+        terminal = tab.get("terminal") or self.output_view
+        if not hasattr(terminal, "send_command"):
+            self.output_view.append_text("\n[ERROR] Embedded PowerShell terminal is unavailable.\n", "error")
+            return False
+
+        if not getattr(terminal, "running", False):
+            mode = "Personal Mode" if self.config.is_personal_mode() else "Full Access"
+            if not terminal.start_powershell(os.getcwd(), ai_name.capitalize(), mode):
+                return False
+
+        command, resume_state = self._interactive_terminal_command(ai_name)
+        if not command:
+            self.output_view.append_text(f"\n[ERROR] Could not build {ai_name.capitalize()} terminal command.\n", "error")
+            return False
+
+        if not self.current_session_id:
+            self.current_session_id = self.session_manager.get_or_create_session(os.getcwd())
+
+        self.session_manager.set_provider_state(
+            os.getcwd(),
+            str(self.current_session_id),
+            ai_name,
+            resume_state,
+        )
+
+        tab["ai_name"] = ai_name
+        tab["ai_connected"] = True
+        tab["ai_running"] = False
+        tab["terminal_ai_mode"] = True
+        tab["terminal_ai_resume"] = resume_state
+        tab["persistent_client"] = None
+        tab["current_client"] = None
+        self.persistent_client = None
+        self.current_client = None
+        self.ai_connected = True
+        self.ai_running = False
+        self.connect_btn.configure(text="Disconnect")
+        self.ai_selector.configure(state="disabled")
+        self.status_indicator.configure(text_color="green")
+        self._save_active_output_tab_state()
+        self._render_output_tabs()
+
+        if show_status:
+            label = resume_state.get("label") or ai_name.capitalize()
+            self.output_view.append_status_text(
+                f"\n[Connect] Launching real {label} inside PowerShell.\n"
+                "Type normally in the SAGE input box; prompts are sent to this live terminal session.\n"
+            )
+        terminal.send_command(command, wrap_with_sage=False)
+        return True
+
+    def _interactive_terminal_command(self, ai_name: str) -> tuple[str, dict]:
+        """Return the interactive CLI command and resume metadata for a provider."""
+        project = os.getcwd()
+        session_id = str(self.current_session_id or self.session_manager.get_or_create_session(project))
+        saved = self.session_manager.get_provider_state(project, session_id, ai_name)
+
+        if ai_name == "claude":
+            claude_session_id = str(saved.get("session_id") or uuid.uuid4())
+            resume_known = bool(saved.get("session_id"))
+            command = "sage run -- claude"
+            command = self._apply_model_to_command(command, "claude")
+            command = self._apply_permission_to_command(command, "claude")
+            if resume_known:
+                command += f" --resume {claude_session_id}"
+                label = f"Claude resume {claude_session_id}"
+            else:
+                command += f" --session-id {claude_session_id}"
+                label = f"Claude session {claude_session_id}"
+            return command, {
+                "mode": "interactive-terminal",
+                "resume_command": f"claude --resume {claude_session_id}",
+                "session_id": claude_session_id,
+                "label": label,
+            }
+
+        if ai_name == "codex":
+            resume_known = bool(saved.get("resume_known"))
+            base = "sage run -- codex resume --last" if resume_known else "sage run -- codex"
+            command = f"{base} --no-alt-screen -C {self._ps_quote(project)}"
+            model = self._get_selected_model("codex")
+            if model:
+                command += f" --model {model}"
+            command = self._apply_permission_to_command(command, "codex")
+            return command, {
+                "mode": "interactive-terminal",
+                "resume_command": "codex resume --last",
+                "resume_known": True,
+                "label": "Codex interactive session",
+            }
+
+        if ai_name == "ollama":
+            model = self._get_selected_model("ollama") or getattr(self, "_selected_ollama_model", "") or "qwen2.5-coder:7b"
+            return f"sage run -- ollama run {model}", {
+                "mode": "interactive-terminal",
+                "resume_command": f"ollama run {model}",
+                "model": model,
+                "label": f"Ollama {model}",
+            }
+
+        return "", {}
+
     def _open_claude_login(self) -> bool:
         """Open a real terminal running the Claude login flow."""
         try:
@@ -1462,21 +1592,8 @@ class SAGEApp(ctk.CTk):
     def _connect_ollama(self, model: str):
         """Connect to Ollama with selected model."""
         try:
-            # Override command with selected model (always through sage for tracking)
-            custom_command = f"sage run -- ollama run {model}"
-            system_prompts = self.config.get_system_prompts("ollama")
-
-            # DEBUG:Connecting to Ollama model: {model}")
-            # DEBUG:Command: {custom_command}")
-
-            self.current_client = CLIClient("ollama", system_prompts, custom_command)
-            self.ai_connected = True
-            self.connect_btn.configure(text="Disconnect")
-            self.status_indicator.configure(text_color="green")
-            self.ai_selector.configure(state="disabled")  # Lock selector while connected
-            self._save_active_output_tab_state()
-            self._render_output_tabs()
-            self.output_view.append_text(f"[OK] Connected to Ollama ({model})\n", "info")
+            self._selected_ollama_model = model
+            self._connect_terminal_ai_session("ollama", show_status=True)
 
         except Exception as err:
             self.ai_connected = False
@@ -1496,6 +1613,9 @@ class SAGEApp(ctk.CTk):
             return True
 
         tab = self._active_tab_state()
+        if tab and tab.get("terminal_ai_mode") and tab.get("ai_connected"):
+            return self._send_prompt_to_terminal_ai(command)
+
         if tab and tab.get("ai_running"):
             return self._queue_prompt_for_active_tab(command)
 
@@ -1526,7 +1646,60 @@ class SAGEApp(ctk.CTk):
         self._set_manual_active_agents(set())
         self._spawn_agents_if_needed(command)
 
-        # ── Selected AI is authoritative. Try it first. ──────────────────────
+        # ── OmniRoute: proactive routing (classify → route → cheapest agent) ─
+        if (getattr(self, "_omniroute_enabled", False)
+                and getattr(self, "_api_travel_enabled", True)):
+            try:
+                history = []
+                try:
+                    msgs = self.session_manager.get_messages(
+                        os.getcwd(), str(self.current_session_id or "")
+                    )
+                    if msgs:
+                        history = msgs[-12:]
+                except Exception:
+                    pass
+
+                routed_agent, complexity, route_label = api_travel.route(
+                    command, history=history
+                )
+                LOG.info(
+                    "OmniRoute: complexity=%s → agent=%s (%s)",
+                    complexity, routed_agent, route_label,
+                )
+
+                if routed_agent != ai_name:
+                    if routed_agent == "claude":
+                        self.output_view.append_text(
+                            f"\n[OmniRoute] {complexity} → {route_label}\n", "info"
+                        )
+                        result = self._run_claude_cli_stream(
+                            contextual_command, visible_prompt=command
+                        )
+                        if result:
+                            return True
+                    else:
+                        travel_c = self._get_travel_client(routed_agent)
+                        if travel_c is not None:
+                            travel_c._api_travel_label = f"OmniRoute → {route_label}"
+                            try:
+                                if history:
+                                    travel_c.load_history(history[-8:])
+                            except Exception:
+                                pass
+                            self.output_view.append_text(
+                                f"\n[OmniRoute] {complexity} → {route_label}\n", "info"
+                            )
+                            result = self._run_persistent_client(
+                                command, routed_agent,
+                                visible_prompt=command, _travel_client=travel_c,
+                            )
+                            if result:
+                                return True
+            except Exception as e:
+                LOG.warning("OmniRoute classify/route failed, using selected agent: %s", e)
+
+        # ── Selected AI fallback (or when OmniRoute is off / routed == selected)
         if ai_name == "claude":
             result = self._run_claude_cli_stream(contextual_command, visible_prompt=command)
         else:
@@ -1535,16 +1708,12 @@ class SAGEApp(ctk.CTk):
         if result:
             return True
 
-        # ── API-Travel is a FALLBACK ONLY — kicks in when the selected agent
-        # failed to start (no client, no auth, etc). Never auto-reroutes when
-        # the selected agent is working. This matches Sensei's original flow:
-        # "if claude isnt working codex should".
+        # ── API-Travel fallback — selected agent failed to start
         if not getattr(self, "_api_travel_enabled", True):
             return False
 
         try:
             avail = set(api_travel.detect_available())
-            # Prefer any working agent other than the one that just failed
             for candidate in ("claude", "codex", "ollama"):
                 if candidate == ai_name or candidate not in avail:
                     continue
@@ -1571,6 +1740,39 @@ class SAGEApp(ctk.CTk):
             LOG.warning("API-Travel fallback failed: %s", e)
 
         return False
+
+    def _send_prompt_to_terminal_ai(self, command: str) -> bool:
+        """Send a prompt to the already-running interactive CLI in PowerShell."""
+        tab = self._active_tab_state()
+        if not tab:
+            return False
+        terminal = tab.get("terminal") or self.output_view
+        if not hasattr(terminal, "write") or not getattr(terminal, "running", False):
+            self.output_view.append_text("\n[ERROR] Terminal AI session is not running. Click Connect again.\n", "error")
+            tab["ai_connected"] = False
+            tab["terminal_ai_mode"] = False
+            self.ai_connected = False
+            self.connect_btn.configure(text="Connect")
+            self.status_indicator.configure(text_color="red")
+            self.ai_selector.configure(state="readonly")
+            return False
+
+        visible_prompt = command.strip()
+        if not visible_prompt:
+            return False
+        try:
+            if hasattr(terminal, "append_user_prompt"):
+                terminal.append_user_prompt(visible_prompt)
+            terminal.write(visible_prompt + "\r\n")
+            self._remember_conversation_turn("user", visible_prompt)
+            if self.current_session_id:
+                self.session_manager.add_message(os.getcwd(), str(self.current_session_id), "user", visible_prompt)
+            self._set_run_status(f"Sent to {str(tab.get('ai_name', 'AI')).capitalize()} terminal", "#22c55e")
+            self.after(1500, lambda: self._set_run_status("Idle", "gray60"))
+            return True
+        except Exception as exc:
+            self.output_view.append_text(f"\n[ERROR] Could not write to terminal AI session: {exc}\n", "error")
+            return False
 
     def _run_claude_cli_stream(self, prompt: str, visible_prompt: str | None = None) -> bool:
         """Run Claude through SAGE while rendering structured thinking/tool events."""

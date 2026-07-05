@@ -1221,8 +1221,20 @@ class SettingsPanel(ctk.CTkToplevel):
             self._api_travel_switch.select()
         self._api_travel_switch.grid(row=2, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="w")
 
+        # OmniRoute mode toggle (proactive vs fallback-only)
+        omniroute_on = getattr(self.parent_app, "_omniroute_enabled", False)
+        self._omniroute_switch = ctk.CTkSwitch(
+            section,
+            text="OmniRoute  (proactive: classify → cheapest capable agent)",
+            font=ctk.CTkFont(size=12),
+            command=self._on_omniroute_toggle,
+        )
+        if omniroute_on:
+            self._omniroute_switch.select()
+        self._omniroute_switch.grid(row=3, column=0, columnspan=2, padx=15, pady=(0, 8), sticky="w")
+
         status_row = ctk.CTkFrame(section, fg_color="transparent")
-        status_row.grid(row=3, column=0, columnspan=2, padx=15, pady=(0, 12), sticky="ew")
+        status_row.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 12), sticky="ew")
         status_row.grid_columnconfigure(0, weight=1)
 
         self._api_travel_status = ctk.CTkLabel(
@@ -1253,6 +1265,12 @@ class SettingsPanel(ctk.CTkToplevel):
     def _on_api_travel_toggle(self):
         try:
             self.parent_app._api_travel_enabled = bool(self._api_travel_switch.get())
+        except Exception:
+            pass
+
+    def _on_omniroute_toggle(self):
+        try:
+            self.parent_app._omniroute_enabled = bool(self._omniroute_switch.get())
         except Exception:
             pass
 

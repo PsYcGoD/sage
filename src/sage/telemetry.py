@@ -28,6 +28,7 @@ from .store import connect, data_dir
 SCHEMA_VERSION = "1.0"
 DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
 FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
+KEYRING_SERVICE = "sage-cli"
 
 # 🔒 SECURITY: Master key for API key generation
 # This is intentionally in the code (not in repo) and used by local CLI clients.
@@ -45,6 +46,79 @@ LEVEL1_FORBIDDEN_KEYS = {"command", "stdout", "stderr", "output", "raw", "projec
 
 def config_path() -> Path:
     return data_dir() / "telemetry.json"
+
+
+def _keyring_account(config: dict[str, Any]) -> str:
+    return str(
+        config.get("api_key_account")
+        or config.get("api_key_id")
+        or config.get("installation_id")
+        or "default"
+    )
+
+
+def _keyring_get(account: str) -> str:
+    try:
+        import keyring
+
+        return str(keyring.get_password(KEYRING_SERVICE, account) or "")
+    except Exception:
+        return ""
+
+
+def _keyring_set(account: str, api_key: str) -> bool:
+    try:
+        import keyring
+
+        keyring.set_password(KEYRING_SERVICE, account, api_key)
+        return True
+    except Exception:
+        return False
+
+
+def _keyring_delete(account: str) -> None:
+    try:
+        import keyring
+
+        keyring.delete_password(KEYRING_SERVICE, account)
+    except Exception:
+        return
+
+
+def resolve_api_key(config: dict[str, Any] | None = None) -> str:
+    """Return the API key from keyring, with legacy config fallback."""
+    config = config or load_config()
+    if str(config.get("api_key_storage", "")).lower() == "keyring":
+        api_key = _keyring_get(_keyring_account(config))
+        if api_key:
+            return api_key.strip()
+    return str(config.get("api_key", "")).strip()
+
+
+def _store_api_key(config: dict[str, Any], api_key: str, key_id: str) -> str:
+    """Store API key in OS keyring when possible.
+
+    If keyring is unavailable, keep a clearly marked file fallback so headless
+    test and CI machines can still connect without crashing.
+    """
+    account = key_id or _keyring_account(config)
+    config["api_key_account"] = account
+    if _keyring_set(account, api_key):
+        config.pop("api_key", None)
+        config["api_key_storage"] = "keyring"
+        return "keyring"
+    config["api_key"] = api_key
+    config["api_key_storage"] = "file-fallback"
+    return "file-fallback"
+
+
+def _delete_api_key(config: dict[str, Any]) -> None:
+    account = _keyring_account(config)
+    if account:
+        _keyring_delete(account)
+    config["api_key"] = ""
+    config["api_key_account"] = ""
+    config["api_key_storage"] = ""
 
 
 def load_config() -> dict[str, Any]:
@@ -68,6 +142,8 @@ def load_config() -> dict[str, Any]:
     config.setdefault("api_base_url", "")
     config.setdefault("api_key", "")
     config.setdefault("api_key_id", "")
+    config.setdefault("api_key_account", "")
+    config.setdefault("api_key_storage", "legacy-file" if config.get("api_key") else "")
     config.setdefault("api_profile", {})
     config.setdefault("accounts", {})
     config.setdefault("active_account", "")
@@ -239,8 +315,8 @@ def api_github_login(
         config = load_config()
         config["api_base_url"] = candidate
         config["api_endpoint"] = f"{candidate}/v1/telemetry"
-        config["api_key"] = api_key
         config["api_key_id"] = key_id
+        storage = _store_api_key(config, api_key, key_id)
         config["api_profile"] = {
             "display_name": response.get("display_name", github_username),
             "username": github_username,
@@ -264,7 +340,6 @@ def api_github_login(
             "ok": True,
             "base_url": candidate,
             "endpoint": f"{candidate}/v1/telemetry",
-            "api_key": api_key,
             "api_key_redacted": _redact_key(api_key),
             "key_id": key_id,
             "username": github_username,
@@ -274,6 +349,7 @@ def api_github_login(
             "public_profile": bool(public_profile),
             "effective_level": 1,
             "effective_level_name": "Level 1 (safe metrics only)",
+            "api_key_storage": storage,
         }
 
     raise RuntimeError(f"SAGE API unreachable. Last error: {last_error}")
@@ -327,8 +403,8 @@ def api_login(
         config = load_config()
         config["api_base_url"] = candidate
         config["api_endpoint"] = f"{candidate}/v1/telemetry"
-        config["api_key"] = api_key
         config["api_key_id"] = key_id
+        storage = _store_api_key(config, api_key, key_id)
         config["api_profile"] = {
             "display_name": display_name,
             "username": username,
@@ -351,6 +427,7 @@ def api_login(
             "endpoint": config["api_endpoint"],
             "key_id": key_id,
             "api_key_redacted": _redact_key(api_key),
+            "api_key_storage": storage,
             "public_profile": bool(public_profile),
             "effective_level": effective_level(load_config()),
         }
@@ -359,7 +436,7 @@ def api_login(
 
 def api_logout() -> None:
     config = load_config()
-    config["api_key"] = ""
+    _delete_api_key(config)
     config["api_key_id"] = ""
     config["api_profile"] = {}
     config["api_endpoint"] = ""
@@ -371,12 +448,14 @@ def api_logout() -> None:
 def api_whoami() -> dict[str, Any]:
     config = load_config()
     profile = config.get("api_profile", {}) or {}
+    api_key = resolve_api_key(config)
     return {
-        "connected": bool(config.get("api_key") and config.get("api_endpoint")),
+        "connected": bool(api_key and config.get("api_endpoint")),
         "base_url": config.get("api_base_url", "") or "(not configured)",
         "endpoint": config.get("api_endpoint", "") or "(not configured)",
         "key_id": config.get("api_key_id", "") or "(not connected)",
-        "api_key": _redact_key(str(config.get("api_key", ""))) if config.get("api_key") else "(not stored)",
+        "api_key": _redact_key(api_key) if api_key else "(not stored)",
+        "api_key_storage": config.get("api_key_storage", "") or "(not stored)",
         "display_name": profile.get("display_name", ""),
         "username": profile.get("username", ""),
         "public_profile": bool(profile.get("public_profile", False)),
@@ -545,7 +624,7 @@ def send_queued(*, dry_run: bool = True, limit: int = 50) -> dict[str, Any]:
     """Send queued events. Without a configured endpoint this is always a no-op."""
     config = load_config()
     endpoint = str(config.get("api_endpoint", "")).strip()
-    api_key = str(config.get("api_key", "")).strip()
+    api_key = resolve_api_key(config)
     with connect() as conn:
         rows = conn.execute(
             "SELECT id, dedupe_key, payload FROM telemetry_queue WHERE status = 'queued' ORDER BY id ASC LIMIT ?",
@@ -782,7 +861,7 @@ def send_proof_snapshot() -> dict[str, Any]:
     """Publish current safe aggregate proof totals to the configured SAGE API."""
     config = load_config()
     base_url = str(config.get("api_base_url") or DEFAULT_API_BASE_URL).strip().rstrip("/")
-    api_key = str(config.get("api_key", "")).strip()
+    api_key = resolve_api_key(config)
     if not base_url or not api_key:
         return {"ok": False, "error": "not-connected"}
     payload = build_proof_snapshot()
@@ -807,7 +886,7 @@ def get_visitor_stats() -> dict[str, Any]:
     """Fetch private public-dashboard visitor stats using the saved SAGE API key."""
     config = load_config()
     base_url = str(config.get("api_base_url") or DEFAULT_API_BASE_URL).strip().rstrip("/")
-    api_key = str(config.get("api_key", "")).strip()
+    api_key = resolve_api_key(config)
     if not base_url or not api_key:
         raise RuntimeError("SAGE API is not connected.")
     request = urllib_request.Request(
@@ -828,13 +907,14 @@ def get_visitor_stats() -> dict[str, Any]:
 def api_status() -> dict[str, Any]:
     config = load_config()
     endpoint = str(config.get("api_endpoint", "")).strip()
-    api_key = str(config.get("api_key", "")).strip()
+    api_key = resolve_api_key(config)
     return {
         "endpoint": endpoint or "(not configured)",
         "base_url": config.get("api_base_url", "") or "(not configured)",
         "mode": "cloud-sync-possible" if endpoint and api_key else "local-only",
         "connected": bool(endpoint and api_key),
         "key_id": config.get("api_key_id", "") or "(not connected)",
+        "api_key_storage": config.get("api_key_storage", "") or "(not stored)",
         "profile": config.get("api_profile", {}) or {},
         "effective_level": effective_level(config),
         "effective_level_name": LEVEL_NAMES[effective_level(config)],

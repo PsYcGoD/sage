@@ -1,10 +1,13 @@
-# S.A.G.E V2.0
+# SAGE
 
-Smart Agent Guidance Engine for AI-assisted development.
+[![CI](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml/badge.svg)](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/pypi/pyversions/sage-cli.svg)](https://pypi.org/project/sage-cli/)
+[![License](https://img.shields.io/github/license/PsYcGoD/sage.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/PsYcGoD/sage?include_prereleases)](https://github.com/PsYcGoD/sage/releases)
 
-SAGE is public as a CLI-first tool right now. It helps local AI coding agents run terminal commands through `sage run --`, compress noisy output before it enters the agent context, keep raw logs local, and publish privacy-safe aggregate proof metrics to the live dashboard.
+SAGE is a local-first command wrapper for AI coding agents that compresses terminal output, preserves raw logs locally, and proves token savings with privacy-safe metrics.
 
-The GUI is in the making and will be released soon with AI agents and ML workflows. It is not included in this public repository yet.
+The public package is CLI-first. The desktop GUI is not included in this public repository yet.
 
 ## Live Public Proof Dashboard
 
@@ -23,29 +26,26 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 4,023 |
-| Tokens processed | 16,242,678 |
-| Tokens compressed | 1,133,424 |
-| Tokens saved | 15,109,254 |
-| Compression rate | 93.02% |
-| Success rate | 96.69% |
+| Commands processed | 4,134 |
+| Tokens processed | 16,332,337 |
+| Tokens compressed | 1,154,589 |
+| Tokens saved | 15,177,748 |
+| Compression rate | 92.93% |
+| Success rate | 96.73% |
 
 This stats are only after going Live - Since July for CLI commands Only.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
-## What SAGE Does
-
-SAGE sits between your terminal and AI coding agents:
-
-- Runs commands through `sage run -- <command>`
-- Compresses noisy output before it burns model context
-- Keeps full raw command output locally for recovery
-- Tracks token savings and command success metrics
-- Connects to the SAGE API with GitHub OAuth
-- Installs local agent instructions so Codex, Claude Code, and other terminal agents know to use SAGE
-- Reports privacy-safe aggregate stats to the public dashboard
-
 ## Installation
+
+Install the public CLI package from PyPI:
+
+```bash
+pip install sage-cli
+sage --version
+```
+
+For local development:
 
 ```bash
 git clone https://github.com/PsYcGoD/sage.git
@@ -54,15 +54,19 @@ pip install -e .
 sage --version
 ```
 
+The PyPI distribution is `sage-cli`; the installed CLI command is still `sage`.
+
 ## Connect Your Account
 
-Connect SAGE to the API with GitHub OAuth:
+Most public API-backed commands require GitHub OAuth:
 
 ```bash
 sage connect
 sage whoami
 sage api status
 ```
+
+SAGE stores the API key in the operating system keyring when available. Local command history and raw outputs remain on your machine.
 
 ## Bind Agent Instructions
 
@@ -88,7 +92,7 @@ sage run -- npm test
 sage run -- git status
 ```
 
-SAGE stores the full command locally, summarizes noisy output, tracks compression, and sends only allowed aggregate proof metrics to the dashboard.
+SAGE stores full raw command output locally, summarizes noisy output for AI context, tracks compression, and sends only allowed aggregate proof metrics to the dashboard.
 
 ## Useful CLI Commands
 
@@ -104,6 +108,15 @@ sage mcp install
 sage dashboard start --port 8765
 ```
 
+## Screenshots
+
+| Command | Preview |
+|---|---|
+| `sage run --` | ![sage run terminal capture](docs/assets/sage-run.svg) |
+| `sage context report` | ![sage context report terminal capture](docs/assets/sage-context-report.svg) |
+| `sage mcp install` | ![sage mcp install terminal capture](docs/assets/sage-mcp-install.svg) |
+| Dashboard proof | ![SAGE Live Public Proof Dashboard](docs/assets/sage-live-dashboard.png) |
+
 ## GUI Status
 
 The desktop GUI is not available in this public repo right now.
@@ -112,7 +125,15 @@ The desktop GUI is not available in this public repo right now.
 sage gui
 ```
 
-This command now prints the roadmap status instead of launching a desktop app. The GUI will be released later with AI agents and ML workflows after it is stable enough for public use.
+This command prints the roadmap status instead of launching a desktop app. The GUI will be released later with AI agents and ML workflows after it is stable enough for public use.
+
+## Known Limitations
+
+- The GUI is not public yet and is intentionally absent from the CLI package.
+- GitHub OAuth / a SAGE API key is required for most API-backed commands and public proof sync.
+- Telemetry level `0` is local-only; higher levels are opt-in and constrained by account/key policy.
+- The public dashboard is aggregate-only and does not expose raw commands, raw outputs, file paths, or local logs.
+- Local ML and agent features depend on local history volume and optional provider credentials.
 
 ## Privacy
 
@@ -120,6 +141,7 @@ This command now prints the roadmap status instead of launching a desktop app. T
 - Public dashboard data is aggregate proof only.
 - API connection is handled through GitHub OAuth.
 - Higher telemetry is opt-in.
+- API keys are stored in the OS keyring when available.
 
 ## Development
 

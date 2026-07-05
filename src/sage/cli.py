@@ -1644,7 +1644,7 @@ def fix_command(apply: bool = False, min_confidence: float = 0.8) -> int:
         print(f"Suggested fix: {result.fix_applied}")
 
     if result.success:
-        print("\nâœ“ Fix applied successfully!")
+        print("\n[OK] Fix applied successfully!")
     elif result.error_message:
         print(f"\n{result.error_message}")
 

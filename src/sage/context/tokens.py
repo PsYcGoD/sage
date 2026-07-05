@@ -3,7 +3,7 @@
 Uses the real `tiktoken` tokenizer when available (the same BPE family the
 Claude/OpenAI-class models use), and falls back to a character heuristic only
 if tiktoken cannot be loaded. Every part of SAGE should call `count_tokens`
-so the numbers shown in the GUI, CLI, and stored metrics are consistent.
+so the numbers shown in the CLI and stored metrics are consistent.
 """
 
 from __future__ import annotations

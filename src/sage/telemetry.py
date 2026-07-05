@@ -30,7 +30,7 @@ DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
 FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
 
 # 🔒 SECURITY: Master key for API key generation
-# This is intentionally in the code (not in repo) - will be distributed with compiled GUI
+# This is intentionally in the code (not in repo) and used by local CLI clients.
 # If compromised, we can rotate it in Cloudflare environment variables
 LEVEL_NAMES = {
     0: "local-only",

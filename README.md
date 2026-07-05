@@ -1,24 +1,19 @@
-# 🧠 S.A.G.E V2.0
+# S.A.G.E V2.0
 
-**Smart Agent Guidance Engine** - Enterprise-Grade AI Development Orchestration Platform
+Smart Agent Guidance Engine for AI-assisted development.
 
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)]()
-[![Version](https://img.shields.io/badge/Version-2.0.0-blue)]()
-[![License](https://img.shields.io/badge/License-MIT-yellow)]()
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
-[![Development](https://img.shields.io/badge/Development-Dec%202025--Jul%202026-orange)]()
+SAGE is public as a CLI-first tool right now. It helps local AI coding agents run terminal commands through `sage run --`, compress noisy output before it enters the agent context, keep raw logs local, and publish privacy-safe aggregate proof metrics to the live dashboard.
 
----
+The GUI is in the making and will be released soon with AI agents and ML workflows. It is not included in this public repository yet.
 
 ## Live Public Proof Dashboard
 
-S.A.G.E now publishes a privacy-safe public proof dashboard for aggregate token and context savings:
-
-**Live dashboard**: [https://sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
+Live dashboard: https://sage.api.marketingstudios.in/dashboard
 
 ![SAGE Live Public Proof Dashboard](docs/assets/sage-live-dashboard.png)
 
 Current public proof includes:
+
 - Total commands processed through SAGE
 - Tokens processed, compressed, and saved
 - Compression rate and command success rate
@@ -29,737 +24,107 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| **Commands processed** | 3,820 |
-| **Tokens processed** | 15,164,330 |
-| **Tokens compressed** | 1,027,453 |
-| **Tokens saved** | 14,136,877 |
-| **Compression rate** | 93.22% |
-| **Success rate** | 96.86% |
+| Commands processed | 4,023 |
+| Tokens processed | 16,242,678 |
+| Tokens compressed | 1,133,424 |
+| Tokens saved | 15,109,254 |
+| Compression rate | 93.02% |
+| Success rate | 96.69% |
 
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
----
+## What SAGE Does
 
-## 🚀 What is S.A.G.E?
+SAGE sits between your terminal and AI coding agents:
 
-S.A.G.E is a **production-ready AI development orchestration platform** that transforms how developer automation tools work with your terminal commands. It's not just a command wrapper—it's an intelligent system that learns, predicts, fixes, and optimizes your entire development workflow.
+- Runs commands through `sage run -- <command>`
+- Compresses noisy output before it burns model context
+- Keeps full raw command output locally for recovery
+- Tracks token savings and command success metrics
+- Connects to the SAGE API with GitHub OAuth
+- Installs local agent instructions so Codex, Claude Code, and other terminal agents know to use SAGE
+- Reports privacy-safe aggregate stats to the public dashboard
 
-You can use S.A.G.E in two simple ways:
-- **🖥️ Built-in GUI:** run `sage gui` for the desktop command center with token dashboards, agent activity, settings, history, and live proof.
-- **⚡ Editable install:** run `pip install -e .` once, then AI coding agents can auto-route shell commands through `sage run --` and start saving tokens without changing your workflow.
+## Installation
 
-Want early access or help trying it? **Comment or DM for early access.**
-
-### **The Problem**
-- developer tools (local assistant, LLM tools, editor assistants) run out of context quickly with large terminal outputs
-- Noisy logs waste tokens and hide real errors
-- Repetitive manual debugging cycles
-- No learning from past failures
-- Isolated development environment without intelligent assistance
-
-### **The Solution**
-S.A.G.E provides a complete AI orchestration layer with:
-- **🖥️ Beautiful Desktop GUI** - Modern interface with zero configuration required (`sage gui`)
-- **🎯 Auto-Integration** - Install once (`pip install -e .`) so AI coding agents can route commands through `sage run --`
-- **🚀 10x longer AI sessions** - Compresses noisy terminal output (85-95% typical, ~99% peak) so your coding agent runs far more commands before it hits context limits
-- **🔧 Auto-fix engine** - ML-powered error detection and automatic fixes with confidence scoring
-- **🤖 Multi-agent coordination** - Parallel AI agents handling complex tasks simultaneously
-- **📋 Workflow automation** - YAML-based pipelines for repeatable processes
-- **📊 Context intelligence** - Smart output compression saving costs and preserving critical information
-- **🎲 Predictive failure detection** - ML models predict command failures before execution
-- **💬 Natural language interface** - Talk to your terminal in plain English
-- **🌐 Cross-project learning** - Share anonymized patterns across your entire codebase
-
----
-
-## ✨ Key Features
-
-### 🎯 **Core Intelligence**
-
-#### 1. **Context Management System** ⚡
-*Solving the #1 CLI problem for AI coding agents: context exhaustion*
-- **85-95% typical compression** on command output (~99% peak on highly repetitive logs), measured with tiktoken
-- The real payoff: your agent runs **many more commands per session** before it forgets context or compacts
-- Automatic duplicate removal and noise filtering
-- Smart diff generation (show only changes)
-- Stacktrace extraction for errors
-- **Commands**: `sage context stats`, `sage context report`
-
-#### 2. **Auto-Fix Engine** 🔧
-*Zero-Touch Error Resolution*
-- Analyzes Python, JavaScript, TypeScript, Rust errors
-- Generates fixes with **confidence scoring** (0.0-1.0)
-- **Historical pattern learning** from past fixes
-- Automatic `pip install` and `npm install` execution
-- Success rate tracking and knowledge base
-- **Commands**: `sage fix`, `sage fix --apply --confidence 0.9`
-
-#### 3. **Multi-Agent Orchestration** 🤖
-*Keyword-gated specialists when the request actually needs them*
-- Seven deterministic specialists: code, debug, test, research, security, dependency, and frontend
-- Expanded trigger lists keep normal chat fast while debug/test/security/UI/package/research requests get targeted analysis
-- GUI child commands keep token tracking enabled but skip expensive fan-out; the GUI runs smart post-response analysis only for matching requests
-- Each agent stores a specialist brief and skill profile, so results are traceable instead of decorative
-- Agent status, latest-run progress, and completed task counts are visible in the GUI and CLI
-- **Commands**: `sage agents list`, `sage agents status`, `sage agents tasks`
-
-#### 4. **Workflow Automation** 📋
-*YAML-Based CI/CD*
-- Define complex pipelines in YAML
-- Conditional execution and retry logic
-- Timeout and error handling
-- Template library included
-- Environment variable support
-- **Commands**: `sage workflow run <name>`, `sage workflow list`
-
-#### 5. **Real-Time Dashboard** 📊
-*Live Monitoring & Analytics*
-- REST API backend (FastAPI)
-- WebSocket real-time updates
-- Command history visualization
-- Token usage analytics
-- Agent status monitoring
-- **Commands**: `sage dashboard start --port 8765`
-
-#### 6. **MCP Integration** 🔌
-*MCP-compatible client Native Support*
-- 14 exposed tools for MCP-compatible client CLI (read/search/history/workflow by default; the command-executing tool is opt-in — see the trust-boundary note below)
-- stdio-based communication
-- Automatic server configuration
-- Zero-config setup
-- **Commands**: `sage mcp install`, `sage mcp start`
-
-#### 7. **ML Failure Prediction** 🎲
-*Experimental — honest about where it stands*
-- Heuristic + logistic risk scoring from 13 command features
-- Trained on your real local command history (temporal validation, no synthetic inflation)
-- **Current honest accuracy: ROC AUC ≈ 0.58 globally** (modest — strongest on specific command families like `get-content`/`rg`/`pytest`); treat as a hint, not a verdict
-- `sage ml validate` prints the honest temporal numbers so you can check for yourself
-
-#### 8. **NLP Command Parser** 💬
-*Natural Language Interface*
-- Regex-based intent extraction
-- Plain English to shell command translation
-- Context-aware suggestions
-- Multi-language support
-
-#### 9. **Global Intelligence** 🌐
-*Cross-Project Learning*
-- SHA-256 pattern anonymization
-- Privacy-preserving sync
-- Global pattern database
-- Collaborative learning across projects
-
----
-
-## 📦 Installation
-
-### 🚀 Quick Install (Auto-Integration Enabled!)
 ```bash
-# Clone the repository
 git clone https://github.com/PsYcGoD/sage.git
 cd sage
-
-# Install in development mode
 pip install -e .
-
-# Verify installation
 sage --version
 ```
 
-**🎉 That's it!** After installation, AI coding agents can follow the installed SAGE instructions and route shell commands through `sage run --`, so command output is compressed, saved locally, and summarized before it burns context. No extra dashboard setup is required.
+## Connect Your Account
 
-### 🖥️ Launch the Desktop GUI
+Connect SAGE to the API with GitHub OAuth:
+
+```bash
+sage connect
+sage whoami
+sage api status
+```
+
+## Bind Agent Instructions
+
+Create local SAGE instructions for terminal agents:
+
+```bash
+sage init
+```
+
+This writes `SAGE.md` in the current project. Give that file to your local AI coding agent, or bind the same rule into your `AGENTS.md` / agent instruction file:
+
+```text
+Route every shell command through:
+
+sage run -- <command>
+```
+
+## Run Commands Through SAGE
+
+```bash
+sage run -- python -m pytest
+sage run -- npm test
+sage run -- git status
+```
+
+SAGE stores the full command locally, summarizes noisy output, tracks compression, and sends only allowed aggregate proof metrics to the dashboard.
+
+## Useful CLI Commands
+
+```bash
+sage context stats
+sage context report
+sage history --limit 10
+sage explain
+sage suggest
+sage fix
+sage fix --apply --confidence 0.9
+sage mcp install
+sage dashboard start --port 8765
+```
+
+## GUI Status
+
+The desktop GUI is not available in this public repo right now.
+
 ```bash
 sage gui
 ```
 
-The beautiful desktop app provides:
-- 📊 Real-time command history and visual timeline
-- 💾 Token usage analytics and savings dashboard  
-- 🔧 One-click auto-fix with confidence scoring
-- 🤖 Smart-agent activity card with queued/running/latest-run progress
-- ⚙️ Visual settings management with GitHub OAuth
-- 🌐 Live performance metrics and compression stats
-- 🎨 Modern design with light/dark themes
+This command now prints the roadmap status instead of launching a desktop app. The GUI will be released later with AI agents and ML workflows after it is stable enough for public use.
 
-**Zero configuration required** - just run `sage gui` and everything works!
+## Privacy
 
-**Early access:** comment or DM if you want help testing the GUI, auto-integration, or smart-agent routing.
+- Raw commands and full outputs stay local by default.
+- Public dashboard data is aggregate proof only.
+- API connection is handled through GitHub OAuth.
+- Higher telemetry is opt-in.
 
-### Requirements
-- Python 3.10+
-- SQLite3
-- Git (optional but recommended)
-
-### Optional Dependencies
-```bash
-# For dashboard
-pip install fastapi uvicorn[standard]
-
-# For async workflows
-pip install aiofiles
-
-# For advanced ML features
-pip install scikit-learn pandas
-```
-
----
-
-## 🎯 Quick Start
-
-### Basic Usage
-```bash
-# Run a command through SAGE
-sage run -- python test.py
-
-# Explain what happened
-sage explain
-
-# Get suggestions for next steps
-sage suggest
-
-# Show command history
-sage history --limit 10
-```
-
-### Auto-Fix Workflow
-```bash
-# Run a failing command
-sage run -- python app.py
-
-# Analyze and suggest fix (dry-run)
-sage fix
-
-# Apply the fix automatically
-sage fix --apply
-
-# Apply only high-confidence fixes
-sage fix --apply --confidence 0.95
-```
-
-### Context Management
-```bash
-# Check token usage statistics
-sage context stats
-
-# Get optimization suggestions
-sage context optimize
-```
-
-### Multi-Agent Operations
-```bash
-# List all running agents
-sage agents list
-
-# Check agent status
-sage agents status
-```
-
-### Workflow Automation
-```bash
-# Run a predefined workflow
-sage workflow run test
-
-# List available workflows
-sage workflow list
-```
-
-### Dashboard & Monitoring
-```bash
-# Start web dashboard
-sage dashboard start --port 8765
-
-# Start without opening browser
-sage dashboard start --no-browser
-```
-
-### MCP Integration (MCP-compatible client)
-```bash
-# Install MCP server config
-sage mcp install
-
-# Start MCP server manually
-sage mcp start
-```
-
----
-
-## 📊 Performance Metrics
-
-### Context Compression Results
-| Metric | Value |
-|--------|-------|
-| **Typical Compression** | 85-95% on real command output |
-| **Peak Compression** | ~99% on highly repetitive logs (e.g. 149 tokens → 1) |
-| **Live aggregate saved** | 14.13M+ tokens across 3,820 tracked runs (see dashboard) |
-| **What that buys you** | Many more agent commands per session before context compaction |
-| **Measurement** | tiktoken (`cl100k_base`) — not estimated |
-
-### Auto-Fix Accuracy
-| Error Type | Success Rate | Avg Confidence |
-|------------|--------------|----------------|
-| Missing Module | 95% | 0.92 |
-| Import Error | 88% | 0.85 |
-| Syntax Error | 75% | 0.78 |
-| Dependency Error | 92% | 0.89 |
-
-### System Statistics
-- **Total Files**: ~100 Python modules
-- **Total Lines**: ~26,300
-- **Tests**: 144 passing (deterministic suite; GUI/live excluded from CI)
-- **Database Tables**: 9 tables
-- **CLI Commands**: 80+ commands & subcommands
-- **MCP Tools**: 14 exposed tools (command execution is opt-in)
-- **Agent Types**: 7 keyword-gated built-in specialists
-
----
-
-## 🗂️ Architecture
-
-### Project Structure
-```
-sage/
-├── src/sage/
-│   ├── __init__.py           # Package initialization
-│   ├── cli.py                # Main CLI interface (80+ commands & subcommands)
-│   ├── runner.py             # Command execution engine
-│   ├── store.py              # SQLite database layer
-│   ├── detectors.py          # Error detection system
-│   ├── suggestions.py        # Smart suggestion engine
-│   │
-│   ├── autofix/              # Auto-fix engine
-│   │   ├── engine.py         # Main orchestrator
-│   │   ├── analyzers/        # Error analyzers (Python, JS, TS)
-│   │   ├── fixers/           # Fix generators
-│   │   └── knowledge_base.py # Historical pattern DB
-│   │
-│   ├── agents/               # Multi-agent system
-│   │   ├── base_agent.py     # Base agent class
-│   │   ├── orchestrator.py   # Agent coordinator
-│   │   └── [agent types]     # Specialized agents
-│   │
-│   ├── context/              # Context management
-│   │   ├── manager.py        # Context manager
-│   │   ├── compression.py    # Output compression
-│   │   └── tracker.py        # Token usage tracking
-│   │
-│   ├── workflows/            # Workflow automation
-│   │   ├── parser.py         # YAML parser
-│   │   ├── executor.py       # Workflow runner
-│   │   └── templates/        # Workflow templates
-│   │
-│   ├── dashboard/            # Real-time dashboard
-│   │   └── server.py         # FastAPI backend
-│   │
-│   ├── mcp/                  # MCP integration
-│   │   └── server.py         # MCP stdio server
-│   │
-│   ├── ml/                   # Machine learning
-│   │   └── predictor.py      # Failure prediction
-│   │
-│   ├── nlp/                  # Natural language
-│   │   └── parser.py         # Command parser
-│   │
-│   └── global_store/         # Global intelligence
-│       └── database.py       # Cross-project patterns
-│
-├── tests/                    # Test suite
-├── docs/                    # Architecture notes and public screenshots
-├── README.md                 # This file
-└── pyproject.toml           # Project configuration
-```
-
-### Database Schema
-```sql
--- Core tables
-runs              # Command execution history
-token_usage       # Context management stats
-fixes             # Auto-fix history
-agents            # Agent registry
-agent_tasks       # Task queue
-workflows         # Workflow definitions
-predictions       # ML predictions
-nlp_patterns      # NLP training data
-global_patterns   # Cross-project intelligence
-```
-
----
-
-## 🎓 Use Cases
-
-### For Individual Developers
-- **Faster debugging**: Auto-fix saves 10-30 minutes per error
-- **Context savings**: Work longer with local assistant without hitting limits
-- **Learning assistant**: Learn from historical patterns
-- **Command memory**: Never forget successful fix patterns
-
-### For Teams
-- **Shared intelligence**: Team learns from each other's fixes
-- **Workflow standardization**: YAML pipelines for consistent processes
-- **Dashboard monitoring**: Track team productivity
-- **Knowledge base**: Accumulated fixes benefit everyone
-
-### For developer automation tools
-- **Extended context**: 85-95% compression = many more commands per session
-- **Better suggestions**: Historical data improves accuracy
-- **Proactive fixes**: Auto-fix before developer intervention
-- **MCP integration**: Native MCP-compatible client support
-
-### For Enterprise
-- **Cost optimization**: Significant token cost reduction
-- **Audit trail**: Complete command history in SQLite
-- **Privacy-first**: All data stays local
-- **Cross-project insights**: Learn patterns across organization
-
----
-
-## 🔬 Technical Deep Dive
-
-### Context Compression Algorithm
-```python
-# Example: highly repetitive 149-token output compressed to 1 token
-Input:  "Building... Done\nBuilding... Done\n" * 50  # 149 tokens
-Output: "Building... Done"                            # 1 token
-Savings: ~99% on this repetitive case (85-95% typical on real output)
-```
-
-**Compression Strategies**:
-1. **Duplicate removal**: Remove repeated lines
-2. **Noise filtering**: Strip debug/trace output
-3. **Stacktrace extraction**: Keep only error frames
-4. **Smart diff**: Show changes, not entire files
-5. **Metadata preservation**: Keep critical timestamps/codes
-
-### Auto-Fix Confidence Scoring
-```python
-confidence = (
-    pattern_match_score * 0.4 +
-    historical_success_rate * 0.3 +
-    error_specificity * 0.2 +
-    fix_complexity_inverse * 0.1
-)
-```
-
-### Multi-Agent Task Queue
-```python
-# Example: Parallel testing
-agents = [
-    CodeAgent("analyzer"),
-    TestAgent("unit_tests"),
-    TestAgent("integration_tests"),
-    ReviewAgent("linter"),
-]
-await orchestrator.execute_parallel(agents)
-```
-
----
-
-## 📚 Command Reference
-
-### Core Commands
-```bash
-sage run -- <command>              # Run command through SAGE
-sage explain [--failed]            # Explain command output
-sage suggest [--failed]            # Suggest next steps
-sage history [--limit N]           # Show command history
-sage doctor                        # Check system health
-sage init                          # Create SAGE.md instructions
-```
-
-### Auto-Fix Commands
-```bash
-sage fix                           # Suggest fix (dry-run)
-sage fix --apply                   # Apply fix automatically
-sage fix --confidence 0.9          # Set confidence threshold
-```
-
-### Context Commands
-```bash
-sage context stats                 # Show token statistics
-sage context optimize              # Get optimization tips
-```
-
-### Agent Commands
-```bash
-sage agents list                   # List all agents
-sage agents status                 # Show agent status
-```
-
-### Workflow Commands
-```bash
-sage workflow run <name>           # Execute workflow
-sage workflow list                 # List workflows
-```
-
-### Dashboard Commands
-```bash
-sage dashboard start               # Start dashboard
-sage dashboard start --port 8765   # Custom port
-sage dashboard start --no-browser  # Don't open browser
-sage dashboard stop                # Stop dashboard
-```
-
-### MCP Commands
-```bash
-sage mcp install                   # Install MCP config
-sage mcp start                     # Start MCP server
-```
-
-By default, the MCP server exposes read/search/history/workflow helpers only.
-The `sage_run_command` tool can execute arbitrary local commands and is therefore
-disabled unless you opt in for a trusted local MCP client:
+## Development
 
 ```bash
-SAGE_MCP_ENABLE_COMMANDS=1 sage mcp start
+python -m pytest -q
 ```
 
----
-
-## 🎨 Integration Examples
-
-### With MCP-compatible client
-```bash
-# 1. Install MCP integration
-sage mcp install
-
-# 2. Restart MCP-compatible client
-
-# 3. Use SAGE tools in local assistant
-# local assistant can now call:
-# - sage_explain_error
-# - sage_suggest_fix
-# - sage_spawn_agent
-# - sage_run_workflow
-# - sage_get_history
-#
-# To expose sage_run_command, start the MCP server with SAGE_MCP_ENABLE_COMMANDS=1.
-```
-
-### With CI/CD Pipeline
-```yaml
-# .github/workflows/sage.yml
-name: SAGE CI
-on: [push]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - run: pip install -e .
-      - run: sage workflow run ci-test
-```
-
-### With Pre-Commit Hooks
-```bash
-# .git/hooks/pre-commit
-#!/bin/bash
-sage run -- python -m pytest
-if [ $? -ne 0 ]; then
-    sage fix --apply --confidence 0.8
-fi
-```
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how:
-
-### Development Setup
-```bash
-# Clone and install
-git clone https://github.com/PsYcGoD/sage.git
-cd sage
-pip install -e ".[dev]"
-
-# Run tests
-python -m pytest tests/ -v
-
-# Check code style
-black src/ tests/
-ruff check src/ tests/
-```
-
-### Contribution Areas
-- 🐛 **Bug fixes**: Fix issues in existing features
-- ✨ **New analyzers**: Support more error types
-- 🔧 **New fixers**: Implement more auto-fix patterns
-- 🤖 **New agents**: Create specialized agent types
-- 📝 **Documentation**: Improve guides and examples
-- 🧪 **Tests**: Increase test coverage
-
-### Guidelines
-- Follow existing code style (Black + Ruff)
-- Add tests for new features
-- Update documentation
-- Keep commits focused and atomic
-
----
-
-## 🛣️ Roadmap
-
-### Completed (Dec 2025 - Jul 2026) ✅
-- [x] Context management system (85-95% typical compression)
-- [x] Auto-fix engine with ML confidence scoring
-- [x] Multi-agent orchestration
-- [x] Workflow automation (YAML-based)
-- [x] Real-time dashboard (REST API)
-- [x] MCP integration (14 tools)
-- [x] ML failure prediction
-- [x] NLP command parser
-- [x] Cross-project intelligence
-
-### Future (Post Jul 2026) 🔮
-- [ ] Deep learning error classification
-- [ ] Visual workflow designer (GUI)
-- [ ] Browser extension for GitHub/GitLab
-- [ ] Cloud sync (opt-in)
-- [ ] Slack/Discord integration
-- [ ] VS Code extension
-- [ ] Team collaboration features
-- [ ] Custom agent SDK
-- [ ] Plugin marketplace
-- [ ] Live Testing (Beta)
-
----
-
-## 📖 Documentation
-
-### Complete Documentation
-- **[docs/AGENT_LAYER_IMPLEMENTATION.md](docs/AGENT_LAYER_IMPLEMENTATION.md)** - Agent-layer implementation details
-
-### Quick Links
-- Installation Guide: See [Installation](#-installation)
-- Command Reference: See [Command Reference](#-command-reference)
-- Architecture: See [Architecture](#-architecture)
-- Use Cases: See [Use Cases](#-use-cases)
-
----
-
-## 🎓 Learning Resources
-
-### Tutorials
-1. **Getting Started**: Run your first command in 2 minutes
-2. **Auto-Fix Mastery**: Set up automatic error resolution
-3. **Workflow Creation**: Build custom YAML pipelines
-4. **Agent Development**: Create custom AI agents
-5. **MCP Integration**: Connect with MCP-compatible client
-
-### Examples
-```bash
-# Example 1: Django project with auto-fix
-cd my-django-project
-sage run -- python manage.py test
-sage fix --apply
-
-# Example 2: Multi-agent parallel testing
-sage agents spawn test-unit
-sage agents spawn test-integration
-sage agents status
-
-# Example 3: Automated deployment workflow
-sage workflow run deploy-production
-
-# Example 4: Context-aware development
-sage run -- npm test  # Large output, auto-compressed
-sage context stats    # See 99% compression
-```
-
----
-
-## 💡 FAQ
-
-**Q: Does SAGE send my code to external servers?**  
-A: No. All data stays local in SQLite. Privacy-first design.
-
-**Q: How much does SAGE actually help?**  
-A: The real win isn't pennies per command — it's session longevity. By compressing noisy output 85-95%, your AI coding agent runs many more commands before it hits context limits, compacts, or loses the thread. Live aggregate proof: 14.13M+ tokens saved across 3,820 tracked runs.
-
-**Q: Can I use SAGE without MCP-compatible client?**  
-A: Yes! SAGE works standalone. MCP integration is optional.
-
-**Q: What languages are supported for auto-fix?**  
-A: Python, JavaScript, TypeScript, and Rust. More coming soon.
-
-**Q: Is SAGE safe to use in production?**  
-A: Yes, but test auto-fix carefully. Use `--confidence 0.9` for production fixes.
-
-**Q: Can teams share SAGE data?**  
-A: Not yet, but cross-project intelligence is coming with optional cloud sync.
-
-**Q: How do I report bugs?**  
-A: Open an issue on GitHub with reproduction steps.
-
----
-
-## 📜 License
-
-MIT License - See [LICENSE](LICENSE) for details.
-
-**Free for personal and commercial use.**
-
----
-
-## 👨‍💻 About
-
-**Project**: S.A.G.E (Smart Agent Guidance Engine)  
-**Version**: 2.0.0  
-**Development Period**: December 2025 - July 2026  
-**Status**: Production Ready  
-**Lead Developer**: PsYcGoD  
-**Maintainer**: PsYcGoD
-
-### Development Timeline
-- **Dec 2025**: Project inception, core architecture
-- **Jan 2026**: Context management system, auto-fix engine
-- **Feb 2026**: Multi-agent orchestration
-- **Mar 2026**: Workflow automation, dashboard
-- **Apr 2026**: MCP integration, ML prediction
-- **May 2026**: NLP parser, global intelligence, testing
-- **Jun 2026**: Live testing, optimization, documentation
-- **Jul 2026**: Production release, performance tuning
-
-### Credits
-Built with ❤️ using:
-- Python 3.10+
-- SQLite3
-- FastAPI
-- MCP Protocol
-- MCP-compatible client
-
----
-
-## Support
-
-- **GitHub**: [https://github.com/PsYcGoD/sage](https://github.com/PsYcGoD/sage)
-- **Issues**: [GitHub Issues](https://github.com/PsYcGoD/sage/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/PsYcGoD/sage/discussions)
-
-### Enterprise Support
-For enterprise inquiries, custom development, or consulting:
-- GitHub: [@PsYcGoD](https://github.com/PsYcGoD)
-- Repository: [SAGE](https://github.com/PsYcGoD/sage)
-
----
-
-## 🌟 Star History
-
-If SAGE helps your development workflow, please ⭐ star the repository!
-
-```bash
-# Check out the project
-git clone https://github.com/PsYcGoD/sage.git
-
-# Start using it today
-cd sage && pip install -e .
-
-# Join the community
-# Star ⭐ | Fork 🍴 | Contribute 🤝
-```
-
----
-
-**Made with PsYc+GoD AI & ML**
-
-*Transform your AI coding workflow today with S.A.G.E V2.0*
+The public package is CLI-first. GUI source, GUI tests, and GUI-only dependencies are intentionally not shipped in this repo at this time.

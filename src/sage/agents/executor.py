@@ -540,19 +540,19 @@ def _dependency_result(command: str, output: str, exit_code: int, summary: str) 
 
 
 def _frontend_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    """Design/UI checks — embodies design-master-pro as a deterministic checklist.
+    """Design/UI checks implemented as a deterministic checklist.
 
     Flags render errors, accessibility gaps, and layout/overflow signals in the
-    output; no LLM and no prompt-heavy personal skill install by default.
+    output without loading prompt-heavy personal skills by default.
     """
     text = output or summary
     lowered = command.lower()
-    ui_hits = _important_lines(text, ["gui", "ui", "window", "card", "render", "layout", "tkinter", "css", "component", "button", "modal", "widget"])
+    ui_hits = _important_lines(text, ["ui", "window", "card", "render", "layout", "tkinter", "css", "component", "button", "modal", "widget"])
     a11y = _important_lines(text, ["aria", "alt=", "label", "contrast", "focus", "tabindex", "role="])
     overflow = _important_lines(text, ["overflow", "clipped", "cut off", "truncat", "responsive", "viewport", "not fit"])
     render_err = _first_important_line(text, ["uncaught", "console error", "render error", "tclerror", "tkinter", "traceback"])
     is_ui = bool(ui_hits) or any(
-        token in lowered for token in ["gui", "ui", "frontend", "css", "tkinter", "component", ".tsx", ".jsx", ".css", ".html", "widget", "layout"]
+        token in lowered for token in ["ui", "frontend", "css", "tkinter", "component", ".tsx", ".jsx", ".css", ".html", "widget", "layout"]
     )
 
     if render_err:
@@ -581,7 +581,7 @@ def _frontend_result(command: str, output: str, exit_code: int, summary: str) ->
         "accessibility_signals": a11y[:6],
         "layout_signals": overflow[:6],
         "next_action": next_action,
-        "follow_up_command": "python -m sage gui" if is_ui else "",
+        "follow_up_command": "",
         "actions": actions,
     }
 
@@ -601,10 +601,10 @@ def _security_result(command: str, output: str, exit_code: int, summary: str) ->
 
 
 def _research_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    """Source checks — embodies research-master-pro as a deterministic checklist.
+    """Source checks implemented as a deterministic checklist.
 
     Extracts source links and flags time-sensitive claims that ship without a
-    primary source; no LLM and no prompt-heavy personal skill install by default.
+    primary source without loading prompt-heavy personal skills by default.
     """
     text = output or summary
     lowered = command.lower()
@@ -648,10 +648,10 @@ def _research_result(command: str, output: str, exit_code: int, summary: str) ->
 
 
 def _code_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:
-    """Code checks — embodies coding-master-pro as a deterministic checklist.
+    """Code checks implemented as a deterministic checklist.
 
     Detects syntax/indentation errors, inspects changed files, and flags leaked
-    secrets; no LLM and no prompt-heavy personal skill install by default.
+    secrets without loading prompt-heavy personal skills by default.
     """
     text = output or summary
     lowered = command.lower()

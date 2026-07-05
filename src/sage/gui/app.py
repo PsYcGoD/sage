@@ -494,6 +494,7 @@ class SAGEApp(ctk.CTk):
             on_reply_to_selection=self.reply_to_output_selection,
             on_ai_response_complete=self._remember_terminal_ai_response,
             on_ai_stream_finished=lambda error, tid=tab_id: self._finish_terminal_ai_run(tid, error),
+            on_shell_prompt=lambda tid=tab_id: self._handle_terminal_shell_prompt(tid),
         )
         terminal.grid(row=0, column=0, sticky="nsew")
         terminal.grid_remove()
@@ -1456,7 +1457,7 @@ class SAGEApp(ctk.CTk):
         if ai_name == "claude":
             claude_session_id = str(saved.get("session_id") or uuid.uuid4())
             resume_known = bool(saved.get("session_id"))
-            command = "sage run -- claude"
+            command = "sage run --pty -- claude"
             command = self._apply_model_to_command(command, "claude")
             command = self._apply_permission_to_command(command, "claude")
             if resume_known:
@@ -1474,7 +1475,7 @@ class SAGEApp(ctk.CTk):
 
         if ai_name == "codex":
             resume_known = bool(saved.get("resume_known"))
-            base = "sage run -- codex resume --last" if resume_known else "sage run -- codex"
+            base = "sage run --pty -- codex resume --last" if resume_known else "sage run --pty -- codex"
             command = f"{base} --no-alt-screen -C {self._ps_quote(project)}"
             model = self._get_selected_model("codex")
             if model:
@@ -1489,7 +1490,7 @@ class SAGEApp(ctk.CTk):
 
         if ai_name == "ollama":
             model = self._get_selected_model("ollama") or getattr(self, "_selected_ollama_model", "") or "qwen2.5-coder:7b"
-            return f"sage run -- ollama run {model}", {
+            return f"sage run --pty -- ollama run {model}", {
                 "mode": "interactive-terminal",
                 "resume_command": f"ollama run {model}",
                 "model": model,
@@ -2866,10 +2867,11 @@ class SAGEApp(ctk.CTk):
             command = re.sub(r"\s--allow-dangerously-skip-permissions\b", "", command)
             command = re.sub(r"\s--permission-mode\s+\S+", "", command)
             permission = {
-                "ask": "default",
                 "approve": "acceptEdits",
                 "full": "bypassPermissions",
-            }.get(mode, "default")
+            }.get(mode, "")
+            if not permission:
+                return command
             return command.replace("claude", f"claude --permission-mode {permission}", 1)
 
         if ai_name == "codex":
@@ -3228,6 +3230,29 @@ class SAGEApp(ctk.CTk):
         self._set_manual_active_agents(set())
         self.after(1500, self.update_metrics)
         self.after(100, lambda tid=tab_id: self._drain_queued_prompt(tid))
+
+    def _handle_terminal_shell_prompt(self, tab_id: int) -> None:
+        """Mark terminal AI disconnected when the shell prompt returns."""
+        tab = self.output_tabs.get(tab_id)
+        if not tab or not tab.get("terminal_ai_mode"):
+            return
+        tab["ai_connected"] = False
+        tab["ai_running"] = False
+        tab["terminal_ai_mode"] = False
+        if tab_id == self.active_output_tab_id:
+            self.ai_connected = False
+            self.ai_running = False
+            self.connect_btn.configure(text="Connect")
+            self.status_indicator.configure(text_color="red")
+            self.ai_selector.configure(state="readonly")
+            self._set_run_status("Terminal agent exited", "#ef4444")
+            try:
+                self.output_view.append_status_text(
+                    "\n[Disconnected] The AI process exited and PowerShell is back at the prompt. "
+                    "Click Connect before sending another chat prompt.\n"
+                )
+            except Exception:
+                log.debug("suppressed", exc_info=True)
 
     def _format_run_preamble(self, ai_name: str, command: str, terminal: bool = False) -> str:
         """Show AI, PTY, ML, and agent plan for the run."""

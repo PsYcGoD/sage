@@ -35,6 +35,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
         on_reply_to_selection: Optional[Callable[[str], None]] = None,
         on_ai_response_complete: Optional[Callable[[str], None]] = None,
         on_ai_stream_finished: Optional[Callable[[str | None], None]] = None,
+        on_shell_prompt: Optional[Callable[[], None]] = None,
         **kwargs,
     ):
         super().__init__(
@@ -51,6 +52,7 @@ class PowerShellTerminal(ctk.CTkTextbox):
         self.on_reply_to_selection = on_reply_to_selection
         self.on_ai_response_complete = on_ai_response_complete
         self.on_ai_stream_finished = on_ai_stream_finished
+        self.on_shell_prompt = on_shell_prompt
         self.pty = None
         self.reader_thread: threading.Thread | None = None
         self.output_queue: queue.Queue[str | None] = queue.Queue()
@@ -541,6 +543,11 @@ class PowerShellTerminal(ctk.CTkTextbox):
             return False
 
         if self._is_prompt_line(normalized):
+            if self.on_shell_prompt:
+                try:
+                    self.on_shell_prompt()
+                except Exception:
+                    log.debug("suppressed", exc_info=True)
             if self._capture_active:
                 self._finish_capture_after_append = True
             return True

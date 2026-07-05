@@ -68,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Evaluate policy and show what would run without executing the command.",
     )
+    run.add_argument(
+        "--pty",
+        action="store_true",
+        help="Run the command with inherited terminal stdin/stdout/stderr for interactive CLIs.",
+    )
     run.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --")
 
     predict_parser = sub.add_parser("predict", help="Predict whether a command is likely to fail.")
@@ -353,7 +358,13 @@ def main(argv: list[str] | None = None) -> int:
         command = list(args.command)
         if command and command[0] == "--":
             command = command[1:]
-        return run_command(command, predict=args.predict, policy_mode=args.policy_mode, dry_run=args.dry_run)
+        return run_command(
+            command,
+            predict=args.predict,
+            policy_mode=args.policy_mode,
+            dry_run=args.dry_run,
+            pty=args.pty,
+        )
 
     if args.command_name == "predict":
         command = list(args.command)

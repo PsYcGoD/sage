@@ -980,14 +980,14 @@ class SettingsPanel(ctk.CTkToplevel):
         note.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
 
     def _create_api_travel_section(self, parent):
-        """API-Travel — auto-select cheapest capable agent per message."""
+        """API-Travel — auto-select best available agent per message."""
         section = self._create_section(parent, "API-Travel", row=5)
 
         desc = ctk.CTkLabel(
             section,
             text=(
-                "API-Travel automatically routes each message to the cheapest available agent "
-                "(Ollama → Codex → Claude), sharing session memory across all. "
+                "API-Travel automatically routes each message to the best available agent, "
+                "sharing session memory across all connected AI tools. "
                 "Falls back silently to the selected AI if routing fails."
             ),
             font=ctk.CTkFont(size=11),
@@ -1001,7 +1001,7 @@ class SettingsPanel(ctk.CTkToplevel):
         enabled = getattr(self.parent_app, "_api_travel_enabled", True)
         self._api_travel_switch = ctk.CTkSwitch(
             section,
-            text="Enable API-Travel  (auto-select cheapest available agent)",
+            text="Enable API-Travel  (auto-select best available agent)",
             font=ctk.CTkFont(size=12),
             command=self._on_api_travel_toggle,
         )
@@ -1045,25 +1045,24 @@ class SettingsPanel(ctk.CTkToplevel):
             pass
 
     def _refresh_api_travel_status(self):
+        """Run in a background thread — schedules all widget updates on the main thread."""
         try:
             from sage.gui import api_travel
             available = api_travel.detect_available(force=True)
-            icons = {"ollama": "\U0001f7e2", "codex": "\U0001f7e2", "claude": "\U0001f7e2"}
-            all_names = ["ollama", "codex", "claude"]
-            labels = {"ollama": "Ollama (local)", "codex": "Codex CLI", "claude": "Claude API"}
-            parts = []
-            for name in all_names:
-                if name in available:
-                    parts.append(f"{icons[name]} {labels[name]}")
-                else:
-                    parts.append(f"⚫ {labels[name]}")
-            text = "Detected:   " + "    ·    ".join(parts)
+            if available:
+                parts = [f"\U0001f7e2 {name.capitalize()}" for name in available]
+                text = "Available:   " + "    ·    ".join(parts)
+            else:
+                text = "⚫ No agents detected — check that at least one AI tool is running"
             color = "gray65"
         except Exception as exc:
-            text = f"Could not detect agents: {exc}"
+            text = f"Detection failed: {exc}"
             color = "#fca5a5"
+        # Must update Tkinter widgets on the main thread
         try:
-            self._api_travel_status.configure(text=text, text_color=color)
+            self.after(0, lambda t=text, c=color: self._api_travel_status.configure(
+                text=t, text_color=c
+            ))
         except Exception:
             pass
 

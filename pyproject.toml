@@ -17,6 +17,7 @@ dependencies = [
   "scikit-learn>=1.3",
   "tiktoken>=0.7",
 ]
+
 license = { text = "MIT" }
 authors = [
   { name = "PsYcGoD" }
@@ -31,11 +32,38 @@ classifiers = [
   "Topic :: Utilities"
 ]
 
+[project.optional-dependencies]
+gui = [
+  "customtkinter>=5.2",
+  "Pillow>=10",
+  "psutil>=5.9",
+]
+ai = [
+  "anthropic>=0.40",
+  "boto3>=1.34",
+  "google-generativeai>=0.8",
+  "openai>=1.50",
+  "requests>=2.31",
+]
+all = [
+  "anthropic>=0.40",
+  "boto3>=1.34",
+  "customtkinter>=5.2",
+  "google-generativeai>=0.8",
+  "openai>=1.50",
+  "Pillow>=10",
+  "psutil>=5.9",
+  "requests>=2.31",
+]
+
 [project.scripts]
 sage = "sage.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"sage.gui" = ["assets/*"]
 
 
 [tool.pytest.ini_options]

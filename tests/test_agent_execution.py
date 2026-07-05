@@ -1,6 +1,9 @@
 """Tests for run-linked agent task execution."""
 
+import asyncio
+
 from sage.agents import execute_agents_for_run, get_agent_runs_for_run, get_agent_tasks_for_run
+from sage.agents.specialized.code_agent import CodeAgent
 from sage.runner import run_command
 from sage.store import connect, save_run
 
@@ -29,6 +32,7 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     tasks = get_agent_tasks_for_run(run_id)
 
     assert results
+    assert len(results) == 24
     assert len(tasks) == len(results)
     assert {task["run_id"] for task in tasks} == {run_id}
     assert "test" in {task["agent_type"] for task in tasks}
@@ -38,6 +42,8 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     assert all("confidence" in task["result"] for task in tasks)
     assert all(task["result"].get("actions") for task in tasks)
     assert all(task["result"].get("token_strategy") for task in tasks)
+    assert all(task["result"].get("skill_profile") for task in tasks)
+    assert all(task["result"].get("agent_brief") for task in tasks)
     assert all(task["result"].get("contract_valid") for task in tasks)
     assert all("evidence" in task["result"] for task in tasks)
 
@@ -47,6 +53,18 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     assert all(row["duration_ms"] >= 0 for row in agent_runs)
     assert all(row["output_artifact_path"] for row in agent_runs)
     assert tasks == sorted(tasks, key=lambda item: item["rank_score"], reverse=True)
+
+
+def test_agent_task_queue_rebinds_for_new_event_loop():
+    agent = CodeAgent("code-agent-main")
+
+    async def queue_id():
+        return id(agent.ensure_task_queue())
+
+    first_queue_id = asyncio.run(queue_id())
+    second_queue_id = asyncio.run(queue_id())
+
+    assert first_queue_id != second_queue_id
 
 
 def test_execute_agents_for_run_exercises_expanded_agents(monkeypatch, tmp_path):

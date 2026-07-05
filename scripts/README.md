@@ -230,8 +230,8 @@ wrangler tail
 
 ## 📚 Documentation
 
-- `GITHUB_OAUTH_SETUP.md` - Manual setup instructions
-- `SECURITY_HARDENING.md` - Security implementation details
+- `README.md` - User install and usage guide
+- `AGENTS.md` - Repository command-routing and commit checklist
 - `cloudflare/sage-api/DEPLOYMENT.md` - Cloudflare deployment guide
 
 ---

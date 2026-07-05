@@ -4,6 +4,7 @@ from .base_agent import BaseAgent, AgentRecord
 from .orchestrator import Orchestrator
 from .registry import (
     DEFAULT_AGENT_SPECS,
+    agent_skill_profile,
     ensure_default_agents,
     list_default_agent_specs,
     select_agents_for_command,
@@ -24,6 +25,7 @@ __all__ = [
     "AgentRecord",
     "Orchestrator",
     "DEFAULT_AGENT_SPECS",
+    "agent_skill_profile",
     "ensure_default_agents",
     "list_default_agent_specs",
     "select_agents_for_command",
@@ -74,25 +76,29 @@ def get_agent_status():
     from ..store import connect
 
     ensure_default_agents()
-    
+
     with connect() as conn:
         result = conn.execute(
             """
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status IN ('busy', 'running', 'waiting_for_tool') THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN status = 'idle' THEN 1 ELSE 0 END) as idle
-            FROM agents
+            SELECT COUNT(DISTINCT agent_id) as active
+            FROM agent_runs
+            WHERE status IN ('running', 'waiting_for_tool')
+               OR (
+                   status = 'queued'
+                   AND datetime(created_at) >= datetime('now', '-5 minutes')
+               )
             """
         ).fetchone()
-        
+
         tasks = conn.execute(
             "SELECT COUNT(*) as count FROM agent_tasks"
         ).fetchone()
-        
+
+        total = len(DEFAULT_AGENT_SPECS)
+        active = result["active"] or 0
         return {
-            "active": result["active"] or 0,
-            "idle": result["idle"] or 0,
-            "total": result["total"] or 0,
+            "active": active,
+            "idle": max(0, total - active),
+            "total": total,
             "total_tasks": tasks["count"] or 0,
         }

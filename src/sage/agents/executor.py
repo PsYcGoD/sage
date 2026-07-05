@@ -16,7 +16,7 @@ from typing import Any
 
 from ..security import redact_text
 from ..store import connect, data_dir
-from .registry import AgentSpec, ensure_default_agents, select_agents_for_command
+from .registry import AgentSpec, agent_skill_profile, ensure_default_agents, select_agents_for_command
 
 AGENT_STATES = {"queued", "running", "waiting_for_tool", "completed", "failed", "cancelled"}
 RESULT_CONTRACT_KEYS = {
@@ -39,10 +39,10 @@ class AgentPlanner:
         output: str,
         exit_code: int,
         summary: str,
-        limit: int = 4,
+        limit: int = 24,
     ) -> list[AgentSpec]:
         text = f"{command}\n{summary}\n{output}".lower()
-        specs = select_agents_for_command(text, limit=12)
+        specs = select_agents_for_command(text, limit=limit)
         scored: list[tuple[float, AgentSpec]] = []
         ml_failed = _ml_predicts_failure(command)
 
@@ -73,7 +73,7 @@ def execute_agents_for_run(
     stderr: str,
     exit_code: int,
     summary: str,
-    limit: int = 4,
+    limit: int = 24,
 ) -> list[dict[str, Any]]:
     """Queue selected agents, process the active worker queue, and return ranked results."""
     ensure_default_agents()
@@ -87,8 +87,16 @@ def execute_agents_for_run(
         exit_code=exit_code,
         summary=summary,
     )
-    run_agent_worker_once(run_id=run_id, max_workers=min(4, max(1, len(specs))))
+    worker_count = _agent_worker_count(len(specs))
+    run_agent_worker_once(run_id=run_id, max_workers=worker_count, limit=max(len(specs), 16))
     return [task["result"] | {"task_id": task["id"]} for task in get_agent_tasks_for_run(run_id)]
+
+
+def _agent_worker_count(agent_count: int) -> int:
+    configured = os.environ.get("SAGE_AGENT_WORKERS", "").strip()
+    if configured.isdigit():
+        return max(1, min(24, int(configured)))
+    return max(1, min(24, agent_count))
 
 
 def enqueue_agent_runs(
@@ -422,6 +430,8 @@ def _run_agent_analysis(
         "severity": _severity(exit_code, output, summary),
         "confidence": _confidence(spec, command, output, summary),
         "token_strategy": _token_strategy(output),
+        "skill_profile": list(agent_skill_profile(spec.type)),
+        "agent_brief": _agent_brief(spec.type),
     }
     analyzers = {
         "debug": _debug_result,
@@ -463,6 +473,36 @@ def _common_signals(command: str, output: str, summary: str) -> dict[str, Any]:
         "summary_lines": len(summary.splitlines()) if summary else 0,
         "files": _extract_file_paths(command, output)[:12],
     }
+
+
+def _agent_brief(agent_type: str) -> str:
+    briefs = {
+        "code": "Checks implementation shape, local patterns, and scoped edit risk.",
+        "debug": "Finds the first useful failure signal and the smallest reproduction path.",
+        "test": "Looks for regression coverage, failing tests, and narrow verification commands.",
+        "research": "Flags when current or primary-source evidence is needed.",
+        "security": "Checks secrets, auth, permissions, and dependency risk.",
+        "performance": "Looks for latency, timeout, and measurement signals before optimization.",
+        "docs": "Keeps user-facing claims tied to verified evidence.",
+        "dependency": "Diagnoses package manager, environment, and missing-module failures.",
+        "workflow": "Checks CI, automation, and YAML/pipeline behavior.",
+        "database": "Protects schema compatibility, migrations, and persisted data.",
+        "frontend": "Reviews UI polish, layout, accessibility, and animation craft.",
+        "release": "Checks packaging, versioning, and release readiness.",
+        "architecture": "Checks module boundaries, contracts, and system-level tradeoffs.",
+        "review": "Looks for behavioral regressions and missing tests.",
+        "refactor": "Keeps cleanup behavior-preserving and separately verifiable.",
+        "devops": "Checks runtime, ports, services, and deployment assumptions.",
+        "api": "Protects request/response contracts and client compatibility.",
+        "ml": "Checks model features, thresholds, and validation behavior.",
+        "memory": "Checks session persistence, context reuse, and token waste.",
+        "telemetry": "Verifies proof counters, metrics, and sync behavior stay safe.",
+        "privacy": "Checks redaction, retention, local-only handling, and PII risk.",
+        "redteam": "Models plausible abuse paths and attacker-controlled inputs.",
+        "blueteam": "Checks mitigations, hardening, and control effectiveness.",
+        "auditor": "Ranks evidence, severity, assumptions, and next actions.",
+    }
+    return briefs.get(agent_type, "Performs specialist analysis for this run.")
 
 
 def _debug_result(command: str, output: str, exit_code: int, summary: str) -> dict[str, Any]:

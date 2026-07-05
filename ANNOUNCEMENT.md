@@ -10,13 +10,31 @@ After 7 months of intensive development (December 2025 - July 2026), we're thril
 
 ## ✨ What Makes SAGE V2.0 Revolutionary?
 
-### 💰 **99.3% Token Compression - Save Your Context & Costs**
-Never run out of context with AI coding assistants again! SAGE compresses command outputs by up to 99.3%, letting you run **100x more commands** before hitting limits.
+### ⚡ **Two Ways to Use SAGE**
 
-- **Token Savings**: 50-200 tokens per command saved
-- **Cost Savings**: $0.0004+ per command (at $3/million tokens)
-- **Context Extension**: Work 100x longer with Claude, GPT, or any AI assistant
-- **Real Results**: 149 tokens compressed to just 1 token (99.3% compression verified!)
+Use the built-in GUI when you want the full command center:
+
+```bash
+sage gui
+```
+
+Or install once in editable mode and let AI coding agents route shell commands through SAGE:
+
+```bash
+pip install -e .
+```
+
+From there, commands run through `sage run --`, terminal output is compressed before it burns context, raw logs stay local, and every run can trigger the 24-agent specialist layer.
+
+**Want early access? Comment or DM for early access.**
+
+### 🚀 **10x Longer AI Sessions — Stop Running Out of Context**
+The real pain with AI coding agents isn't cost per command — it's that they forget, compact, and degrade after a few dozen noisy commands. SAGE compresses terminal output **85-95% on typical output (~99% peak on repetitive logs)** so your agent keeps its thread far longer.
+
+- **Typical compression**: 85-95% on real command output (measured with tiktoken, not estimated)
+- **Peak**: ~99% on highly repetitive logs (149 tokens → 1)
+- **What it buys you**: many more commands per session before context limits hit
+- **Live proof**: 18.7M+ tokens saved across 2,900+ tracked runs
 
 ### 🖥️ **Beautiful Desktop GUI - Zero Configuration Required**
 Launch the sleek desktop interface with one command:
@@ -45,14 +63,14 @@ Simply install SAGE with:
 pip install -e .
 ```
 
-**That's it!** 🎊 All AI agents (Claude Code, GPT, Codex, etc.) will **automatically** use the SAGE wrapper and start saving tokens immediately. No manual configuration, no extra setup - just install and watch your productivity soar!
+**That's it!** 🎊 AI coding agents can follow the installed SAGE instructions, route shell commands through `sage run --`, and start saving tokens immediately. No extra dashboard setup, no repeated manual wrapper reminders - just install and keep working.
 
 **How It Works:**
 1. Install SAGE: `pip install -e .`
-2. AI agents detect SAGE automatically
-3. All commands route through `sage run --`
+2. AI agents receive the SAGE routing instructions
+3. Shell commands route through `sage run --`
 4. Token compression happens transparently
-5. You get 99.3% token savings without changing your workflow! 💪
+5. You get 85-95% token savings on noisy output without changing your workflow! 💪
 
 ### 🔧 **Auto-Fix Engine - Fix Errors Automatically**
 Let AI fix errors before you even see them:
@@ -67,13 +85,14 @@ sage fix --apply --confidence 0.9
 - Historical pattern learning from past fixes
 - Confidence scoring (0.0-1.0) for safety
 
-### 🤖 **Multi-Agent Orchestration**
-Coordinate multiple AI agents working in parallel:
+### 🤖 **Real 24-Agent Orchestration**
+Every SAGE run can fan out across the full specialist roster:
 
-- **24 built-in agent types** (CodeAgent, TestAgent, DebugAgent, SecurityAgent, etc.)
-- Async task queue with priority scheduling
-- Inter-agent communication protocol
-- Health monitoring and automatic recovery
+- **24 built-in agent types**: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, and auditor
+- **Real fan-out by default**: SAGE stores each agent task instead of showing fake decorative cards
+- **Specialist skill profiles**: frontend/design covers taste, layout, accessibility, animation craft, and Motion/Framer Motion patterns; security covers auth, secrets, and permissions; test covers regression risk; auditor ranks evidence
+- **Visible proof**: the GUI and CLI show queued/running/latest-run progress, completed task counts, and agent output
+- **Configurable workers**: use `SAGE_AGENT_WORKERS` if you want to tune concurrency
 
 ### 📊 **Live Public Proof Dashboard**
 See the real-time savings in action:
@@ -86,6 +105,14 @@ Track:
 - Compression rates and success metrics
 - ML prediction accuracy
 
+Latest verified snapshot:
+- Commands processed: 2,905
+- Tokens processed: 20,398,361
+- Tokens compressed: 1,616,965
+- Tokens saved: 18,781,396
+- Compression rate: 92.07%
+- Success rate: 92.43%
+
 **Privacy-first**: Raw commands and outputs stay local. Only aggregate stats are shared publicly.
 
 ### 🔌 **MCP Integration - Native Claude Code Support**
@@ -95,13 +122,13 @@ Works seamlessly with Claude Code and other MCP-compatible tools:
 sage mcp install
 ```
 
-**6 MCP Tools Available:**
-- `sage_run_command` - Execute commands with compression
-- `sage_explain_error` - Get detailed error analysis
-- `sage_suggest_fix` - AI-powered fix suggestions
-- `sage_spawn_agent` - Create specialized agents
-- `sage_run_workflow` - Execute automation pipelines
-- `sage_get_history` - Retrieve command history
+**14 MCP Tools Available** (read/search/history/workflow by default; command execution is opt-in via `SAGE_MCP_ENABLE_COMMANDS=1`):
+- `sage_read_file`, `sage_grep`, `sage_glob`, `sage_tree` - compressed read/search
+- `sage_write_file`, `sage_edit_file` - snapshotted writes/edits
+- `sage_explain_error`, `sage_suggest_fix` - error analysis & fixes
+- `sage_spawn_agent`, `sage_run_workflow` - agents & pipelines
+- `sage_get_history`, `sage_show_raw`, `sage_call` - history & recovery
+- `sage_run_command` - execute commands with compression (opt-in only)
 
 ---
 
@@ -153,21 +180,17 @@ After `pip install -e .`, all AI coding assistants automatically use SAGE! Just 
 
 ## 📊 Proven Results
 
-### Real-World Metrics
+### Real-World Metrics (live aggregate proof, not marketing)
 | Metric | Value |
 |--------|-------|
-| **Average Compression** | 95-99% |
-| **Peak Compression** | 99.3% (verified) |
-| **Commands Processed** | 1000+ (growing daily) |
-| **Token Savings** | Millions saved |
-| **Auto-Fix Success** | 88-95% depending on error type |
-| **Active Users** | Growing community |
+| **Typical Compression** | 85-95% on real command output |
+| **Peak Compression** | ~99% on highly repetitive logs |
+| **Commands Processed** | 2,905 tracked runs |
+| **Token Savings** | 18,781,396 tokens saved (aggregate) |
+| **Success Rate** | 92.4% of tracked runs |
+| **Measurement** | tiktoken (`cl100k_base`) |
 
-### Success Stories
-- **"SAGE extended my Claude Code session 10x longer"** - Beta Tester
-- **"Auto-fix saved me 30 minutes on a dependency error"** - Developer
-- **"The GUI makes debugging a pleasure"** - Early Adopter
-- **"99.3% compression is not a typo - I verified it myself!"** - Skeptical Engineer
+All figures above come from the live proof dashboard and `sage context report` — reproducible on your own machine, not testimonials.
 
 ---
 
@@ -175,12 +198,12 @@ After `pip install -e .`, all AI coding assistants automatically use SAGE! Just 
 
 ### For Individual Developers 👨‍💻
 - ⚡ **Faster debugging** - Auto-fix saves 10-30 minutes per error
-- 💰 **Lower costs** - 99.3% compression = huge token savings
+- 💰 **Lower costs** - 85-95% compression = real token savings
 - 🧠 **Learn patterns** - Historical fixes teach you best practices
 - 🎯 **Stay focused** - Let SAGE handle the repetitive stuff
 
 ### For AI Assistant Users 🤖
-- 🚀 **100x longer sessions** - Never hit context limits again
+- 🚀 **Much longer sessions** - Compress noisy output, hit context limits far later
 - 🔄 **Automatic integration** - Just install, no configuration
 - 📈 **Better suggestions** - Historical data improves AI accuracy
 - 💪 **Proactive fixes** - Errors resolved before you notice
@@ -213,7 +236,7 @@ The beautiful, modern GUI provides:
 - Responsive design for any screen size
 
 ### 🧠 ML-Powered Intelligence
-- **Failure prediction** - Predict errors before execution
+- **Failure risk hints** - Experimental heuristic + ML risk score (honest temporal AUC ≈ 0.58; a hint, not a verdict)
 - **Confidence scoring** - Know how reliable each fix is
 - **Pattern learning** - Gets smarter with every command
 - **Heuristic analysis** - 13-feature risk assessment
@@ -242,7 +265,7 @@ steps:
 ## 📦 What's Included
 
 ### Core Components
-- ✅ **Context Management** - 99.3% compression engine
+- ✅ **Context Management** - 85-95% typical compression engine
 - ✅ **Auto-Fix Engine** - ML-powered error resolution
 - ✅ **Multi-Agent System** - 24 built-in agent types
 - ✅ **Workflow Automation** - YAML-based pipelines
@@ -318,10 +341,10 @@ sage run -- python your_script.py
 ## 🎓 Learn More
 
 ### Resources
-- 📖 [Complete Documentation](SAGE_V2_COMPLETE.md) (10,000+ words)
+- 📖 [Agent Architecture](docs/AGENT_LAYER_IMPLEMENTATION.md)
 - 📚 [README.md](README.md) - Quick reference
 - 🏗️ [Architecture Guide](docs/AGENT_LAYER_IMPLEMENTATION.md)
-- 🤝 [Contributing Guidelines](CONTRIBUTING.md)
+- 🤝 Contributing guidelines are in the README
 
 ### Community
 - ⭐ Star the repository
@@ -369,11 +392,13 @@ sage gui
 
 **Made with 🧠 by developers, for developers.**
 
-*99.3% token compression | Zero configuration | Production ready | Privacy first*
+*85-95% typical token compression | Zero configuration | Local-first privacy*
+
+**Early access:** comment or DM and I will help you try the GUI, editable install, and 24-agent fan-out.
 
 ---
 
-**✨ By PsYcGoD AI & ML - Building the Future of AI-Powered Development ✨**
+**✨ By PsYc+GoD AI & ML - Building the Future of AI-Powered Development ✨**
 
 ---
 

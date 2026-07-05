@@ -89,6 +89,27 @@ def classify_command(command: str) -> CommandClass:
     return CommandClass("run", head_base)
 
 
+# Tools whose exit code 1 means "no result", not "failure".
+# grep/rg/findstr/Select-String: 1 = no matches (2+ = real error).
+# diff/cmp: 1 = files differ (2+ = real error).
+_EXIT1_IS_NO_MATCH = {"grep", "rg", "findstr", "select-string", "egrep", "fgrep", "diff", "cmp"}
+
+
+def label_failure(command: str, exit_code: int) -> int:
+    """Family-aware failure label: 1 = real failure, 0 = success.
+
+    Plain ``exit_code != 0`` mislabels search tools where exit 1 only means
+    "no matches found" — that is a successful search, not a failure. Training
+    on those labels buries the real failure signal in noise.
+    """
+    code = int(exit_code)
+    if code == 0:
+        return 0
+    if code == 1 and classify_command(command).family in _EXIT1_IS_NO_MATCH:
+        return 0
+    return 1
+
+
 def workspace_hash(path: str, salt: str = "") -> str:
     """Anonymized repo/project identity: sha256(salt + normalized path)."""
     normalized = str(path or "").strip().lower().replace("\\", "/").rstrip("/")

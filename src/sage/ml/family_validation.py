@@ -24,9 +24,11 @@ FEATURE_VERSION = 2
 REPORT_VERSION = "family-ml-validation-v1"
 
 
-def label_run(exit_code: int) -> int:
-    """Single labeling rule: non-zero exit means failure."""
-    return 1 if int(exit_code) != 0 else 0
+def label_run(exit_code: int, command: str = "") -> int:
+    """Single labeling rule: family-aware real failure."""
+    from ..classify import label_failure
+
+    return label_failure(command, exit_code)
 
 
 def load_real_history() -> list[dict[str, Any]]:
@@ -42,7 +44,7 @@ def load_real_history() -> list[dict[str, Any]]:
     samples = [
         {
             "command": str(row["command"]),
-            "label": label_run(row["exit_code"]),
+            "label": label_run(row["exit_code"], str(row["command"])),
             "created_at": str(row["created_at"] or ""),
             "provenance": provenance,
         }
@@ -126,20 +128,15 @@ def validate_family_models(test_fraction: float = 0.25) -> dict[str, Any]:
         if len(test) < 5 or len(set(item["label"] for item in test)) < 2:
             continue
 
-        # Try loading family-specific model
-        model_path = family_model.models_dir / f"{family}.joblib"
-        if not model_path.exists():
+        train_labels = [item["label"] for item in train]
+        test_labels = [item["label"] for item in test]
+        if len(set(train_labels)) < 2:
             continue
 
-        import joblib
-        try:
-            package = joblib.load(model_path)
-            if package.get("version") != MODEL_VERSION:
-                continue
-        except Exception:
-            continue
-
-        # Predict on test set
+        # Leak-free: retrain a fresh model on the train slice only, so the
+        # scored model has never seen the test rows. (Previously this loaded
+        # the deployed model, which was trained on the full history including
+        # the test tail — those numbers were contaminated.)
         from .history_features import build_expanding_rows
         rows, _ = build_expanding_rows(
             [(item["command"], item["label"]) for item in fam_samples],
@@ -149,11 +146,16 @@ def validate_family_models(test_fraction: float = 0.25) -> dict[str, Any]:
         import pandas as pd
         feature_names = family_model._feature_names()
         frame = pd.DataFrame(rows)[feature_names]
+        train_frame = frame.iloc[:split_index]
         test_frame = frame.iloc[split_index:]
-        test_labels = [item["label"] for item in test]
 
-        model = package["model"]
-        threshold = package.get("threshold", 0.5)
+        try:
+            threshold = family_model._holdout_threshold(train_frame, train_labels)
+            model = family_model._build_family_model(len(train_labels))
+            model.fit(train_frame, pd.Series(train_labels, name="failed"))
+        except Exception:
+            continue
+
         probabilities = model.predict_proba(test_frame)[:, 1]
         predictions = [1 if p >= threshold else 0 for p in probabilities]
 

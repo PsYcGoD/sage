@@ -15,6 +15,33 @@ def test_schema_migration_ledger_created(tmp_path, monkeypatch):
     assert rows[0]["version"] == "0001_current_schema"
 
 
+def test_empty_db_recreated_after_schema_io_error(tmp_path, monkeypatch):
+    import sqlite3
+    import sage.store as store
+
+    monkeypatch.setattr(store, "data_dir", lambda: tmp_path)
+    store._SCHEMA_READY.clear()
+    (tmp_path / "sage.db").write_bytes(b"")
+
+    real_ensure_schema = store.ensure_schema
+    calls = {"count": 0}
+
+    def flaky_ensure_schema(conn):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise sqlite3.OperationalError("disk I/O error")
+        return real_ensure_schema(conn)
+
+    monkeypatch.setattr(store, "ensure_schema", flaky_ensure_schema)
+
+    with connect() as conn:
+        rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+
+    assert calls["count"] == 2
+    assert rows
+    assert list(tmp_path.glob("sage.db.broken-*"))
+
+
 def test_db_status_reports_integrity_and_migrations(tmp_path, monkeypatch, capsys):
     import sage.store as store
 

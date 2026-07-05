@@ -1,4 +1,5 @@
-﻿from __future__ import annotations
+from __future__ import annotations
+import logging
 
 import argparse
 import hashlib
@@ -15,6 +16,7 @@ from .store import connect, db_path, latest_run, recent_runs
 from .suggestions import suggest_next_steps
 from .autofix import AutoFixEngine
 
+log = logging.getLogger(__name__)
 
 ASSISTANT_INSTRUCTIONS = """# S.A.G.E Instructions
 
@@ -33,15 +35,13 @@ After a failed command, run `sage explain --failed` and `sage suggest --failed` 
 S.A.G.E stores command summaries locally and helps keep AI context small.
 """
 
-
 def configure_stdio() -> None:
     """Use UTF-8 for SAGE CLI output on Windows terminals."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
-            pass
-
+            log.debug("suppressed", exc_info=True)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -320,7 +320,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
-
 def _add_login_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--display-name", default="", help="Public/profile display name.")
     parser.add_argument("--username", default="", help="Public username or handle.")
@@ -329,7 +328,6 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--scope", default="personal", help="API key scope label.")
     parser.add_argument("--endpoint", default="", help="SAGE API base URL. Defaults to sage.api.marketingstudios.in.")
     parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
-
 
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
@@ -468,7 +466,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.print_help()
     return 2
 
-
 def explain(only_failed: bool = False) -> int:
     record = latest_run(only_failures=only_failed)
     if record is None:
@@ -487,7 +484,6 @@ def explain(only_failed: bool = False) -> int:
     print(record.summary)
     return 0
 
-
 def suggest(only_failed: bool = False) -> int:
     record = latest_run(only_failures=only_failed)
     if record is not None:
@@ -495,7 +491,6 @@ def suggest(only_failed: bool = False) -> int:
         print()
     print(suggest_next_steps(record))
     return 0
-
 
 def history(limit: int, kind: str | None = None) -> int:
     if kind:
@@ -526,7 +521,6 @@ def history(limit: int, kind: str | None = None) -> int:
         print(f"#{record.id} [{mark}] exit={record.exit_code} {record.command}")
     return 0
 
-
 def _split_remainder_flags(remainder: list[str], flag_spec: dict[str, bool]) -> tuple[dict[str, str | bool], list[str]]:
     """Parse flags out of a REMAINDER arg list (supports flags after `--`).
 
@@ -554,7 +548,6 @@ def _split_remainder_flags(remainder: list[str], flag_spec: dict[str, bool]) -> 
             positionals.append(token)
             index += 1
     return flags, positionals
-
 
 def read_command(args) -> int:
     from .reader import DEFAULT_MAX_TOKENS, read_file, save_read_run
@@ -591,7 +584,6 @@ def read_command(args) -> int:
         f"tokens {result.original_tokens} -> {result.shown_tokens} (saved {result.saved_tokens})"
     )
     return 0
-
 
 def grep_command(args) -> int:
     from .searcher import render, save_grep_run, search
@@ -638,7 +630,6 @@ def grep_command(args) -> int:
     )
     return result.exit_code
 
-
 def call_command(args) -> int:
     command = list(args.command)
     if command and command[0] == "--":
@@ -671,7 +662,6 @@ def call_command(args) -> int:
             if args.agent or args.task_id:
                 print(f"[sage] call linked: agent={args.agent or 'n/a'} task_id={args.task_id or 'n/a'}")
     return exit_code
-
 
 def show_command(args) -> int:
     from .artifacts import load_raw_output
@@ -719,7 +709,6 @@ def show_command(args) -> int:
     print(row["summary"])
     return 0
 
-
 def artifacts_command(args) -> int:
     from .artifacts import artifacts_dir, prune_artifacts
 
@@ -737,7 +726,6 @@ def artifacts_command(args) -> int:
     if not args.apply and stats["pruned"]:
         print("Re-run with --apply to delete.")
     return 0
-
 
 def write_command(args) -> int:
     from .fileops import save_fileop_run, write_file
@@ -778,7 +766,6 @@ def write_command(args) -> int:
     )
     print(f"[sage] write run #{run_id}")
     return 0 if result.ok else 1
-
 
 def edit_command(args) -> int:
     from .fileops import edit_file, save_fileop_run
@@ -828,7 +815,6 @@ def edit_command(args) -> int:
     print(f"[sage] edit run #{run_id}")
     return 0
 
-
 def restore_file_command(args) -> int:
     from .fileops import restore_snapshot, save_fileop_run
 
@@ -843,7 +829,6 @@ def restore_file_command(args) -> int:
         family="restore",
     )
     return 0 if ok else 1
-
 
 def glob_command(args) -> int:
     from .context.tokens import count_tokens
@@ -862,7 +847,6 @@ def glob_command(args) -> int:
     print(f"\n[sage] glob run #{run_id} found={result.total_found} shown={len(result.files)}")
     return 0 if not result.error else 2
 
-
 def tree_command(args) -> int:
     from .context.tokens import count_tokens
     from .fileops import save_fileop_run, tree_view
@@ -879,7 +863,6 @@ def tree_command(args) -> int:
     )
     print(f"\n[sage] tree run #{run_id}")
     return 0 if ok else 2
-
 
 def db_command(args) -> int:
     """Database storage, backup, and migration tools."""
@@ -947,7 +930,6 @@ def db_command(args) -> int:
         return 0
 
     return 1
-
 
 def telemetry_command(args) -> int:
     from . import telemetry
@@ -1040,7 +1022,6 @@ def telemetry_command(args) -> int:
 
     return 1
 
-
 def account_command(args) -> int:
     from . import telemetry
 
@@ -1092,7 +1073,6 @@ def account_command(args) -> int:
 
     return 1
 
-
 def api_command(args) -> int:
     from . import telemetry
 
@@ -1122,7 +1102,6 @@ def api_command(args) -> int:
     print(f"Queue: {status['queue']}")
     return 0
 
-
 def api_visitors_command() -> int:
     from . import telemetry
 
@@ -1150,13 +1129,11 @@ def api_visitors_command() -> int:
             print(f"  {row.get('day')}: {row.get('unique_visitors', 0)} visitors, {row.get('page_views', 0)} views")
     return 0
 
-
 def login_command(args) -> int:
     print("SAGE login now uses GitHub OAuth.")
     if not hasattr(args, "expiry_days"):
         args.expiry_days = 30
     return connect_command(args)
-
 
 def _resolve_expiry_days(args) -> int:
     selected = getattr(args, "expiry_days", None)
@@ -1172,7 +1149,6 @@ def _resolve_expiry_days(args) -> int:
     choice = input("Expiration [1/2/3, default 1]: ").strip()
     return {"1": 30, "2": 60, "3": 90, "30": 30, "60": 60, "90": 90}.get(choice, 30)
 
-
 def whoami_command() -> int:
     from . import telemetry
 
@@ -1182,14 +1158,12 @@ def whoami_command() -> int:
         print(f"{key}: {value}")
     return 0
 
-
 def logout_command() -> int:
     from . import telemetry
 
     telemetry.api_logout()
     print("SAGE API disconnected. Telemetry reset to local-only.")
     return 0
-
 
 def connect_command(args) -> int:
     """🔒 Connect SAGE with GitHub OAuth (primary authentication method)."""
@@ -1295,7 +1269,6 @@ def connect_command(args) -> int:
         print("  3. Try again: sage connect")
         return 1
 
-
 def rotate_key_command(args) -> int:
     """Rotate API key through GitHub OAuth."""
     from . import telemetry
@@ -1364,7 +1337,6 @@ def rotate_key_command(args) -> int:
     print(f"Old key revoked by server: {old_status.get('key_id') if old_status.get('connected') else 'N/A'}")
     return 0
 
-
 def predict_command(command: list[str]) -> int:
     """Predict command failure risk without executing it."""
     if not command:
@@ -1382,7 +1354,6 @@ def predict_command(command: list[str]) -> int:
     print(f"Confidence: {confidence:.0%}")
     print(f"Reason: {reason}")
     return 0
-
 
 def ml_command(args) -> int:
     """Train and inspect ML models."""
@@ -1557,7 +1528,6 @@ def ml_command(args) -> int:
 
     return 1
 
-
 def doctor() -> int:
     from .security import load_policy, policy_path
 
@@ -1591,7 +1561,6 @@ def doctor() -> int:
     except Exception:
         print("tiktoken: not found")
     return 0
-
 
 def stats_command() -> int:
     """Show a compact SAGE operating summary."""
@@ -1629,7 +1598,6 @@ def stats_command() -> int:
         print(f"ML accuracy: {metrics.get('accuracy', 0):.3f}")
         print(f"ML ROC AUC: {metrics.get('roc_auc', 0):.3f}")
     return 0
-
 
 def fix_command(apply: bool = False, min_confidence: float = 0.8) -> int:
     """Auto-fix the most recent error."""
@@ -1673,7 +1641,6 @@ def fix_command(apply: bool = False, min_confidence: float = 0.8) -> int:
         print("\nRun 'sage fix --apply' to apply this fix.")
 
     return 0 if result.success else 1
-
 
 def agents_command(args) -> int:
     """Manage AI agents."""
@@ -1825,7 +1792,6 @@ def agents_command(args) -> int:
 
     return 1
 
-
 def privacy_command(args) -> int:
     """Privacy, redaction, retention, and audit commands."""
     from .security import load_policy, policy_path
@@ -1916,7 +1882,6 @@ def privacy_command(args) -> int:
 
     return 1
 
-
 def redact_command(*, limit: int = 0, apply: bool = False) -> int:
     """Scan stored runs and optionally redact legacy output."""
     from .security import load_policy, redact_text
@@ -1960,7 +1925,6 @@ def redact_command(*, limit: int = 0, apply: bool = False) -> int:
     else:
         print("Dry run only. Run with --apply to write changes.")
     return 0
-
 
 def workflow_command(args) -> int:
     """Manage workflows."""
@@ -2014,7 +1978,6 @@ def workflow_command(args) -> int:
 
     return 1
 
-
 def dashboard_command(args) -> int:
     """Manage dashboard."""
     from .dashboard import DashboardServer
@@ -2039,7 +2002,6 @@ def dashboard_command(args) -> int:
 
     return 1
 
-
 def mcp_command(args) -> int:
     """Manage MCP server."""
     import json
@@ -2059,7 +2021,10 @@ def mcp_command(args) -> int:
             "sage": {
                 "command": "python",
                 "args": ["-m", "sage.mcp.server"],
-                "description": "Smart Agent Guidance Engine"
+                "description": (
+                    "Smart Agent Guidance Engine. Local command execution is disabled by default; "
+                    "set SAGE_MCP_ENABLE_COMMANDS=1 only for trusted local MCP clients."
+                )
             }
         }
 
@@ -2082,7 +2047,6 @@ def mcp_command(args) -> int:
         return 0
 
     return 1
-
 
 def context_command(args) -> int:
     """Manage context and token usage."""
@@ -2150,7 +2114,6 @@ def context_command(args) -> int:
 
     return 1
 
-
 def _compression_report_payload() -> dict:
     from statistics import median
     from .context.tokens import is_real_tokenizer
@@ -2208,7 +2171,6 @@ def _compression_report_payload() -> dict:
         "top_noisy_commands": [dict(row) for row in noisy],
     }
 
-
 def context_report_command(*, format_name: str = "text", output: str = "") -> int:
     payload = _compression_report_payload()
     if format_name == "json":
@@ -2224,7 +2186,6 @@ def context_report_command(*, format_name: str = "text", output: str = "") -> in
     else:
         print(rendered)
     return 0
-
 
 def context_snapshot_command(*, month: str = "") -> int:
     from statistics import median
@@ -2273,7 +2234,6 @@ def context_snapshot_command(*, month: str = "") -> int:
     print(f"Snapshot saved for {month}: runs={len(rows)} saved={saved:,} median={median(ratios) if ratios else 0.0:.1f}%")
     return 0
 
-
 def context_benchmark_command(*, sizes: list[int], format_name: str = "text", output: str = "") -> int:
     from .context.benchmarks import run_benchmarks
     from .context.tokens import is_real_tokenizer
@@ -2318,7 +2278,6 @@ def context_benchmark_command(*, sizes: list[int], format_name: str = "text", ou
         print(rendered)
     return 0
 
-
 def _render_context_report_text(payload: dict) -> str:
     lines = [
         "SAGE context compression report",
@@ -2342,7 +2301,6 @@ def _render_context_report_text(payload: dict) -> str:
         command = str(row.get("command") or "")[:100]
         lines.append(f"- run #{row['run_id']} saved={int(row['saved_tokens'] or 0):,} strategy={row.get('strategy')}: {command}")
     return "\n".join(lines)
-
 
 def _render_context_report_md(payload: dict) -> str:
     lines = [
@@ -2371,14 +2329,12 @@ def _render_context_report_md(payload: dict) -> str:
         lines.append(f"- Run `#{row['run_id']}` saved `{int(row['saved_tokens'] or 0):,}` tokens with `{row.get('strategy')}`: `{command}`")
     return "\n".join(lines)
 
-
 def init_project() -> int:
     path = Path.cwd() / "SAGE.md"
     path.write_text(ASSISTANT_INSTRUCTIONS, encoding="utf-8")
     print(f"Created {path}")
     print("Tell local assistant or terminal agent: read SAGE.md before running terminal commands.")
     return 0
-
 
 def gui_command() -> int:
     """Launch SAGE Desktop GUI."""

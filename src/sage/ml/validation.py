@@ -31,9 +31,11 @@ FEATURE_VERSION = 2  # v2: adds leak-free expanding-window history features
 REPORT_VERSION = "ml-validation-v1"
 
 
-def label_run(exit_code: int) -> int:
-    """Single labeling rule used everywhere: non-zero exit means failure."""
-    return 1 if int(exit_code) != 0 else 0
+def label_run(exit_code: int, command: str = "") -> int:
+    """Single labeling rule used everywhere: family-aware real failure."""
+    from ..classify import label_failure
+
+    return label_failure(command, exit_code)
 
 
 def load_real_history() -> list[dict[str, Any]]:
@@ -49,7 +51,7 @@ def load_real_history() -> list[dict[str, Any]]:
     samples = [
         {
             "command": str(row["command"]),
-            "label": label_run(row["exit_code"]),
+            "label": label_run(row["exit_code"], str(row["command"])),
             "created_at": str(row["created_at"] or ""),
             "provenance": provenance,
         }

@@ -455,7 +455,7 @@ def sage_call(command: str, purpose: str = "unknown", agent: str = "mcp") -> dic
     from ..runner import run_command
     from ..store import connect, latest_run
 
-    # Inherit session_id from environment (set by GUI or parent AI process)
+    # Inherit session_id from environment (set by parent AI process)
     session_id = os.environ.get("SAGE_SESSION_ID", "")
     is_ai_session = 1 if session_id else 0
 

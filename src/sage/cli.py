@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
     call_parser.add_argument("--purpose", choices=["read", "search", "test", "build", "deploy", "audit", "unknown"], default="unknown")
     call_parser.add_argument("--agent", default="", help="Agent name making this call.")
     call_parser.add_argument("--task-id", type=int, default=0, help="Related agent task id.")
-    call_parser.add_argument("--caller", default="agent", choices=["cli", "gui", "mcp", "agent", "ci", "api", "workflow"])
+    call_parser.add_argument("--caller", default="agent", choices=["cli", "mcp", "agent", "ci", "api", "workflow"])
     call_parser.add_argument("--policy-mode", choices=["personal", "company"])
     call_parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --")
 
@@ -321,7 +321,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("doctor", help="Check local setup.")
     sub.add_parser("stats", help="Show SAGE token, ML, and agent statistics.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
-    sub.add_parser("gui", help="Launch SAGE Desktop GUI.")
+    sub.add_parser("gui", help="Show GUI availability status.")
 
     return parser
 
@@ -340,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Gate command execution behind API connection, while still allowing the
-    # first-run GUI and account/status commands needed to connect.
+    # first-run account/status commands needed to connect.
     ALLOWED_WITHOUT_API = ["connect", "login", "whoami", "logout", "doctor", "gui", "api", "db"]
 
     if args.command_name not in ALLOWED_WITHOUT_API:
@@ -350,8 +350,8 @@ def main(argv: list[str] | None = None) -> int:
             print("SAGE requires API connection to use this command.")
             print("\nConnect with GitHub (free, takes 30 seconds):")
             print("   sage connect")
-            print("\nOr open the GUI and connect from Settings:")
-            print("   sage gui")
+            print("\nThen bind SAGE instructions for local agents:")
+            print("   sage init")
             return 1
 
     if args.command_name == "run":
@@ -2348,12 +2348,12 @@ def init_project() -> int:
     return 0
 
 def gui_command() -> int:
-    """Launch SAGE Desktop GUI."""
-    try:
-        from .gui.app import main
-        main()
-        return 0
-    except ImportError as e:
-        print(f"Error: {e}")
-        print("Install GUI dependencies: pip install customtkinter pillow psutil")
-        return 1
+    """Show GUI availability status."""
+    print("SAGE GUI is in development and is not included in the public CLI repo yet.")
+    print("It will be released later with AI agents and ML workflows.")
+    print("\nFor now use:")
+    print("   sage connect")
+    print("   sage init")
+    print("   sage run -- <command>")
+    print("   sage context stats")
+    return 0

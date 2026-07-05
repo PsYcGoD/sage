@@ -28,7 +28,7 @@ DEFAULT_AGENT_SPECS: tuple[AgentSpec, ...] = (
     AgentSpec("research", "Research Agent", ("research", "compare", "summarize"), ("research", "find", "compare", "latest", "current", "source", "sources", "citation", "citations", "verify", "fact check", "look up", "market", "competitor", "paper", "study", "docs", "documentation", "release notes", "changelog", "pricing", "law", "regulation", "news", "evidence", "benchmark"), "Checks sources and flags stale/unsourced claims."),
     AgentSpec("security", "Security Agent", ("audit", "secrets", "dependency_risk"), ("security", "secure", "secret", "secrets", "token", "password", "auth", "oauth", "credential", "credentials", "api key", "vulnerability", "exploit", "injection", "xss", "csrf", "permission", "permissions", "privacy", "redact", "pii", "encrypt", "decrypt", "audit", "malware"), "Checks security-sensitive changes."),
     AgentSpec("dependency", "Dependency Agent", ("install", "package", "env"), ("dependency", "dependencies", "package", "packages", "install", "pip", "npm", "pnpm", "yarn", "poetry", "uv", "requirements", "package.json", "lockfile", "version", "upgrade", "downgrade", "module not found", "importerror", "environment", "venv", "node_modules", "build tool", "wheel", "resolver"), "Handles packages and environment issues."),
-    AgentSpec("frontend", "Frontend Agent", ("gui", "ui", "accessibility"), ("frontend", "ui", "ux", "gui", "window", "layout", "css", "html", "react", "vue", "component", "button", "card", "modal", "responsive", "mobile", "desktop", "accessibility", "a11y", "animation", "framer", "tailwind", "style", "render", "overflow"), "Checks UI render errors, accessibility, and layout."),
+    AgentSpec("frontend", "Frontend Agent", ("ui", "accessibility"), ("frontend", "ui", "ux", "window", "layout", "css", "html", "react", "vue", "component", "button", "card", "modal", "responsive", "mobile", "desktop", "accessibility", "a11y", "animation", "framer", "tailwind", "style", "render", "overflow"), "Checks UI render errors, accessibility, and layout."),
 )
 
 AGENT_SKILL_PROFILES: dict[str, tuple[str, ...]] = {
@@ -100,12 +100,7 @@ def agent_skill_profile(agent_type: str) -> tuple[str, ...]:
 
 
 def agent_skill_file(agent_type: str) -> str | None:
-    """Return the bundled SKILL.md folder bound to an agent type, if any.
-
-    Bindings live in ``sage.skills.AGENT_SKILL_FILES`` (code -> coding-master-pro,
-    research -> research-master-pro, frontend -> design-master-pro). These are
-    reference files only unless ``SAGE_INSTALL_BUNDLED_SKILLS=1`` is set.
-    """
+    """Return an optional bundled SKILL.md folder bound to an agent type, if any."""
     try:
         from ..skills import agent_skill_file as _lookup
 

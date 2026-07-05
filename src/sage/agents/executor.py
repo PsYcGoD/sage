@@ -543,7 +543,7 @@ def _frontend_result(command: str, output: str, exit_code: int, summary: str) ->
     """Design/UI checks — embodies design-master-pro as a deterministic checklist.
 
     Flags render errors, accessibility gaps, and layout/overflow signals in the
-    output; no LLM. The bound design-master-pro skill is what the real CLI loads.
+    output; no LLM and no prompt-heavy personal skill install by default.
     """
     text = output or summary
     lowered = command.lower()
@@ -604,7 +604,7 @@ def _research_result(command: str, output: str, exit_code: int, summary: str) ->
     """Source checks — embodies research-master-pro as a deterministic checklist.
 
     Extracts source links and flags time-sensitive claims that ship without a
-    primary source; no LLM. research-master-pro is what the real CLI loads.
+    primary source; no LLM and no prompt-heavy personal skill install by default.
     """
     text = output or summary
     lowered = command.lower()
@@ -651,7 +651,7 @@ def _code_result(command: str, output: str, exit_code: int, summary: str) -> dic
     """Code checks — embodies coding-master-pro as a deterministic checklist.
 
     Detects syntax/indentation errors, inspects changed files, and flags leaked
-    secrets; no LLM. coding-master-pro is what the real CLI loads.
+    secrets; no LLM and no prompt-heavy personal skill install by default.
     """
     text = output or summary
     lowered = command.lower()

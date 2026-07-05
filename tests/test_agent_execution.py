@@ -32,7 +32,7 @@ def test_execute_agents_for_run_stores_tasks(monkeypatch, tmp_path):
     tasks = get_agent_tasks_for_run(run_id)
 
     assert results
-    assert len(results) == 7
+    assert 1 <= len(results) < 7
     assert len(tasks) == len(results)
     assert {task["run_id"] for task in tasks} == {run_id}
     assert "test" in {task["agent_type"] for task in tasks}
@@ -67,7 +67,7 @@ def test_agent_task_queue_rebinds_for_new_event_loop():
     assert first_queue_id != second_queue_id
 
 
-def test_execute_agents_for_run_covers_seven_specialists(monkeypatch, tmp_path):
+def test_execute_agents_for_run_uses_only_matched_specialists(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     run_id = save_run(
@@ -92,8 +92,8 @@ def test_execute_agents_for_run_covers_seven_specialists(monkeypatch, tmp_path):
 
     agent_types = {task["agent_type"] for task in get_agent_tasks_for_run(run_id)}
 
-    # The trimmed roster is exactly these seven deterministic specialists.
-    assert agent_types == {"code", "debug", "test", "research", "security", "dependency", "frontend"}
+    assert {"code", "debug", "security"} <= agent_types
+    assert agent_types < {"code", "debug", "test", "research", "security", "dependency", "frontend"}
 
 
 def test_run_command_executes_agents_for_saved_run(monkeypatch, tmp_path):
@@ -101,7 +101,7 @@ def test_run_command_executes_agents_for_saved_run(monkeypatch, tmp_path):
     monkeypatch.setenv("SAGE_SUPPRESS_FOOTER", "1")
     monkeypatch.delenv("SAGE_DISABLE_AGENTS", raising=False)
 
-    exit_code = run_command(["python", "-c", "print('agent integration ok')"])
+    exit_code = run_command(["python", "-c", "print('pytest failed with error')"])
 
     assert exit_code == 0
     with connect() as conn:

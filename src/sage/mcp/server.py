@@ -1,12 +1,15 @@
 """MCP Server implementation for SAGE (JSON-RPC 2.0 over stdio)."""
 
 from __future__ import annotations
+import logging
 
 import json
+import os
 import sys
 from typing import Any, Optional
 
 from .tools import (
+
     SAGE_TOOLS,
     sage_run_command,
     sage_explain_error,
@@ -24,16 +27,23 @@ from .tools import (
     sage_tree,
 )
 
+
+log = logging.getLogger(__name__)
+
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_INFO = {"name": "sage", "version": "2.0.0"}
+COMMAND_TOOL_NAMES = {"sage_run_command"}
 
+def command_tools_enabled() -> bool:
+    """Return whether MCP clients may execute local commands through SAGE."""
+    return os.getenv("SAGE_MCP_ENABLE_COMMANDS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 class MCPServer:
     """MCP protocol server exposing SAGE tools to MCP clients like Claude Code."""
 
     def __init__(self):
+        self.command_tools_enabled = command_tools_enabled()
         self.tools = {
-            "sage_run_command": sage_run_command,
             "sage_explain_error": sage_explain_error,
             "sage_suggest_fix": sage_suggest_fix,
             "sage_spawn_agent": sage_spawn_agent,
@@ -48,6 +58,8 @@ class MCPServer:
             "sage_glob": sage_glob,
             "sage_tree": sage_tree,
         }
+        if self.command_tools_enabled:
+            self.tools["sage_run_command"] = sage_run_command
 
     def handle_request(self, request: dict) -> Optional[dict]:
         """Handle one JSON-RPC request. Returns None for notifications."""
@@ -68,7 +80,7 @@ class MCPServer:
             elif method == "ping":
                 result = {}
             elif method == "tools/list":
-                result = {"tools": SAGE_TOOLS}
+                result = {"tools": self._tool_specs()}
             elif method == "tools/call":
                 result = self._call_tool(request.get("params") or {})
             else:
@@ -90,6 +102,17 @@ class MCPServer:
         arguments = params.get("arguments") or {}
 
         if name not in self.tools:
+            if name in COMMAND_TOOL_NAMES and not self.command_tools_enabled:
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": (
+                            "Tool 'sage_run_command' is disabled by default. "
+                            "Set SAGE_MCP_ENABLE_COMMANDS=1 only for trusted local MCP clients."
+                        ),
+                    }],
+                    "isError": True,
+                }
             return {
                 "content": [{"type": "text", "text": f"Tool '{name}' not found."}],
                 "isError": True,
@@ -109,6 +132,11 @@ class MCPServer:
                 "isError": True,
             }
 
+    def _tool_specs(self) -> list[dict]:
+        """Return the MCP tool specs that are enabled for this process."""
+        enabled = set(self.tools)
+        return [tool for tool in SAGE_TOOLS if tool.get("name") in enabled]
+
     @staticmethod
     def _error(request_id: Any, code: int, message: str) -> dict:
         return {
@@ -124,7 +152,7 @@ class MCPServer:
             sys.stdout.reconfigure(encoding="utf-8", newline="\n")
             sys.stdin.reconfigure(encoding="utf-8")
         except Exception:
-            pass
+            log.debug("suppressed", exc_info=True)
         print("[SAGE MCP Server] stdio ready", file=sys.stderr)
 
         for line in sys.stdin:
@@ -141,12 +169,10 @@ class MCPServer:
                 sys.stdout.write(json.dumps(response) + "\n")
                 sys.stdout.flush()
 
-
 def main():
     """MCP server entry point."""
     server = MCPServer()
     server.run()
-
 
 if __name__ == "__main__":
     main()

@@ -37,6 +37,7 @@ def db_path() -> Path:
 def connect() -> sqlite3.Connection:
     path = db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    was_empty_db = path.exists() and path.stat().st_size == 0
     conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 30000")
@@ -48,9 +49,35 @@ def connect() -> sqlite3.Connection:
                     conn.execute("PRAGMA journal_mode = WAL")
                 except sqlite3.OperationalError:
                     pass
-                ensure_schema(conn)
+                try:
+                    ensure_schema(conn)
+                except sqlite3.OperationalError:
+                    conn.close()
+                    if not _replace_empty_broken_db(path, was_empty=was_empty_db):
+                        raise
+                    conn = sqlite3.connect(path, timeout=30)
+                    conn.row_factory = sqlite3.Row
+                    conn.execute("PRAGMA busy_timeout = 30000")
+                    try:
+                        conn.execute("PRAGMA journal_mode = WAL")
+                    except sqlite3.OperationalError:
+                        pass
+                    ensure_schema(conn)
                 _SCHEMA_READY.add(key)
     return conn
+
+
+def _replace_empty_broken_db(path: Path, *, was_empty: bool) -> bool:
+    """Move aside an empty SQLite file that fails schema creation."""
+    try:
+        if not was_empty or not path.exists():
+            return False
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        target = path.with_name(f"{path.name}.broken-{stamp}")
+        path.replace(target)
+        return True
+    except OSError:
+        return False
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:

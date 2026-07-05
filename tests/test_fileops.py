@@ -166,14 +166,15 @@ def test_tree_missing_root():
 
 # ---------------------------------------------------------------- MCP tools
 
-def test_mcp_fileops_tools_registered():
+def test_mcp_fileops_tools_registered(monkeypatch):
     from sage.mcp.server import MCPServer
     from sage.mcp.tools import SAGE_TOOLS
 
+    monkeypatch.delenv("SAGE_MCP_ENABLE_COMMANDS", raising=False)
     names = {tool["name"] for tool in SAGE_TOOLS}
     assert {"sage_write_file", "sage_edit_file", "sage_glob", "sage_tree"} <= names
     server = MCPServer()
-    assert set(names) == set(server.tools)
+    assert {tool["name"] for tool in server._tool_specs()} == set(server.tools)
 
 
 def test_mcp_write_and_edit_roundtrip(tmp_path):

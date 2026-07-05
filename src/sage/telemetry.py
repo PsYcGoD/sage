@@ -411,7 +411,9 @@ def build_payload(run_id: int, *, level: int | None = None) -> dict[str, Any] | 
 
     original = int(compression["original_tokens"]) if compression else 0
     compressed = int(compression["compressed_tokens"]) if compression else 0
-    saved = int(compression["saved_tokens"]) if compression else 0
+    if compressed > original:
+        compressed = original
+    saved = max(0, int(compression["saved_tokens"]) if compression else 0)
     account = config.get("accounts", {}).get(config.get("active_account", ""))
 
     payload: dict[str, Any] = {
@@ -739,8 +741,8 @@ def build_proof_snapshot() -> dict[str, Any]:
             SELECT
                 COUNT(*) AS total_commands,
                 COALESCE(SUM(estimated_tokens), 0) AS estimated_tokens,
-                COALESCE(SUM(compressed_tokens), 0) AS compressed_tokens,
-                COALESCE(SUM(savings), 0) AS saved_tokens
+                COALESCE(SUM(CASE WHEN savings < 0 THEN estimated_tokens ELSE compressed_tokens END), 0) AS compressed_tokens,
+                COALESCE(SUM(CASE WHEN savings < 0 THEN 0 ELSE savings END), 0) AS saved_tokens
             FROM token_usage
             """
         ).fetchone()

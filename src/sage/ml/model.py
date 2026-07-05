@@ -209,8 +209,10 @@ class SklearnFailureModel:
             list(run_rows) + list(imported_rows),
             key=lambda row: str(row["created_at"] or ""),
         )
+        from ..classify import label_failure
+
         commands = [str(row["command"]) for row in rows]
-        labels = [1 if int(row["exit_code"]) != 0 else 0 for row in rows]
+        labels = [label_failure(command, int(row["exit_code"])) for command, row in zip(commands, rows)]
         return commands, labels
 
     def _commands_to_frame(self, commands: list[str]) -> pd.DataFrame:

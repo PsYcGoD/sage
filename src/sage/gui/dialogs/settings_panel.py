@@ -71,9 +71,6 @@ class SettingsPanel(ctk.CTkToplevel):
         # SAGE Cloud API section
         self._create_sage_api_section(scroll_frame)
 
-        # Real agent registry section
-        self._create_agents_section(scroll_frame)
-
         # Git Integration section
         self._create_git_section(scroll_frame)
 
@@ -162,13 +159,9 @@ class SettingsPanel(ctk.CTkToplevel):
         except Exception:
             log.debug("suppressed", exc_info=True)
 
-        # Name
+        # Display Name (only field user sets manually; git username/email auto-fill from OAuth)
         self._create_input(section, "Display Name:", "profile_name",
                           profile_name, row=0)
-
-        # Email
-        self._create_input(section, "Email:", "profile_email",
-                          self.config.get("profile_email", ""), row=1)
 
     def _create_sage_api_section(self, parent):
         """Create SAGE cloud API connection controls."""
@@ -203,19 +196,6 @@ class SettingsPanel(ctk.CTkToplevel):
             text_color="#10b981" if status.get("connected") else "#6b7280",
         )
         self.sage_api_github_label.grid(row=1, column=1, padx=(10, 15), pady=8, sticky="w")
-
-        name_label = ctk.CTkLabel(
-            section,
-            text="Display Name:",
-            font=ctk.CTkFont(size=12),
-            anchor="w",
-            width=150,
-        )
-        name_label.grid(row=2, column=0, padx=15, pady=8, sticky="w")
-
-        self.sage_api_name_entry = ctk.CTkEntry(section, font=ctk.CTkFont(size=12))
-        self.sage_api_name_entry.insert(0, status.get("display_name") or self.config.get("profile_name", ""))
-        self.sage_api_name_entry.grid(row=2, column=1, padx=(10, 15), pady=8, sticky="ew")
 
         self.sage_api_public_switch = ctk.CTkSwitch(
             section,
@@ -329,9 +309,8 @@ class SettingsPanel(ctk.CTkToplevel):
                 text=f"@{status.get('username')} (GitHub)" if status.get("connected") else "Not connected",
                 text_color="#10b981" if status.get("connected") else "#6b7280",
             )
-        if hasattr(self, "sage_api_name_entry") and status.get("display_name"):
-            self.sage_api_name_entry.delete(0, "end")
-            self.sage_api_name_entry.insert(0, status.get("display_name"))
+        if status.get("display_name"):
+            self.config.set("profile_name", status.get("display_name"))
 
     def _connect_sage_api(self):
         """Connect SAGE API with GitHub OAuth."""
@@ -637,7 +616,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_git_section(self, parent):
         """Create git integration section."""
-        section = self._create_section(parent, "Git Integration", row=4)
+        section = self._create_section(parent, "Git Integration", row=3)
 
         # Git user name
         self._create_input(section, "Git User Name:", "git_user_name",
@@ -982,107 +961,239 @@ class SettingsPanel(ctk.CTkToplevel):
         )
         note.grid(row=4, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
 
-    def _create_custom_endpoint_section(self, parent):
-        """Custom Endpoint — persist 3rd-party API key + base URL so SAGE inherits them on launch."""
-        section = self._create_section(parent, "Custom Endpoint", row=5)
+    # -----------------------------------------------------------------------
+    # AI Agent Credentials
+    # -----------------------------------------------------------------------
 
+    def _create_custom_endpoint_section(self, parent):
+        """AI Agent Credentials — per-agent key/token/URL store with mode selector."""
+        from sage.gui.credential_store import AGENT_SPECS, using_keyring
+
+        section = self._create_section(parent, "AI Agent Credentials", row=4)
+        section.grid_columnconfigure(1, weight=1)
+
+        storage_note = "🔒 Windows Credential Manager" if using_keyring() else "📄 ~/.sage/.credentials (base64)"
         desc = ctk.CTkLabel(
             section,
             text=(
-                "Set a custom API key and base URL once here and SAGE will inject them on every launch — "
-                "no need to set env vars in a terminal before opening SAGE."
+                f"Store API keys, tokens, and URLs for any AI agent. "
+                f"Injected into the environment on every SAGE launch.  Storage: {storage_note}"
             ),
             font=ctk.CTkFont(size=11),
             text_color="gray60",
             anchor="w",
             justify="left",
-            wraplength=780,
+            wraplength=800,
         )
         desc.grid(row=0, column=0, columnspan=3, padx=15, pady=(6, 10), sticky="ew")
 
-        # API Key row
-        key_label = ctk.CTkLabel(section, text="API Key:", font=ctk.CTkFont(size=12), anchor="w", width=130)
-        key_label.grid(row=1, column=0, padx=15, pady=6, sticky="w")
+        # ── Agent selector ──────────────────────────────────────────────────
+        agent_frame = ctk.CTkFrame(section, fg_color="transparent")
+        agent_frame.grid(row=1, column=0, columnspan=3, padx=15, pady=(0, 4), sticky="ew")
 
-        self._endpoint_key_var = ctk.StringVar(value=self.config.get_anthropic_api_key())
-        self._endpoint_key_entry = ctk.CTkEntry(
-            section,
-            textvariable=self._endpoint_key_var,
-            placeholder_text="sk-ant-... or your provider's key",
-            show="•",
+        ctk.CTkLabel(agent_frame, text="Agent:", font=ctk.CTkFont(size=12), width=110, anchor="w").pack(side="left")
+
+        agent_names = list(AGENT_SPECS.keys())
+        self._cred_agent_var = ctk.StringVar(value=agent_names[0])
+        agent_menu = ctk.CTkOptionMenu(
+            agent_frame,
+            values=agent_names,
+            variable=self._cred_agent_var,
+            command=self._on_cred_agent_changed,
+            width=260,
             font=ctk.CTkFont(size=12),
         )
-        self._endpoint_key_entry.grid(row=1, column=1, padx=(10, 6), pady=6, sticky="ew")
+        agent_menu.pack(side="left", padx=(6, 0))
 
-        self._endpoint_show_key = ctk.BooleanVar(value=False)
-        show_btn = ctk.CTkCheckBox(
-            section,
-            text="Show",
-            variable=self._endpoint_show_key,
-            command=lambda: self._endpoint_key_entry.configure(
-                show="" if self._endpoint_show_key.get() else "•"
-            ),
-            font=ctk.CTkFont(size=11),
-            width=60,
-        )
-        show_btn.grid(row=1, column=2, padx=(0, 15), pady=6, sticky="w")
+        # ── Auth mode selector (hidden when only one mode) ───────────────────
+        self._cred_mode_frame = ctk.CTkFrame(section, fg_color="transparent")
+        self._cred_mode_frame.grid(row=2, column=0, columnspan=3, padx=15, pady=(0, 4), sticky="ew")
 
-        # Base URL row
-        url_label = ctk.CTkLabel(section, text="Base URL:", font=ctk.CTkFont(size=12), anchor="w", width=130)
-        url_label.grid(row=2, column=0, padx=15, pady=6, sticky="w")
+        ctk.CTkLabel(self._cred_mode_frame, text="Auth mode:", font=ctk.CTkFont(size=12), width=110, anchor="w").pack(side="left")
 
-        self._endpoint_url_var = ctk.StringVar(value=self.config.get_anthropic_base_url())
-        url_entry = ctk.CTkEntry(
-            section,
-            textvariable=self._endpoint_url_var,
-            placeholder_text="https://api.anthropic.com  (leave blank for default)",
+        self._cred_mode_var = ctk.StringVar()
+        self._cred_mode_menu = ctk.CTkOptionMenu(
+            self._cred_mode_frame,
+            variable=self._cred_mode_var,
+            command=self._on_cred_mode_changed,
+            width=260,
             font=ctk.CTkFont(size=12),
         )
-        url_entry.grid(row=2, column=1, columnspan=2, padx=(10, 15), pady=6, sticky="ew")
+        self._cred_mode_menu.pack(side="left", padx=(6, 0))
 
-        # Save button + status
+        # ── Dynamic fields container ─────────────────────────────────────────
+        self._cred_fields_frame = ctk.CTkFrame(section, fg_color="transparent")
+        self._cred_fields_frame.grid(row=3, column=0, columnspan=3, padx=15, pady=(4, 4), sticky="ew")
+        self._cred_fields_frame.grid_columnconfigure(1, weight=1)
+
+        # ── Action row ───────────────────────────────────────────────────────
         action_row = ctk.CTkFrame(section, fg_color="transparent")
-        action_row.grid(row=3, column=0, columnspan=3, padx=15, pady=(4, 10), sticky="ew")
+        action_row.grid(row=4, column=0, columnspan=3, padx=15, pady=(6, 10), sticky="ew")
 
-        self._endpoint_status = ctk.CTkLabel(
-            action_row,
-            text="",
-            font=ctk.CTkFont(size=11),
-            text_color="gray60",
-            anchor="w",
+        self._cred_status = ctk.CTkLabel(
+            action_row, text="", font=ctk.CTkFont(size=11), text_color="gray60", anchor="w",
         )
-        self._endpoint_status.pack(side="left", padx=(0, 12))
+        self._cred_status.pack(side="left", fill="x", expand=True)
+
+        clear_btn = ctk.CTkButton(
+            action_row, text="Clear", width=80,
+            fg_color="gray35", hover_color="gray28",
+            command=self._clear_agent_creds,
+        )
+        clear_btn.pack(side="right", padx=(6, 0))
 
         save_btn = ctk.CTkButton(
-            action_row,
-            text="Save & Apply",
-            width=130,
-            command=self._save_custom_endpoint,
+            action_row, text="Save & Apply", width=130,
+            command=self._save_agent_creds,
         )
         save_btn.pack(side="right")
 
-        section.grid_columnconfigure(1, weight=1)
+        self._cred_field_vars: dict[str, ctk.StringVar] = {}
+        self._cred_field_entries: dict[str, ctk.CTkEntry] = {}
+        self._rebuild_cred_ui()
 
-    def _save_custom_endpoint(self):
-        key = self._endpoint_key_var.get().strip()
-        url = self._endpoint_url_var.get().strip()
-        self.config.set_anthropic_endpoint(key, url)
-        # Apply immediately to the running process
-        self.config.inject_env()
-        if key:
-            self._endpoint_status.configure(
-                text=f"✅ Saved — active on next message (key: ...{key[-6:]})",
+    def _on_cred_agent_changed(self, _agent: str) -> None:
+        self._rebuild_cred_ui()
+
+    def _on_cred_mode_changed(self, _mode: str) -> None:
+        self._rebuild_cred_fields()
+
+    def _rebuild_cred_ui(self) -> None:
+        from sage.gui.credential_store import AGENT_SPECS
+        agent = self._cred_agent_var.get()
+        modes = list(AGENT_SPECS[agent]["modes"].keys())
+        if len(modes) > 1:
+            self._cred_mode_menu.configure(values=modes)
+            self._cred_mode_var.set(modes[0])
+            self._cred_mode_frame.grid()
+        else:
+            self._cred_mode_var.set(modes[0])
+            self._cred_mode_frame.grid_remove()
+        self._rebuild_cred_fields()
+
+    def _rebuild_cred_fields(self) -> None:
+        from sage.gui.credential_store import AGENT_SPECS, get_credential
+
+        # clear old widgets
+        for w in self._cred_fields_frame.winfo_children():
+            w.destroy()
+        self._cred_field_vars.clear()
+        self._cred_field_entries.clear()
+        self._cred_status.configure(text="")
+
+        agent = self._cred_agent_var.get()
+        mode = self._cred_mode_var.get()
+        spec = AGENT_SPECS[agent]["modes"][mode]
+        fields = spec.get("fields", [])
+
+        if not fields:
+            # OAuth / CLI / Web Login mode — show description + optional launch button
+            desc_text = spec.get("description", "")
+            if desc_text:
+                ctk.CTkLabel(
+                    self._cred_fields_frame, text=desc_text,
+                    font=ctk.CTkFont(size=11), text_color="gray60",
+                    anchor="w", wraplength=740,
+                ).grid(row=0, column=0, columnspan=3, pady=(4, 6), sticky="ew")
+
+            action = spec.get("action")
+            if action:
+                def _launch(a=action):
+                    import subprocess
+                    try:
+                        subprocess.Popen(
+                            ["powershell", "-NoLogo", "-NoExit", "-Command", a],
+                            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                        )
+                        self._cred_status.configure(
+                            text=f"Opened: {a}", text_color="gray60"
+                        )
+                    except Exception as exc:
+                        self._cred_status.configure(text=str(exc), text_color="#fca5a5")
+
+                ctk.CTkButton(
+                    self._cred_fields_frame, text=f"Open Login Terminal  →  {action}",
+                    command=_launch, width=340,
+                ).grid(row=1, column=0, columnspan=3, pady=(4, 4), sticky="w")
+            return
+
+        for i, field in enumerate(fields):
+            label_text = field["label"] + ("  (optional)" if field.get("optional") else "") + ":"
+            ctk.CTkLabel(
+                self._cred_fields_frame, text=label_text,
+                font=ctk.CTkFont(size=12), anchor="w", width=180,
+            ).grid(row=i, column=0, padx=(0, 8), pady=5, sticky="w")
+
+            stored = get_credential(agent, field["env"])
+            var = ctk.StringVar(value=stored)
+            self._cred_field_vars[field["env"]] = var
+
+            entry = ctk.CTkEntry(
+                self._cred_fields_frame,
+                textvariable=var,
+                show="•" if field.get("secret") else "",
+                placeholder_text=field.get("placeholder", ""),
+                font=ctk.CTkFont(size=12),
+            )
+            entry.grid(row=i, column=1, padx=(0, 6), pady=5, sticky="ew")
+            self._cred_field_entries[field["env"]] = entry
+
+            if field.get("secret"):
+                sv = ctk.BooleanVar(value=False)
+                ctk.CTkCheckBox(
+                    self._cred_fields_frame, text="Show", variable=sv, width=60,
+                    font=ctk.CTkFont(size=11),
+                    command=lambda e=entry, s=sv: e.configure(show="" if s.get() else "•"),
+                ).grid(row=i, column=2, pady=5, sticky="w")
+
+    def _save_agent_creds(self) -> None:
+        from sage.gui.credential_store import AGENT_SPECS, delete_credential, set_credential
+
+        agent = self._cred_agent_var.get()
+        mode = self._cred_mode_var.get()
+        spec = AGENT_SPECS[agent]["modes"][mode]
+        inject = spec.get("inject", False)
+        saved = []
+
+        for field in spec.get("fields", []):
+            env = field["env"]
+            val = self._cred_field_vars.get(env, ctk.StringVar()).get().strip()
+            if val:
+                set_credential(agent, env, val)
+                if inject:
+                    os.environ[env] = val
+                saved.append(env)
+            else:
+                delete_credential(agent, env)
+                os.environ.pop(env, None)
+
+        if saved:
+            self._cred_status.configure(
+                text=f"✅ Saved {len(saved)} field(s) — active immediately",
                 text_color="#4ade80",
             )
         else:
-            self._endpoint_status.configure(
-                text="➖ Cleared — will fall back to Claude CLI login",
-                text_color="gray60",
-            )
+            self._cred_status.configure(text="➖ All fields cleared", text_color="gray60")
+
+    def _clear_agent_creds(self) -> None:
+        from sage.gui.credential_store import AGENT_SPECS, delete_credential
+
+        agent = self._cred_agent_var.get()
+        mode = self._cred_mode_var.get()
+        spec = AGENT_SPECS[agent]["modes"][mode]
+
+        for field in spec.get("fields", []):
+            env = field["env"]
+            delete_credential(agent, env)
+            os.environ.pop(env, None)
+            if env in self._cred_field_vars:
+                self._cred_field_vars[env].set("")
+
+        self._cred_status.configure(text="➖ Cleared", text_color="gray60")
 
     def _create_api_travel_section(self, parent):
         """API-Travel — auto-select best available agent per message."""
-        section = self._create_section(parent, "API-Travel", row=6)
+        section = self._create_section(parent, "API-Travel", row=5)
 
         desc = ctk.CTkLabel(
             section,
@@ -1169,7 +1280,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_mcp_section(self, parent):
         """Create MCP servers section with a real 'connect to any MCP server' input."""
-        section = self._create_section(parent, "MCP Servers", row=7)
+        section = self._create_section(parent, "MCP Servers", row=6)
 
         # SAGE's own MCP server command (exposes SAGE tools to clients).
         self._create_input(section, "SAGE MCP Command:", "mcp_server_cmd",
@@ -1346,7 +1457,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_prompts_section(self, parent):
         """Create system prompts section."""
-        section = self._create_section(parent, "System Prompts", row=8)
+        section = self._create_section(parent, "System Prompts", row=7)
 
         # Claude prompts
         prompts = self.config.get_system_prompts("claude")
@@ -1356,7 +1467,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_runtime_section(self, parent):
         """Create runtime behavior settings."""
-        section = self._create_section(parent, "Runtime", row=9)
+        section = self._create_section(parent, "Runtime", row=8)
         self._create_switch(
             section,
             "Run AI inside SAGE terminal",
@@ -1385,7 +1496,7 @@ class SettingsPanel(ctk.CTkToplevel):
 
     def _create_danger_zone_section(self, parent):
         """Create reset/delete controls for local SAGE data."""
-        section = self._create_section(parent, "Reset / Delete", row=10)
+        section = self._create_section(parent, "Reset / Delete", row=9)
 
         note = ctk.CTkLabel(
             section,

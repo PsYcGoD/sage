@@ -246,13 +246,20 @@ class GUIConfig:
         self.save()
 
     def inject_env(self) -> None:
-        """Push stored Anthropic credentials into os.environ so all subprocesses inherit them."""
+        """Push stored credentials into os.environ so all subprocesses inherit them."""
+        # Legacy single-endpoint fields (kept for backward compat)
         key = self.get_anthropic_api_key()
         url = self.get_anthropic_base_url()
-        if key:
+        if key and "ANTHROPIC_API_KEY" not in os.environ:
             os.environ["ANTHROPIC_API_KEY"] = key
-        if url:
+        if url and "ANTHROPIC_BASE_URL" not in os.environ:
             os.environ["ANTHROPIC_BASE_URL"] = url
+        # All per-agent credentials from credential store
+        try:
+            from sage.gui.credential_store import inject_all
+            inject_all()
+        except Exception:
+            pass
 
 
 # Global config instance

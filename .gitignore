@@ -30,3 +30,6 @@ visitor-stats*.txt
 .sage-secrets/
 *.env
 oauth.env
+
+# Local Firebase CLI debug output
+firebase-debug.log

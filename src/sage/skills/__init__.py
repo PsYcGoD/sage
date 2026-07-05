@@ -1,8 +1,8 @@
-"""SAGE bundled Agent Skills.
+"""SAGE bundled Agent Skill reference files.
 
-These SKILL.md files travel with SAGE in git and are auto-installed into the
-Claude Code and Codex skill folders at startup, so the CLIs that SAGE spawns
-(claude, codex) auto-load them and route by each skill's ``description``.
+These SKILL.md files travel with SAGE in git as optional references. They are
+not installed into Claude Code or Codex by default because personal skills are
+loaded into those tools' prompts and can make requests too large.
 
 Agent binding (which SAGE specialist "owns" which skill):
 
@@ -11,12 +11,14 @@ Agent binding (which SAGE specialist "owns" which skill):
     frontend  -> design-master-pro   (the UI/UX / design agent)
 
 Add more skills by dropping ``<name>/SKILL.md`` in this folder and extending
-``AGENT_SKILL_FILES``.
+``AGENT_SKILL_FILES``. Set ``SAGE_INSTALL_BUNDLED_SKILLS=1`` to copy these
+references into the local Claude/Codex personal skill folders.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -32,8 +34,8 @@ AGENT_SKILL_FILES: dict[str, str] = {
     "frontend": "design-master-pro",
 }
 
-# Where each CLI discovers personal skills. Both get a copy so whichever agent
-# (claude or codex) drives a run, the matching skill is available to it.
+# Where each CLI discovers personal skills. Copying into these folders is
+# opt-in only; normal SAGE agents run from deterministic local metadata.
 #   Claude Code: ~/.claude/skills/<name>/SKILL.md
 #   Codex:       ~/.agents/skills/<name>/SKILL.md
 _INSTALL_ROOTS = (
@@ -86,11 +88,17 @@ def _needs_copy(src: Path, dst: Path) -> bool:
 
 
 def install_skills() -> int:
-    """Copy every bundled skill into the Claude Code and Codex skill folders.
+    """Copy bundled skills into Claude Code and Codex personal skill folders.
 
-    Idempotent: only writes when a target file is missing or out of date, so it
-    is safe to call on every startup. Returns the number of files written.
+    This is disabled by default. Personal skill folders are prompt context for
+    those tools, so installing large bundled files globally can increase token
+    use and trigger model input limits. Returns the number of files written.
     """
+    enabled = os.environ.get("SAGE_INSTALL_BUNDLED_SKILLS", "").strip().lower()
+    if enabled not in {"1", "true", "yes", "on"}:
+        log.debug("bundled skill install skipped; set SAGE_INSTALL_BUNDLED_SKILLS=1 to enable")
+        return 0
+
     written = 0
     for src_md in SKILLS_DIR.glob("*/SKILL.md"):
         name = src_md.parent.name

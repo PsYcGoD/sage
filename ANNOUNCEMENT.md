@@ -24,7 +24,7 @@ Or install once in editable mode and let AI coding agents route shell commands t
 pip install -e .
 ```
 
-From there, commands run through `sage run --`, terminal output is compressed before it burns context, raw logs stay local, and every run can trigger the 24-agent specialist layer.
+From there, commands run through `sage run --`, terminal output is compressed before it burns context, raw logs stay local, and smart agents trigger only when the request actually matches their specialist keywords.
 
 **Want early access? Comment or DM for early access.**
 
@@ -34,7 +34,7 @@ The real pain with AI coding agents isn't cost per command — it's that they fo
 - **Typical compression**: 85-95% on real command output (measured with tiktoken, not estimated)
 - **Peak**: ~99% on highly repetitive logs (149 tokens → 1)
 - **What it buys you**: many more commands per session before context limits hit
-- **Live proof**: 18.7M+ tokens saved across 2,900+ tracked runs
+- **Live proof**: 14.13M+ tokens saved across 3,820 tracked runs
 
 ### 🖥️ **Beautiful Desktop GUI - Zero Configuration Required**
 Launch the sleek desktop interface with one command:
@@ -85,14 +85,14 @@ sage fix --apply --confidence 0.9
 - Historical pattern learning from past fixes
 - Confidence scoring (0.0-1.0) for safety
 
-### 🤖 **Real 24-Agent Orchestration**
+### 🤖 **Smart Agent Orchestration**
 Every SAGE run can fan out across the full specialist roster:
 
-- **24 built-in agent types**: code, debug, test, research, security, performance, docs, dependency, workflow, database, frontend, release, architecture, review, refactor, devops, API, ML, memory, telemetry, privacy, red-team, blue-team, and auditor
-- **Real fan-out by default**: SAGE stores each agent task instead of showing fake decorative cards
-- **Specialist skill profiles**: frontend/design covers taste, layout, accessibility, animation craft, and Motion/Framer Motion patterns; security covers auth, secrets, and permissions; test covers regression risk; auditor ranks evidence
-- **Visible proof**: the GUI and CLI show queued/running/latest-run progress, completed task counts, and agent output
-- **Configurable workers**: use `SAGE_AGENT_WORKERS` if you want to tune concurrency
+- **7 built-in deterministic specialists**: code, debug, test, research, security, dependency, and frontend
+- **Keyword-gated routing**: expanded trigger lists spawn only the specialists that match the request
+- **Fast GUI path**: GUI child commands keep token tracking enabled while skipping expensive fan-out
+- **Specialist skill profiles**: frontend/design covers taste, layout, accessibility, and animation; security covers auth, secrets, and permissions; test covers regression risk
+- **Visible proof**: the GUI and CLI show queued/running/latest-run progress, completed task counts, and compact agent output
 
 ### 📊 **Live Public Proof Dashboard**
 See the real-time savings in action:
@@ -106,12 +106,12 @@ Track:
 - ML prediction accuracy
 
 Latest verified snapshot:
-- Commands processed: 2,905
-- Tokens processed: 20,398,361
-- Tokens compressed: 1,616,965
-- Tokens saved: 18,781,396
-- Compression rate: 92.07%
-- Success rate: 92.43%
+- Commands processed: 3,820
+- Tokens processed: 15,164,330
+- Tokens compressed: 1,027,453
+- Tokens saved: 14,136,877
+- Compression rate: 93.22%
+- Success rate: 96.86%
 
 **Privacy-first**: Raw commands and outputs stay local. Only aggregate stats are shared publicly.
 
@@ -185,9 +185,9 @@ After `pip install -e .`, all AI coding assistants automatically use SAGE! Just 
 |--------|-------|
 | **Typical Compression** | 85-95% on real command output |
 | **Peak Compression** | ~99% on highly repetitive logs |
-| **Commands Processed** | 2,905 tracked runs |
-| **Token Savings** | 18,781,396 tokens saved (aggregate) |
-| **Success Rate** | 92.4% of tracked runs |
+| **Commands Processed** | 3,820 tracked runs |
+| **Token Savings** | 14,136,877 tokens saved (aggregate) |
+| **Success Rate** | 96.86% of tracked runs |
 | **Measurement** | tiktoken (`cl100k_base`) |
 
 All figures above come from the live proof dashboard and `sage context report` — reproducible on your own machine, not testimonials.
@@ -267,7 +267,7 @@ steps:
 ### Core Components
 - ✅ **Context Management** - 85-95% typical compression engine
 - ✅ **Auto-Fix Engine** - ML-powered error resolution
-- ✅ **Multi-Agent System** - 24 built-in agent types
+- ✅ **Smart Agent System** - 7 keyword-gated built-in specialists
 - ✅ **Workflow Automation** - YAML-based pipelines
 - ✅ **Desktop GUI** - Beautiful modern interface
 - ✅ **MCP Integration** - 6 tools for Claude Code
@@ -394,7 +394,7 @@ sage gui
 
 *85-95% typical token compression | Zero configuration | Local-first privacy*
 
-**Early access:** comment or DM and I will help you try the GUI, editable install, and 24-agent fan-out.
+**Early access:** comment or DM and I will help you try the GUI, editable install, and smart-agent routing.
 
 ---
 

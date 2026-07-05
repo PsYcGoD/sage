@@ -68,17 +68,16 @@ class SAGEApp(ctk.CTk):
         # Load configuration
         self.config = GUIConfig()
         self.config.inject_env()  # push stored API key/base URL into env before any client is created
+        # GUI responsiveness comes first. Keep SAGE wrapping/token tracking, but
+        # avoid per-command agent fan-out from GUI child processes. The GUI runs
+        # its own keyword-gated smart agents after relevant responses.
+        os.environ.setdefault("SAGE_DISABLE_AGENTS", "1")
+        os.environ.setdefault("SAGE_GUI_AGENT_MODE", "smart")
         self._restore_current_project()
         ensure_default_agents()
-        # Install bundled Agent Skills into the Claude Code / Codex skill folders
-        # so the CLIs SAGE spawns auto-load them (code->coding, research->research,
-        # frontend->design). Idempotent, safe on every launch.
-        try:
-            from sage.skills import install_skills
-
-            install_skills()
-        except Exception:
-            log.debug("skill install skipped", exc_info=True)
+        # Bundled SKILL.md prompt files are opt-in. The GUI keeps its own
+        # keyword-gated smart agents and does not install prompt-heavy personal
+        # skills into Claude Code or Codex on startup.
 
         # Configure grid layout: sidebar (0) | center content (1) | right metrics (2)
         self.grid_columnconfigure(1, weight=1)
@@ -216,7 +215,7 @@ class SAGEApp(ctk.CTk):
         )
         self.debug_btn.pack(side="left", padx=(5, 0))
 
-        # Row 1: Live 24-agent status strip (green=active, orange=idle/stopped)
+        # Row 1: Live smart-agent status strip (green=active, orange=idle/stopped)
         from sage.gui.widgets.agent_strip import AgentStrip
 
         self.agent_strip = AgentStrip(main_frame)
@@ -224,7 +223,7 @@ class SAGEApp(ctk.CTk):
         self._manual_active_agent_types: set[str] = set()
 
         # Right metrics panel: the 4 cards stacked vertically, autofit.
-        metrics_panel = ctk.CTkFrame(self, fg_color=("#f0f0f0", "#161616"), width=232)
+        metrics_panel = ctk.CTkFrame(self, fg_color=("#f0f0f0", "#161616"), width=258)
         metrics_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=0)
         metrics_panel.grid_propagate(False)
         metrics_panel.grid_columnconfigure(0, weight=1)
@@ -3081,6 +3080,9 @@ class SAGEApp(ctk.CTk):
 
     def _spawn_agents_if_needed(self, command: str) -> None:
         """Spawn agents for complex requests to parallelize work."""
+        if not self._gui_agents_enabled(command, pre_spawn=True):
+            return
+
         import asyncio
         from sage.agents.orchestrator import Orchestrator
         from sage.agents.specialized.code_agent import CodeAgent
@@ -3158,6 +3160,8 @@ class SAGEApp(ctk.CTk):
         """Execute agents through the REAL executor.py system after AI response."""
         if run_id is None:
             return  # No saved run to attach agents to
+        if not self._gui_agents_enabled(visible_command):
+            return
         try:
             from sage.agents.executor import execute_agents_for_run
 
@@ -3185,6 +3189,19 @@ class SAGEApp(ctk.CTk):
 
         except Exception as e:
             LOG.warning("Agent execution failed: %s", e, exc_info=LOG.isEnabledFor(logging.DEBUG))
+
+    def _gui_agents_enabled(self, command: str = "", *, pre_spawn: bool = False) -> bool:
+        if os.environ.get("SAGE_GUI_ENABLE_AGENTS") == "1":
+            return True
+
+        mode = os.environ.get("SAGE_GUI_AGENT_MODE", "smart").strip().lower()
+        if mode in {"0", "false", "off", "disabled"}:
+            return False
+        if mode in {"1", "true", "full", "always"}:
+            return True
+        if pre_spawn:
+            return False
+        return bool(select_agents_for_command(command, limit=4))
 
     def _display_agent_results(
         self,

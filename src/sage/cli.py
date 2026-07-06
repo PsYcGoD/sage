@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import __version__
 from .runner import run_command
+from .savings import SAVINGS_PROFILES, build_agent_savings, estimate_savings_usd
 from .store import connect, db_path, latest_run, recent_runs
 from .suggestions import suggest_next_steps
 from .autofix import AutoFixEngine
@@ -1645,22 +1646,6 @@ def stats_command() -> int:
     return 0
 
 
-SAVINGS_PROFILES = {
-    "claude-sonnet": {
-        "label": "Claude Sonnet",
-        "input_rate_per_million": 3.0,
-    },
-    "codex": {
-        "label": "OpenAI Codex",
-        "input_rate_per_million": 1.5,
-    },
-    "copilot": {
-        "label": "GitHub Copilot coding agent",
-        "input_rate_per_million": 0.0,
-    },
-}
-
-
 def _compression_totals() -> dict[str, int]:
     with connect() as conn:
         row = conn.execute(
@@ -1690,18 +1675,20 @@ def savings_command(args) -> int:
     totals = _compression_totals()
     profile = SAVINGS_PROFILES[agent]
     input_rate = float(profile.get("input_rate_per_million", 0) or 0)
-    dollars_saved = totals["saved"] / 1_000_000 * input_rate
+    dollars_saved = estimate_savings_usd(totals["saved"], agent)
     rate = (totals["saved"] / totals["original"] * 100) if totals["original"] else 0.0
     payload = {
         "agent": agent,
         "label": profile["label"],
+        "provider": profile["provider"],
         "input_rate_per_million": input_rate,
         "rows": totals["rows"],
         "original_tokens": totals["original"],
         "compressed_tokens": totals["compressed"],
         "saved_tokens": totals["saved"],
         "compression_rate": round(rate, 2),
-        "estimated_savings_usd": round(dollars_saved, 4),
+        "estimated_savings_usd": dollars_saved,
+        "savings_by_agent": build_agent_savings(totals["saved"]),
     }
     if args.format == "json":
         print(json.dumps(payload, indent=2))

@@ -22,6 +22,7 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 from .classify import workspace_hash as _workspace_hash
+from .savings import build_agent_savings, estimate_savings_usd
 from .security import redact_text
 from .store import connect, data_dir
 
@@ -840,6 +841,7 @@ def build_proof_snapshot() -> dict[str, Any]:
     total_runs = int(token_stats["total_commands"] or 0)
     successful = min(int(runs["successful_runs"] or 0), total_runs)
     prediction_stats = build_prediction_stats()
+    savings_by_agent = build_agent_savings(saved)
     return {
         "display_name": "PsYc+GoD AI & ML",
         "username": profile.get("username") or "PsYcGoD",
@@ -850,6 +852,8 @@ def build_proof_snapshot() -> dict[str, Any]:
             "tokens_processed": original,
             "tokens_compressed": compressed,
             "tokens_saved": saved,
+            "estimated_savings_usd": estimate_savings_usd(saved, "claude-sonnet"),
+            "savings_by_agent": savings_by_agent,
             "compression_percent": round((saved / original) * 100, 2) if original else 0,
             "success_rate": round((successful / total_runs) * 100, 2) if total_runs else 0,
             "failure_prediction_stats": prediction_stats,

@@ -273,6 +273,31 @@ def build_parser() -> argparse.ArgumentParser:
     privacy_purge.add_argument("--days", type=int, default=30)
     privacy_purge.add_argument("--apply", action="store_true")
 
+    savings_parser = sub.add_parser("savings", help="Estimate cost savings from compressed tokens.")
+    savings_parser.add_argument("--agent", "--provider", "--model", dest="agent", default="claude-sonnet")
+    savings_parser.add_argument("--format", choices=["text", "json"], default="text")
+
+    firewall_parser = sub.add_parser("firewall", help="Inspect and configure SAGE command policy.")
+    firewall_sub = firewall_parser.add_subparsers(dest="firewall_command")
+    firewall_sub.add_parser("status", help="Show firewall policy status.")
+    firewall_sub.add_parser("enable", help="Enable strict firewall mode.")
+    firewall_sub.add_parser("disable", help="Return firewall to personal warning mode.")
+    firewall_rules = firewall_sub.add_parser("rules", help="Inspect firewall rules.")
+    firewall_rules_sub = firewall_rules.add_subparsers(dest="firewall_rules_command")
+    firewall_rules_sub.add_parser("list", help="List allow, block, and confirm rules.")
+    firewall_allow = firewall_sub.add_parser("allow", help="Allow a command pattern.")
+    firewall_allow.add_argument("pattern")
+    firewall_block = firewall_sub.add_parser("block", help="Block a command pattern.")
+    firewall_block.add_argument("pattern")
+    firewall_sub.add_parser("audit", help="Show recent policy and redaction activity.")
+
+    github_bot_parser = sub.add_parser("github-bot", help="Generate GitHub issue/PR bot messages.")
+    github_bot_sub = github_bot_parser.add_subparsers(dest="github_bot_command")
+    github_bot_comment = github_bot_sub.add_parser("comment", help="Generate a safe Markdown comment.")
+    github_bot_comment.add_argument("--kind", choices=["summary", "ci-failure"], default="summary")
+    github_bot_comment.add_argument("--run-id", type=int, help="Run ID to summarize (defaults to latest).")
+    github_bot_comment.add_argument("--output", default="", help="Optional Markdown output file.")
+
     redact_parser = sub.add_parser("redact", help="Scan stored runs and redact old secrets.")
     redact_parser.add_argument("--apply", action="store_true", help="Write redacted output back to the database.")
     redact_parser.add_argument("--limit", type=int, default=0, help="Limit scanned runs.")
@@ -389,6 +414,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "privacy":
         return privacy_command(args)
+
+    if args.command_name == "savings":
+        return savings_command(args)
+
+    if args.command_name == "firewall":
+        return firewall_command(args)
+
+    if args.command_name == "github-bot":
+        return github_bot_command(args)
 
     if args.command_name == "redact":
         return redact_command(limit=args.limit, apply=args.apply)
@@ -1609,6 +1643,251 @@ def stats_command() -> int:
         print(f"ML accuracy: {metrics.get('accuracy', 0):.3f}")
         print(f"ML ROC AUC: {metrics.get('roc_auc', 0):.3f}")
     return 0
+
+
+SAVINGS_PROFILES = {
+    "claude-sonnet": {
+        "label": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
+    "codex": {
+        "label": "OpenAI Codex",
+        "input_rate_per_million": 1.5,
+    },
+    "copilot": {
+        "label": "GitHub Copilot coding agent",
+        "input_rate_per_million": 0.0,
+    },
+}
+
+
+def _compression_totals() -> dict[str, int]:
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS rows,
+                COALESCE(SUM(original_tokens), 0) AS original,
+                COALESCE(SUM(compressed_tokens), 0) AS compressed,
+                COALESCE(SUM(saved_tokens), 0) AS saved
+            FROM context_compression
+            """
+        ).fetchone()
+    return {
+        "rows": int(row["rows"] or 0),
+        "original": int(row["original"] or 0),
+        "compressed": int(row["compressed"] or 0),
+        "saved": int(row["saved"] or 0),
+    }
+
+
+def savings_command(args) -> int:
+    agent = args.agent
+    if agent not in SAVINGS_PROFILES:
+        print(f"Unknown agent/provider: {agent}")
+        print("Available: " + ", ".join(sorted(SAVINGS_PROFILES)))
+        return 1
+    totals = _compression_totals()
+    profile = SAVINGS_PROFILES[agent]
+    input_rate = float(profile.get("input_rate_per_million", 0) or 0)
+    dollars_saved = totals["saved"] / 1_000_000 * input_rate
+    rate = (totals["saved"] / totals["original"] * 100) if totals["original"] else 0.0
+    payload = {
+        "agent": agent,
+        "label": profile["label"],
+        "input_rate_per_million": input_rate,
+        "rows": totals["rows"],
+        "original_tokens": totals["original"],
+        "compressed_tokens": totals["compressed"],
+        "saved_tokens": totals["saved"],
+        "compression_rate": round(rate, 2),
+        "estimated_savings_usd": round(dollars_saved, 4),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, indent=2))
+        return 0
+    print(f"SAGE savings estimate ({profile['label']})")
+    print(f"Original tokens: {payload['original_tokens']:,}")
+    print(f"Compressed tokens: {payload['compressed_tokens']:,}")
+    print(f"Saved tokens: {payload['saved_tokens']:,} ({payload['compression_rate']:.1f}%)")
+    print(f"Reference input rate: ${input_rate:.4f}/M tokens")
+    print(f"Estimated savings: ${payload['estimated_savings_usd']:.4f}")
+    return 0
+
+
+def firewall_command(args) -> int:
+    from .security import load_policy, policy_path, save_policy
+
+    if not hasattr(args, "firewall_command") or args.firewall_command is None:
+        print("Usage: sage firewall <status|enable|disable|rules|allow|block|audit>")
+        return 1
+
+    policy = load_policy()
+
+    if args.firewall_command == "status":
+        print("SAGE firewall status")
+        print(f"Policy file: {policy_path()}")
+        print(f"Mode: {policy.get('mode')}")
+        print(f"Deny rules: {len(policy.get('denylist', []))}")
+        print(f"Confirm rules: {len(policy.get('confirm_required', []))}")
+        print(f"Allow rules: {len(policy.get('allowlist', []))}")
+        return 0
+
+    if args.firewall_command == "enable":
+        policy["mode"] = "company"
+        save_policy(policy)
+        print("SAGE firewall enabled in strict mode.")
+        return 0
+
+    if args.firewall_command == "disable":
+        policy["mode"] = "personal"
+        save_policy(policy)
+        print("SAGE firewall set to personal warning mode.")
+        return 0
+
+    if args.firewall_command == "rules":
+        if getattr(args, "firewall_rules_command", None) != "list":
+            print("Usage: sage firewall rules list")
+            return 1
+        print("SAGE firewall rules")
+        for label, key in (("Allow", "allowlist"), ("Block", "denylist"), ("Confirm", "confirm_required")):
+            print(f"{label}:")
+            values = list(policy.get(key, []) or [])
+            if not values:
+                print("  - (none)")
+            for item in values:
+                print(f"  - {item}")
+        return 0
+
+    if args.firewall_command == "allow":
+        allowlist = list(policy.get("allowlist", []) or [])
+        if args.pattern not in allowlist:
+            allowlist.append(args.pattern)
+        policy["allowlist"] = allowlist
+        save_policy(policy)
+        print(f"Allowed command pattern: {args.pattern}")
+        return 0
+
+    if args.firewall_command == "block":
+        denylist = list(policy.get("denylist", []) or [])
+        if args.pattern not in denylist:
+            denylist.append(args.pattern)
+        policy["denylist"] = denylist
+        save_policy(policy)
+        print(f"Blocked command pattern: {args.pattern}")
+        return 0
+
+    if args.firewall_command == "audit":
+        with connect() as conn:
+            decisions = conn.execute(
+                "SELECT policy_decision, COUNT(*) AS count FROM runs GROUP BY policy_decision ORDER BY count DESC"
+            ).fetchall()
+            redactions = conn.execute(
+                "SELECT COALESCE(SUM(stdout_redactions + stderr_redactions + summary_redactions), 0) FROM runs"
+            ).fetchone()[0]
+            blocked = conn.execute("SELECT COUNT(*) FROM runs WHERE policy_decision = 'blocked'").fetchone()[0]
+        print("SAGE firewall audit")
+        print(f"Blocked runs: {int(blocked or 0):,}")
+        print(f"Redactions applied: {int(redactions or 0):,}")
+        print("Policy decisions:")
+        if not decisions:
+            print("  - (none)")
+        for row in decisions:
+            print(f"  - {row['policy_decision']}: {row['count']}")
+        return 0
+
+    return 1
+
+
+def github_bot_command(args) -> int:
+    if not hasattr(args, "github_bot_command") or args.github_bot_command is None:
+        print("Usage: sage github-bot <comment>")
+        return 1
+
+    if args.github_bot_command == "comment":
+        body = _render_github_bot_comment(kind=args.kind, run_id=args.run_id)
+        if args.output:
+            Path(args.output).write_text(body, encoding="utf-8")
+            print(f"GitHub bot comment written: {args.output}")
+        else:
+            print(body)
+        return 0
+
+    return 1
+
+
+def _render_github_bot_comment(*, kind: str, run_id: int | None = None) -> str:
+    if run_id is None:
+        record = latest_run()
+        if record is None:
+            return "### SAGE Bot\n\nNo local SAGE runs are available yet."
+        run_id = record.id
+
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, created_at, project, command, exit_code, duration_ms, summary,
+                   stdout_redactions, stderr_redactions, summary_redactions,
+                   policy_decision, policy_reason
+            FROM runs
+            WHERE id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+        compression = conn.execute(
+            """
+            SELECT original_tokens, compressed_tokens, saved_tokens, strategy
+            FROM context_compression
+            WHERE run_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (run_id,),
+        ).fetchone()
+
+    if not row:
+        return f"### SAGE Bot\n\nRun `{run_id}` was not found in local SAGE history."
+
+    title = "SAGE CI Failure Summary" if kind == "ci-failure" else "SAGE Run Summary"
+    status = "passed" if int(row["exit_code"]) == 0 else "failed"
+    redactions = int(row["stdout_redactions"] or 0) + int(row["stderr_redactions"] or 0) + int(row["summary_redactions"] or 0)
+    lines = [
+        f"### {title}",
+        "",
+        f"- Run: `#{row['id']}`",
+        f"- Status: `{status}` (exit `{row['exit_code']}`)",
+        f"- Duration: `{row['duration_ms']}ms`",
+        f"- Policy: `{row['policy_decision']}`",
+        f"- Redactions applied: `{redactions}`",
+    ]
+    if compression:
+        original = int(compression["original_tokens"] or 0)
+        saved = int(compression["saved_tokens"] or 0)
+        rate = (saved / original * 100) if original else 0.0
+        lines.extend(
+            [
+                f"- Tokens: `{original:,}` -> `{int(compression['compressed_tokens'] or 0):,}`",
+                f"- Saved: `{saved:,}` tokens (`{rate:.1f}%`)",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "**Command**",
+            "",
+            f"`{str(row['command'])[:180]}`",
+            "",
+            "**SAGE summary**",
+            "",
+            str(row["summary"] or "(no summary)").strip()[:1000],
+            "",
+            "_Raw logs remain local. This comment contains aggregate proof and redacted summary data only._",
+        ]
+    )
+    if row["policy_reason"]:
+        lines.insert(7, f"- Policy reason: `{row['policy_reason']}`")
+    return "\n".join(lines)
+
 
 def fix_command(apply: bool = False, min_confidence: float = 0.8) -> int:
     """Auto-fix the most recent error."""

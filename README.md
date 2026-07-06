@@ -77,21 +77,33 @@ sage api status
 
 SAGE stores the API key in the operating system keyring when available. Local command history and raw outputs remain on your machine.
 
-## Bind Agent Instructions
+## System-Wide Installation for AI Agents
 
-Create local SAGE instructions for terminal agents:
+Make SAGE mandatory for all AI agents on your system:
+
+```bash
+sage install
+```
+
+This automatically installs SAGE instructions into:
+- `~/.claude/CLAUDE.md` - Claude Code
+- `~/.claude/settings.json` - MCP server registration
+- `~/.cursorrules` - Cursor IDE
+- `~/.codex/AGENTS.md` - Codex
+- `~/.aider.conf.yml` - Aider (if exists)
+
+After running `sage install`, all AI agents will automatically:
+- Route commands through `sage run -- <command>`
+- Use SAGE MCP tools for file operations
+- Benefit from context compression and tracking
+
+For per-project setup:
 
 ```bash
 sage init
 ```
 
-This writes `SAGE.md` in the current project. Give that file to your local AI coding agent, or bind the same rule into your `AGENTS.md` / agent instruction file:
-
-```text
-Route every shell command through:
-
-sage run -- <command>
-```
+This writes `SAGE.md` in the current project with the mandatory wrapper rule.
 
 ## Run Commands Through SAGE
 

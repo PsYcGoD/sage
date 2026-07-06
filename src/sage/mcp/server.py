@@ -31,7 +31,7 @@ from .tools import (
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_INFO = {"name": "sage", "version": "2.0.1"}
+SERVER_INFO = {"name": "sage", "version": "2.0.2"}
 COMMAND_TOOL_NAMES = {"sage_run_command"}
 
 def command_tools_enabled() -> bool:

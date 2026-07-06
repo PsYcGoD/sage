@@ -3,7 +3,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
   "http://127.0.0.1:8765",           // Alternative localhost
   "https://sage.api.marketingstudios.in",  // Public dashboard
-  "https://sage-api.valan-dj.workers.dev", // Current public Worker
+  "https://psyc-god-sage-api.valan-dj.workers.dev", // Current public Worker
 ];
 
 const SAVINGS_PROFILES = [
@@ -133,7 +133,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="badges">
         <span class="badge green">&#9679; Live Data</span>
         <span class="badge">Verified Aggregate Proof</span>
-        <a class="badge" href="https://github.com/PsYcGoD/SAGE-Smart-Agent-Guidance-Engine-announcement">GitHub Repository</a>
+        <a class="badge" href="https://github.com/PsYcGoD/sage">GitHub Repository</a>
       </div>
       <div class="owner">Built by PsYc+GoD AI &amp; ML</div>
     </header>
@@ -193,7 +193,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     <footer>
       <strong>S.A.G.E V2.0</strong> - Smart Agent Guidance Engine<br>
       Privacy-first token compression, ML prediction, and active AI agent orchestration by PsYc+GoD AI &amp; ML<br>
-      <a href="https://github.com/PsYcGoD/SAGE-Smart-Agent-Guidance-Engine-announcement">GitHub Repository</a>
+      <a href="https://github.com/PsYcGoD/sage">GitHub Repository</a>
     </footer>
   </div>
 

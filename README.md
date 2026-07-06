@@ -11,7 +11,7 @@ The public package is CLI-first. The desktop GUI is not included in this public 
 
 ## Live Public Proof Dashboard
 
-Live dashboard: https://psyc-god-sage-api.valan-dj.workers.dev/dashboard
+Live dashboard: https://sage.api.marketingstudios.in/dashboard
 
 ![SAGE Live Public Proof Dashboard](docs/assets/sage-live-dashboard.png)
 
@@ -27,13 +27,13 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 4,726 |
-| Tokens processed | 16,870,812 |
-| Tokens compressed | 1,225,605 |
-| Tokens saved | 15,645,207 |
-| Estimated savings | $46.94 |
-| Compression rate | 92.74% |
-| Success rate | 98.03% |
+| Commands processed | 4,861 |
+| Tokens processed | 16,941,223 |
+| Tokens compressed | 1,242,421 |
+| Tokens saved | 15,698,802 |
+| Estimated savings | $47.10 |
+| Compression rate | 92.67% |
+| Success rate | 97.82% |
 
 These stats reflect the public CLI proof snapshot after the hosted dashboard went live.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.

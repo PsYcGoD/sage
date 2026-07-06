@@ -3,7 +3,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
   "http://127.0.0.1:8765",           // Alternative localhost
   "https://sage.api.marketingstudios.in",  // Public dashboard
-  "https://psyc-god-sage-api.valan-dj.workers.dev", // Current public Worker
+  "https://sage-api.pascoaldsouza28.workers.dev", // Workers.dev fallback
 ];
 
 const SAVINGS_PROFILES = [
@@ -184,7 +184,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       </section>
 
       <div class="refresh">
-        <div>Auto-refreshes every 15 seconds. Last updated: <strong id="last-updated">-</strong></div>
+        <div>Auto-refreshes every 10 seconds. Last updated: <strong id="last-updated">-</strong></div>
       </div>
     </main>
 
@@ -262,7 +262,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       }
     }
     loadProofData();
-    setInterval(loadProofData, 15000);
+    setInterval(loadProofData, 10000);
   </script>
 </body>
 </html>`;

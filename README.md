@@ -20,7 +20,7 @@ Current public proof includes:
 - Total commands processed through SAGE
 - Tokens processed, compressed, and saved
 - Compression rate and command success rate
-- ML prediction scoring from local command history (Right now only used by me)
+- ML prediction scoring from local command history
 
 Latest verified snapshot:
 
@@ -33,7 +33,7 @@ Latest verified snapshot:
 | Compression rate | 92.93% |
 | Success rate | 96.73% |
 
-This stats are only after going Live - Since July for CLI commands Only.
+These stats reflect the public CLI proof snapshot after the hosted dashboard went live.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
 ## Installation
@@ -104,9 +104,21 @@ sage explain
 sage suggest
 sage fix
 sage fix --apply --confidence 0.9
+sage savings --agent claude-sonnet
+sage firewall status
+sage firewall rules list
+sage github-bot comment --kind summary
 sage mcp install
 sage dashboard start --port 8765
 ```
+
+## Team View Preview
+
+Team Dashboard is not published yet. It will open by invite after SAGE reaches 100 users.
+
+![SAGE Team View Preview](docs/assets/team-dashboard-preview.png)
+
+The planned Team View will show aggregate workspace proof only: tokens saved, success rate, safety events, and protected secrets. It will not publish raw commands, source code, file paths, `.env` data, or raw logs.
 
 ## Screenshots
 
@@ -116,6 +128,12 @@ sage dashboard start --port 8765
 | `sage context report` | ![sage context report terminal capture](docs/assets/sage-context-report.svg) |
 | `sage mcp install` | ![sage mcp install terminal capture](docs/assets/sage-mcp-install.svg) |
 | Dashboard proof | ![SAGE Live Public Proof Dashboard](docs/assets/sage-live-dashboard.png) |
+
+Starter demo GIFs:
+
+- [`demo-sage-run.gif`](docs/assets/demo-sage-run.gif)
+- [`demo-sage-savings.gif`](docs/assets/demo-sage-savings.gif)
+- [`demo-github-bot.gif`](docs/assets/demo-github-bot.gif)
 
 ## GUI Status
 
@@ -142,6 +160,8 @@ This command prints the roadmap status instead of launching a desktop app. The G
 - API connection is handled through GitHub OAuth.
 - Higher telemetry is opt-in.
 - API keys are stored in the OS keyring when available.
+
+See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for the detailed data and security model.
 
 ## Development
 

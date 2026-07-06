@@ -3,6 +3,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
   "http://127.0.0.1:8765",           // Alternative localhost
   "https://sage.api.marketingstudios.in",  // Public dashboard
+  "https://sage-api.valan-dj.workers.dev", // Current public Worker
 ];
 
 const SAVINGS_PROFILES = [
@@ -197,7 +198,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
   </div>
 
   <script>
-    const API_ENDPOINT = "https://sage.api.marketingstudios.in/v1/proof";
+    const API_ENDPOINT = window.location.origin + "/v1/proof";
     function formatNumber(num) {
       num = Number(num || 0);
       if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";

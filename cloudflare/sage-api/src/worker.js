@@ -5,6 +5,12 @@ const ALLOWED_ORIGINS = [
   "https://sage.api.marketingstudios.in",  // Public dashboard
 ];
 
+const SAVINGS_PROFILES = [
+  { agent: "claude-sonnet", label: "Claude Sonnet", provider: "Anthropic", input_rate_per_million: 3.0 },
+  { agent: "codex", label: "OpenAI Codex", provider: "OpenAI", input_rate_per_million: 1.5 },
+  { agent: "copilot", label: "GitHub Copilot coding agent", provider: "GitHub", input_rate_per_million: 0.0 },
+];
+
 function getCorsHeaders(origin) {
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "null";
   return {
@@ -60,7 +66,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     .owner { margin-top: 18px; color: #c4b5fd; font-weight: 800; }
     .hero-stats {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 16px;
       margin-bottom: 24px;
     }
@@ -81,6 +87,11 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     .bar-labels { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; color: #cbd5e1; flex-wrap: wrap; }
     .prediction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .mini { padding: 18px; border-radius: 12px; background: rgba(2,6,23,.35); border: 1px solid rgba(148,163,184,.15); }
+    .savings-table { width: 100%; border-collapse: collapse; margin-top: 18px; overflow: hidden; border-radius: 12px; }
+    .savings-table th, .savings-table td { padding: 14px; border-bottom: 1px solid rgba(148,163,184,.16); text-align: left; }
+    .savings-table th { color: #94a3b8; text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    .savings-table td:last-child, .savings-table th:last-child { text-align: right; }
+    .savings-table tr:last-child td { border-bottom: 0; }
     .ascii {
       margin: 22px 0 16px;
       padding: 18px;
@@ -108,6 +119,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     .error { padding: 18px; border-radius: 14px; background: rgba(127,29,29,.35); border: 1px solid rgba(248,113,113,.45); }
     footer { text-align: center; color: #94a3b8; line-height: 1.7; padding: 22px 0; }
     footer a { color: #a5b4fc; text-decoration: none; font-weight: 800; }
+    @media (max-width: 1180px) { .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 980px) { .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 620px) { body { padding: 14px; } .hero-stats, .prediction-grid { grid-template-columns: 1fr; } }
   </style>
@@ -129,6 +141,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       <section class="hero-stats">
         <div class="card"><div class="label">Total Runs</div><div class="value" id="total-runs">-</div><div class="sub">Commands executed</div></div>
         <div class="card"><div class="label">Tokens Saved</div><div class="value" id="tokens-saved">-</div><div class="sub" id="tokens-processed-label">-</div></div>
+        <div class="card"><div class="label">Estimated Savings</div><div class="value" id="estimated-savings">-</div><div class="sub">Reference terminal-context savings</div></div>
         <div class="card"><div class="label">Compression Rate</div><div class="value" id="compression-rate">-</div><div class="sub">Average across all runs</div></div>
         <div class="card"><div class="label">Success Rate</div><div class="value" id="success-rate">-</div><div class="sub" id="success-label">-</div></div>
       </section>
@@ -140,6 +153,14 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
           <span>Original: <strong id="original-tokens">-</strong> tokens</span>
           <span>Compressed: <strong id="compressed-tokens">-</strong> tokens</span>
         </div>
+        <table class="savings-table" aria-label="Estimated savings by AI agent">
+          <thead>
+            <tr><th>AI agent/provider</th><th>Reference input rate</th><th>Estimated saved</th></tr>
+          </thead>
+          <tbody id="agent-savings-rows">
+            <tr><td colspan="3">Loading aggregate savings...</td></tr>
+          </tbody>
+        </table>
       </section>
 
       <section class="panel">
@@ -183,6 +204,23 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       if (num >= 1000) return (num / 1000).toFixed(1) + "K";
       return num.toLocaleString();
     }
+    function formatCurrency(num) {
+      return "$" + Number(num || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function renderAgentSavings(rows) {
+      const body = document.getElementById("agent-savings-rows");
+      const safeRows = Array.isArray(rows) ? rows : [];
+      if (!safeRows.length) {
+        body.innerHTML = '<tr><td colspan="3">No aggregate savings yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = safeRows.map((row) => {
+        const label = String(row.label || row.agent || "Unknown").replace(/[<>&"]/g, "");
+        const provider = String(row.provider || "").replace(/[<>&"]/g, "");
+        const rate = Number(row.input_rate_per_million || 0).toFixed(2);
+        return '<tr><td><strong>' + label + '</strong><div class="sub">' + provider + '</div></td><td>$' + rate + '/M tokens</td><td><strong>' + formatCurrency(row.estimated_savings_usd) + '</strong></td></tr>';
+      }).join("");
+    }
     async function loadProofData() {
       const loading = document.getElementById("loading-state");
       const error = document.getElementById("error-state");
@@ -197,12 +235,14 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         const totals = data.totals || {};
         document.getElementById("total-runs").textContent = Number(totals.total_runs || 0).toLocaleString();
         document.getElementById("tokens-saved").textContent = formatNumber(totals.tokens_saved);
+        document.getElementById("estimated-savings").textContent = formatCurrency(totals.estimated_savings_usd);
         document.getElementById("tokens-processed-label").textContent = formatNumber(totals.tokens_processed) + " processed";
         document.getElementById("compression-rate").textContent = Number(totals.compression_percent || 0).toFixed(1) + "%";
         document.getElementById("success-rate").textContent = Number(totals.success_rate || 0).toFixed(1) + "%";
         document.getElementById("success-label").textContent = Number(totals.successful_runs || 0).toLocaleString() + "/" + Number(totals.total_runs || 0).toLocaleString() + " successful";
         document.getElementById("original-tokens").textContent = formatNumber(totals.tokens_processed);
         document.getElementById("compressed-tokens").textContent = formatNumber(totals.tokens_compressed);
+        renderAgentSavings(totals.savings_by_agent);
         const bar = document.getElementById("compression-bar");
         const pct = Math.max(0, Math.min(100, Number(totals.compression_percent || 0)));
         bar.style.width = pct + "%";
@@ -282,6 +322,36 @@ function clampInt(value, min, max, fallback = 0) {
 function numberValue(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function roundMoney(value) {
+  return Number(Math.max(0, numberValue(value, 0)).toFixed(4));
+}
+
+function buildSavingsByAgent(savedTokens) {
+  const saved = clampInt(savedTokens, 0, 2147483647, 0);
+  return SAVINGS_PROFILES.map((profile) => ({
+    agent: profile.agent,
+    label: profile.label,
+    provider: profile.provider,
+    saved_tokens: saved,
+    input_rate_per_million: profile.input_rate_per_million,
+    estimated_savings_usd: roundMoney((saved / 1000000) * profile.input_rate_per_million),
+  }));
+}
+
+function sanitizeSavingsByAgent(rows, savedTokens) {
+  const fallback = buildSavingsByAgent(savedTokens);
+  if (!Array.isArray(rows) || rows.length === 0) return fallback;
+  const sanitized = rows.slice(0, 8).map((row) => ({
+    agent: textValue(row?.agent, 80),
+    label: textValue(row?.label, 120),
+    provider: textValue(row?.provider, 80),
+    saved_tokens: clampInt(row?.saved_tokens, 0, 2147483647, savedTokens),
+    input_rate_per_million: roundMoney(row?.input_rate_per_million),
+    estimated_savings_usd: roundMoney(row?.estimated_savings_usd),
+  })).filter((row) => row.agent || row.label);
+  return sanitized.length ? sanitized : fallback;
 }
 
 function hasForbiddenRawFields(body) {
@@ -809,6 +879,7 @@ async function handleProof(env) {
   const saved = Number(total.saved_tokens || 0);
   const totalRuns = Number(total.total_runs || 0);
   const successful = Number(total.successful_runs || 0);
+  const savingsByAgent = buildSavingsByAgent(saved);
   return json({
     ok: true,
     generated_at: nowIso(),
@@ -819,6 +890,8 @@ async function handleProof(env) {
       "tokens_processed",
       "tokens_compressed",
       "tokens_saved",
+      "estimated_savings_usd",
+      "savings_by_agent",
       "compression_percent",
       "success_rate",
       "failure_prediction_stats",
@@ -831,6 +904,8 @@ async function handleProof(env) {
       tokens_processed: original,
       tokens_compressed: Number(total.compressed_tokens || 0),
       tokens_saved: saved,
+      estimated_savings_usd: savingsByAgent[0]?.estimated_savings_usd || 0,
+      savings_by_agent: savingsByAgent,
       compression_percent: original ? Number(((saved / original) * 100).toFixed(2)) : 0,
       success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
       failure_prediction_stats: {
@@ -869,6 +944,7 @@ async function handleProofSnapshot(env, request) {
   const totalRuns = clampInt(totals.total_runs, 0, 2147483647, 0);
   const successful = clampInt(totals.successful_runs, 0, 2147483647, 0);
   const compressed = clampInt(totals.tokens_compressed, 0, 2147483647, 0);
+  const savingsByAgent = sanitizeSavingsByAgent(totals.savings_by_agent, saved);
   const snapshot = {
     ok: true,
     generated_at: nowIso(),
@@ -884,6 +960,8 @@ async function handleProofSnapshot(env, request) {
       "tokens_processed",
       "tokens_compressed",
       "tokens_saved",
+      "estimated_savings_usd",
+      "savings_by_agent",
       "compression_percent",
       "success_rate",
       "failure_prediction_stats",
@@ -895,6 +973,8 @@ async function handleProofSnapshot(env, request) {
       tokens_processed: original,
       tokens_compressed: compressed,
       tokens_saved: saved,
+      estimated_savings_usd: roundMoney(totals.estimated_savings_usd || savingsByAgent[0]?.estimated_savings_usd || 0),
+      savings_by_agent: savingsByAgent,
       compression_percent: original ? Number(((saved / original) * 100).toFixed(2)) : 0,
       success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
       failure_prediction_stats: {

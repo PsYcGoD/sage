@@ -1,7 +1,7 @@
 # SAGE
 
 [![CI](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml/badge.svg)](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/pypi/pyversions/sage-cli.svg)](https://pypi.org/project/sage-cli/)
+[![Python](https://img.shields.io/pypi/pyversions/psycgod-sage.svg)](https://pypi.org/project/psycgod-sage/)
 [![License](https://img.shields.io/github/license/PsYcGoD/sage.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/PsYcGoD/sage?include_prereleases)](https://github.com/PsYcGoD/sage/releases)
 
@@ -41,7 +41,7 @@ Raw commands, outputs, file paths, and logs stay local by default. Public proof 
 Install the public CLI package from PyPI:
 
 ```bash
-pip install sage-cli
+pip install psycgod-sage
 sage --version
 ```
 
@@ -54,7 +54,7 @@ pip install -e .
 sage --version
 ```
 
-The PyPI distribution is `sage-cli`; the installed CLI command is still `sage`.
+The PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`.
 
 ## Connect Your Account
 

@@ -29,8 +29,8 @@ def test_public_release_docs_and_assets_exist():
 def test_readme_public_positioning():
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "pip install sage-cli" in readme
-    assert "The PyPI distribution is `sage-cli`; the installed CLI command is still `sage`." in readme
+    assert "pip install psycgod-sage" in readme
+    assert "The PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`." in readme
     assert "local-first command wrapper for AI coding agents" in readme
     assert "## Known Limitations" in readme
     assert "The desktop GUI is not available in this public repo right now." in readme

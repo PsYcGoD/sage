@@ -6,7 +6,7 @@ Public CLI-first release candidate for SAGE.
 
 ### Changed
 
-- Rename the public PyPI distribution to `sage-cli` while keeping the installed command as `sage`.
+- Rename the public PyPI distribution to `psycgod-sage` while keeping the installed command as `sage`.
 - Mark the package as beta because the public package is CLI-first and the GUI is not included yet.
 - Position SAGE as a local-first command wrapper for AI coding agents.
 - Document the public proof model, telemetry behavior, and known limitations.
@@ -19,7 +19,7 @@ Public CLI-first release candidate for SAGE.
 
 ### Documentation
 
-- Add install instructions for `pip install sage-cli`.
+- Add install instructions for `pip install psycgod-sage`.
 - Add release notes for `v2.0.0-cli-public`.
 - Add `SECURITY.md` and `CONTRIBUTING.md`.
 - Add terminal capture assets for `sage run --`, `sage context report`, and `sage mcp install`.

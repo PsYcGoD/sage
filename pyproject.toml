@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sage-cli"
+name = "psycgod-sage"
 version = "2.0.0"
 description = "Local-first command wrapper for AI coding agents with compressed terminal output and privacy-safe proof metrics."
 readme = "README.md"
@@ -17,7 +17,7 @@ dependencies = [
   "tiktoken>=0.7",
 ]
 
-license = { text = "MIT" }
+license = "MIT"
 authors = [
   { name = "PsYcGoD" }
 ]

@@ -5,16 +5,16 @@
 PyPI is the public Python package registry. Publishing SAGE there lets users install the CLI with:
 
 ```bash
-pip install sage-cli
+pip install psycgod-sage
 ```
 
 or, for isolated CLI installs:
 
 ```bash
-pipx install sage-cli
+pipx install psycgod-sage
 ```
 
-The package name is `sage-cli`, but the command users run remains:
+The package name is `psycgod-sage`, but the command users run remains:
 
 ```bash
 sage
@@ -53,26 +53,25 @@ python -m build
 python -m twine check dist/*
 ```
 
-5. Upload to TestPyPI first:
+5. Publish from GitHub using PyPI Trusted Publishing:
+
+- Create a PyPI pending publisher for project `psycgod-sage`.
+- Use repository `PsYcGoD/Sage`.
+- Use workflow `pypi-publish.yml`.
+- Use environment `pypi`.
+- Publish a GitHub release. The `.github/workflows/pypi-publish.yml` workflow builds and uploads to PyPI using OIDC.
+
+No PyPI API token is needed when Trusted Publishing is configured correctly.
+
+6. After the GitHub release workflow succeeds, install from PyPI in a clean environment and run:
 
 ```bash
-python -m twine upload --repository testpypi dist/*
-```
-
-6. Install from TestPyPI in a clean environment and run:
-
-```bash
+pip install psycgod-sage
 sage --version
 sage gui
 sage api status
 ```
 
-7. Upload to PyPI:
-
-```bash
-python -m twine upload dist/*
-```
-
 ## Not Done Yet
 
-The actual PyPI upload requires a PyPI account/token. Do not mark PyPI release complete until the package is visible on PyPI and install-tested.
+Do not mark PyPI release complete until the package is visible on PyPI and install-tested with `pip install psycgod-sage`.

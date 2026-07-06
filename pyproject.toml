@@ -18,6 +18,7 @@ dependencies = [
 ]
 
 license = "MIT"
+license-files = ["LICENSE*"]
 authors = [
   { name = "PsYcGoD" }
 ]
@@ -49,6 +50,12 @@ all = [
 
 [project.scripts]
 sage = "sage.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/PsYcGoD/sage"
+Repository = "https://github.com/PsYcGoD/sage"
+Issues = "https://github.com/PsYcGoD/sage/issues"
+Dashboard = "https://sage.api.marketingstudios.in/dashboard"
 
 [tool.setuptools.packages.find]
 where = ["src"]

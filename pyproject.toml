@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psycgod-sage"
-version = "2.0.0"
+version = "2.0.1"
 description = "Local-first command wrapper for AI coding agents with compressed terminal output and privacy-safe proof metrics."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -7,8 +7,8 @@ Public SAGE API Worker for opt-in telemetry, API key bootstrap, and aggregate pr
 | Resource | Name |
 |---|---|
 | Worker | `sage-api` |
-| Custom domain | `https://sage.api.marketingstudios.in` |
-| Workers.dev fallback | `https://sage-api.pascoaldsouza28.workers.dev` |
+| Current public Worker | `https://sage-api.valan-dj.workers.dev` |
+| Previous custom domain | `https://sage.api.marketingstudios.in` |
 | D1 database | `sage_telemetry` |
 | D1 database ID | `30dce3a3-6f7f-423c-9f29-4ff812685752` |
 | Queue | `sage-telemetry-queue` |
@@ -101,11 +101,11 @@ sage telemetry send --for-real
 Public proof:
 
 ```text
-https://sage.api.marketingstudios.in/v1/proof
+https://sage-api.valan-dj.workers.dev/v1/proof
 ```
 
 The fallback endpoint remains:
 
 ```text
-https://sage-api.pascoaldsouza28.workers.dev/v1/proof
+https://sage.api.marketingstudios.in/v1/proof
 ```

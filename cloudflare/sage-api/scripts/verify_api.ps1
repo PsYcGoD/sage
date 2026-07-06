@@ -1,5 +1,5 @@
 param(
-  [string]$BaseUrl = "https://sage-api.pascoaldsouza28.workers.dev"
+  [string]$BaseUrl = "https://sage-api.valan-dj.workers.dev"
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,4 +55,3 @@ $proof = Invoke-RestMethod -Uri "$BaseUrl/v1/proof"
   proof_totals = $proof.totals
   public_contributors = $proof.public_contributors
 } | ConvertTo-Json -Depth 8
-

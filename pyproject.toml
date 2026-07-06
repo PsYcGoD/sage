@@ -55,7 +55,7 @@ sage = "sage.cli:main"
 Homepage = "https://github.com/PsYcGoD/sage"
 Repository = "https://github.com/PsYcGoD/sage"
 Issues = "https://github.com/PsYcGoD/sage/issues"
-Dashboard = "https://psyc-god-sage-api.valan-dj.workers.dev/dashboard"
+Dashboard = "https://sage.api.marketingstudios.in/dashboard"
 
 [tool.setuptools.packages.find]
 where = ["src"]

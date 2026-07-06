@@ -357,7 +357,7 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--public-profile", action="store_true", help="Show this profile on public proof leaderboards.")
     parser.add_argument("--privacy-max", type=int, default=1, choices=[0, 1, 2, 3, 4], help="Maximum telemetry level allowed for this key.")
     parser.add_argument("--scope", default="personal", help="API key scope label.")
-    parser.add_argument("--endpoint", default="", help="SAGE API base URL. Defaults to psyc-god-sage-api.valan-dj.workers.dev.")
+    parser.add_argument("--endpoint", default="", help="SAGE API base URL. Defaults to sage.api.marketingstudios.in.")
     parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,13 +1,17 @@
-name = "psyc-god-sage-api"
+name = "sage-api"
 main = "src/worker.js"
 compatibility_date = "2026-06-14"
 workers_dev = true
-account_id = "18aecc3a0dcb9092bdf98be9cb21bd7a"
+account_id = "615b5d24ac380d486fb5873d2faadd05"
+
+[[routes]]
+pattern = "sage.api.marketingstudios.in"
+custom_domain = true
 
 [[d1_databases]]
 binding = "DB"
 database_name = "sage_telemetry"
-database_id = "2483de7b-ad2a-4f86-93d2-d2b7635f79ac"
+database_id = "30dce3a3-6f7f-423c-9f29-4ff812685752"
 
 [[queues.producers]]
 binding = "TELEMETRY_QUEUE"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -119,12 +120,42 @@ def inject_sage_requirement(config_path: Path, instruction_text: str, *, create_
         return False
 
 
+def _register_mcp_server() -> bool:
+    """Register SAGE as MCP server in Claude Code settings."""
+    claude_settings = Path.home() / ".claude" / "settings.json"
+    
+    if not claude_settings.exists():
+        return False
+    
+    try:
+        settings = json.loads(claude_settings.read_text(encoding="utf-8"))
+        
+        if "mcpServers" not in settings:
+            settings["mcpServers"] = {}
+        
+        if "sage" in settings["mcpServers"]:
+            return False
+        
+        settings["mcpServers"]["sage"] = {
+            "command": "python",
+            "args": ["-m", "sage.mcp.server"],
+            "description": "Smart Agent Guidance Engine - Mandatory wrapper"
+        }
+        
+        claude_settings.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        return True
+    except Exception as exc:
+        print(f"Warning: Could not register MCP server: {exc}", file=sys.stderr)
+        return False
+
+
 def install_sage_system_wide() -> dict[str, bool]:
     """
     Install SAGE prompt instructions for supported local AI tools.
 
     Modifies:
     - ~/.claude/CLAUDE.md
+    - ~/.claude/settings.json (MCP server registration)
     - ~/.codex/AGENTS.md
     - ~/.cursorrules
     - ~/.aider.conf.yml, only when it already exists
@@ -145,6 +176,14 @@ def install_sage_system_wide() -> dict[str, bool]:
             print(f"ℹ️  {target.name} already has a SAGE instruction or was unchanged")
         else:
             print(f"ℹ️  Skipped {target.name}; config file does not exist")
+
+    # Register MCP server for Claude Code
+    mcp_registered = _register_mcp_server()
+    results["mcp_server"] = mcp_registered
+    if mcp_registered:
+        print(f"✅ Registered SAGE MCP server in Claude Code")
+    else:
+        print(f"ℹ️  MCP server already registered or Claude Code not found")
 
     print("\n✅ SAGE prompt integration complete")
     return results

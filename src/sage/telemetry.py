@@ -28,7 +28,7 @@ from .store import connect, data_dir
 SCHEMA_VERSION = "1.0"
 DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
 FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
-KEYRING_SERVICE = "sage-cli"
+KEYRING_SERVICE = "psycgod-sage"
 
 # 🔒 SECURITY: Master key for API key generation
 # This is intentionally in the code (not in repo) and used by local CLI clients.

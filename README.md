@@ -1,7 +1,7 @@
 # SAGE
 
 [![CI](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml/badge.svg)](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/pypi/pyversions/psycgod-sage.svg)](https://pypi.org/project/psycgod-sage/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![License](https://img.shields.io/github/license/PsYcGoD/sage.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/PsYcGoD/sage?include_prereleases)](https://github.com/PsYcGoD/sage/releases)
 
@@ -19,6 +19,7 @@ Current public proof includes:
 
 - Total commands processed through SAGE
 - Tokens processed, compressed, and saved
+- Estimated savings by AI agent/provider
 - Compression rate and command success rate
 - ML prediction scoring from local command history
 
@@ -26,19 +27,27 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 4,134 |
-| Tokens processed | 16,332,337 |
-| Tokens compressed | 1,154,589 |
-| Tokens saved | 15,177,748 |
-| Compression rate | 92.93% |
-| Success rate | 96.73% |
+| Commands processed | 4,525 |
+| Tokens processed | 16,806,661 |
+| Tokens compressed | 1,200,245 |
+| Tokens saved | 15,606,416 |
+| Estimated savings | $46.82 |
+| Compression rate | 92.86% |
+| Success rate | 97.28% |
 
 These stats reflect the public CLI proof snapshot after the hosted dashboard went live.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
-## Installation
+## Install From GitHub Until PyPI Is Live
 
-Install the public CLI package from PyPI:
+PyPI publishing is prepared but still blocked by the Trusted Publisher project-name mismatch. Until the PyPI project is live, install the public CLI directly from GitHub:
+
+```bash
+pip install git+https://github.com/PsYcGoD/sage.git
+sage --version
+```
+
+After PyPI is live, the install command will be:
 
 ```bash
 pip install psycgod-sage
@@ -54,7 +63,7 @@ pip install -e .
 sage --version
 ```
 
-The PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`.
+The prepared PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`.
 
 ## Connect Your Account
 

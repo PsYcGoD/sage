@@ -56,7 +56,7 @@ python -m twine check dist/*
 5. Publish from GitHub using PyPI Trusted Publishing:
 
 - Create a PyPI pending publisher for project `psycgod-sage`.
-- Use repository `PsYcGoD/Sage`.
+- Use repository `PsYcGoD/sage`.
 - Use workflow `pypi-publish.yml`.
 - Use environment `pypi`.
 - Publish a GitHub release. The `.github/workflows/pypi-publish.yml` workflow builds and uploads to PyPI using OIDC.
@@ -75,3 +75,5 @@ sage api status
 ## Not Done Yet
 
 Do not mark PyPI release complete until the package is visible on PyPI and install-tested with `pip install psycgod-sage`.
+
+Current blocker: PyPI rejected the GitHub Trusted Publisher claim because the pending publisher used the wrong repository casing/path. The GitHub claim is `repository: PsYcGoD/sage`, so PyPI must use exactly `PsYcGoD/sage`.

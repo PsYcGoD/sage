@@ -131,6 +131,10 @@ def evaluate_command(command: str, *, mode: str | None = None, dry_run: bool = F
     policy_mode = mode or str(policy.get("mode") or "personal")
     text = command.lower()
 
+    for item in policy.get("allowlist", []):
+        if item and str(item).lower() in text:
+            return PolicyDecision(policy_mode, "allowed", f"matched allowlist: {item}", risky=False)
+
     for item in policy.get("denylist", []):
         if item and _matches_policy_item(text, str(item).lower()):
             return PolicyDecision(policy_mode, "blocked", f"matched denylist: {item}", risky=True)

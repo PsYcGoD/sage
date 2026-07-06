@@ -184,6 +184,37 @@ def test_default_level_is_local_only(isolated_telemetry):
     assert isolated_telemetry.build_payload(1) is None  # level 0 sends nothing
 
 
+def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    from sage.context.tracker import TokenTracker
+    from sage.store import save_run
+    from sage import telemetry
+
+    run_id = save_run(
+        project="proof-test",
+        command="sage run -- pytest",
+        exit_code=0,
+        duration_ms=25,
+        stdout="ok",
+        stderr="",
+        summary="ok",
+    )
+    TokenTracker().record_usage(run_id, estimated_tokens=2_000_000, compressed_tokens=500_000)
+
+    snapshot = telemetry.build_proof_snapshot()
+    totals = snapshot["totals"]
+
+    assert totals["tokens_saved"] == 1_500_000
+    assert totals["estimated_savings_usd"] == 4.5
+    assert totals["savings_by_agent"][0]["agent"] == "claude-sonnet"
+    assert totals["savings_by_agent"][0]["estimated_savings_usd"] == 4.5
+    assert totals["savings_by_agent"][1]["agent"] == "codex"
+    assert totals["savings_by_agent"][1]["estimated_savings_usd"] == 2.25
+    assert "command" not in snapshot
+    assert "stdout" not in snapshot
+
+
 def test_strictest_policy_wins(isolated_telemetry):
     t = isolated_telemetry
     t.set_level(3)

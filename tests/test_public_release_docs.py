@@ -29,9 +29,13 @@ def test_public_release_docs_and_assets_exist():
 def test_readme_public_positioning():
     readme = Path("README.md").read_text(encoding="utf-8")
 
+    assert "## Install From GitHub Until PyPI Is Live" in readme
+    assert "pip install git+https://github.com/PsYcGoD/sage.git" in readme
     assert "pip install psycgod-sage" in readme
-    assert "The PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`." in readme
+    assert "PyPI publishing is prepared but still blocked by the Trusted Publisher project-name mismatch." in readme
+    assert "The prepared PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`." in readme
     assert "local-first command wrapper for AI coding agents" in readme
+    assert "Estimated savings by AI agent/provider" in readme
     assert "## Known Limitations" in readme
     assert "The desktop GUI is not available in this public repo right now." in readme
     assert "docs/assets/sage-run.svg" in readme
@@ -42,3 +46,13 @@ def test_readme_public_positioning():
     assert hidden_team_endpoint not in readme
     removed_command = "sage " + "pric" + "ing"
     assert removed_command not in readme
+
+
+def test_public_worker_dashboard_exposes_aggregate_savings():
+    worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
+
+    assert "Estimated Savings" in worker
+    assert "Estimated savings by AI agent" in worker
+    assert "estimated_savings_usd" in worker
+    assert "savings_by_agent" in worker
+    assert "sanitizeSavingsByAgent" in worker

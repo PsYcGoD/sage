@@ -57,7 +57,7 @@ sage connect --display-name "Test User"
 # Should succeed with: ✅ SAGE API connected
 
 # Try connecting WITHOUT master key (simulate hacker):
-curl -X POST https://sage-api.valan-dj.workers.dev/v1/keys \
+curl -X POST https://psyc-god-sage-api.valan-dj.workers.dev/v1/keys \
   -H "Content-Type: application/json" \
   -d '{"display_name": "Hacker"}'
 

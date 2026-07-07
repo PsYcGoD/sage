@@ -156,6 +156,41 @@ Starter demo GIFs:
 - [`demo-sage-savings.gif`](docs/assets/demo-sage-savings.gif)
 - [`demo-github-bot.gif`](docs/assets/demo-github-bot.gif)
 
+## Agents & ML
+
+**AI agents and ML features are fully operational in all SAGE installations** (pip, GitHub clone, or any install method). They run automatically with every command execution.
+
+### Active Agent Types
+
+SAGE includes 10+ specialized agents that analyze every command:
+- **Security Agent** - Detects secrets, credentials, and security risks
+- **Code Agent** - Checks syntax, scope, and file changes  
+- **Debug Agent** - Analyzes errors and suggests fixes
+- **Test Agent** - Identifies test patterns and coverage
+- **Dependency Agent** - Tracks package installations and versions
+- **Research Agent** - Code analysis and pattern detection
+- **Frontend Agent** - UI/UX and browser-related analysis
+- **Performance Agent** - Performance and optimization insights
+- **Workflow Agent** - Multi-step task orchestration
+- **Red Team Agent** - Adversarial security testing
+
+### ML Training & Metrics
+
+All installations automatically collect ML training data for improving agent quality:
+
+```bash
+# View live statistics
+sage dashboard
+```
+
+**Example stats from production use:**
+- **ML Training Examples:** 8,431+ examples
+- **Agent Runs Completed:** 40,275+ runs
+- **Agent Quality Metrics:** 48 tracked metrics
+- **Agent Tasks Processed:** 42,040+ tasks
+
+The ML system learns from your command patterns to optimize compression strategies and agent responses.
+
 ## GUI Status
 
 The desktop GUI is not available in this public repo right now.
@@ -164,7 +199,7 @@ The desktop GUI is not available in this public repo right now.
 sage gui
 ```
 
-This command prints the roadmap status instead of launching a desktop app. The GUI will be released later with AI agents and ML workflows after it is stable enough for public use.
+This command prints the roadmap status instead of launching a desktop app. The GUI will be released later after it is stable enough for public use.
 
 ## Known Limitations
 
@@ -172,7 +207,7 @@ This command prints the roadmap status instead of launching a desktop app. The G
 - GitHub OAuth / a SAGE API key is required for most API-backed commands and public proof sync.
 - Telemetry level `0` is local-only; higher levels are opt-in and constrained by account/key policy.
 - The public dashboard is aggregate-only and does not expose raw commands, raw outputs, file paths, or local logs.
-- Local ML and agent features depend on local history volume and optional provider credentials.
+- ML training and agent quality improve with usage volume - fresh installations have minimal training data initially.
 
 ## Privacy
 

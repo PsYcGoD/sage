@@ -84,5 +84,28 @@ if APIRouter:
                 "failed": result["failed"] or 0,
                 "running": result["running"] or 0,
             }
+
+    @router.get("/metrics/ml")
+    async def get_ml_metrics():
+        """Get ML and agent activity metrics."""
+        with connect() as conn:
+            result = conn.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM ml_training_examples) as ml_examples,
+                    (SELECT COUNT(*) FROM agent_runs) as agent_runs,
+                    (SELECT COUNT(*) FROM agent_quality_metrics) as quality_metrics,
+                    (SELECT COUNT(*) FROM agent_tasks) as agent_tasks,
+                    (SELECT COUNT(*) FROM agents) as total_agents
+                """
+            ).fetchone()
+            
+            return {
+                "ml_training_examples": result["ml_examples"] or 0,
+                "agent_runs_completed": result["agent_runs"] or 0,
+                "agent_quality_metrics": result["quality_metrics"] or 0,
+                "agent_tasks_processed": result["agent_tasks"] or 0,
+                "total_agents": result["total_agents"] or 0,
+            }
 else:
     router = None

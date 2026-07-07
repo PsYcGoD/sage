@@ -44,6 +44,17 @@ def dashboard_snapshot(limit: int = 10) -> dict[str, Any]:
             """,
             (limit,),
         ).fetchall()
+        
+        # ML and agent activity stats
+        ml_result = conn.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM ml_training_examples) as ml_examples,
+                (SELECT COUNT(*) FROM agent_runs) as agent_runs,
+                (SELECT COUNT(*) FROM agent_quality_metrics) as quality_metrics,
+                (SELECT COUNT(*) FROM agent_tasks) as agent_tasks
+            """
+        ).fetchone()
 
     total = int(cmd_result["total"] or 0)
     successful = int(cmd_result["successful"] or 0)
@@ -52,6 +63,12 @@ def dashboard_snapshot(limit: int = 10) -> dict[str, Any]:
     total_estimated = int(compression_result["total_estimated"] or 0)
     active_agents = int(agent_result["active"] or 0)
     total_agents = int(agent_result["total"] or 0)
+    
+    # ML stats
+    ml_examples = int(ml_result["ml_examples"] or 0)
+    agent_runs_count = int(ml_result["agent_runs"] or 0)
+    quality_metrics = int(ml_result["quality_metrics"] or 0)
+    agent_tasks_count = int(ml_result["agent_tasks"] or 0)
 
     return {
         "metrics": {
@@ -64,6 +81,10 @@ def dashboard_snapshot(limit: int = 10) -> dict[str, Any]:
             "total_tokens_saved": total_saved,
             "active_agents": active_agents,
             "total_agents": total_agents,
+            "ml_training_examples": ml_examples,
+            "agent_runs_completed": agent_runs_count,
+            "agent_quality_metrics": quality_metrics,
+            "agent_tasks_processed": agent_tasks_count,
         },
         "commands": [
             {

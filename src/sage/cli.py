@@ -1159,8 +1159,21 @@ def api_visitors_command() -> int:
 
     totals = data.get("totals", {}) or {}
     today = data.get("today_stats", {}) or {}
-    print("SAGE public dashboard visitors")
+    installs = data.get("installs", {}) or {}
+    users = data.get("users", {}) or {}
+    clicks = data.get("clicks", {}) or {}
+    print("SAGE private dashboard analytics")
     print(f"Generated: {data.get('generated_at')}")
+    print("\nInstalls and users")
+    print(f"All-time installs: {installs.get('total_installs', 0)}")
+    print(f"New installs today: {installs.get('new_installs_today', 0)}")
+    print(f"Live installs now (15m): {installs.get('live_installs_15m', 0)}")
+    print(f"Active installs (24h): {installs.get('active_installs_24h', 0)}")
+    print(f"Connected API users: {users.get('connected_users', 0)}")
+    print(f"New GitHub logins today: {users.get('new_logins_today', 0)}")
+    print(f"Live API users now (15m): {users.get('live_api_users_15m', 0)}")
+    print(f"Active API users (24h): {users.get('active_api_users_24h', 0)}")
+    print("\nDashboard visitors")
     print(f"All-time unique visitors: {totals.get('unique_visitors', 0)}")
     print(f"All-time page views: {totals.get('page_views', 0)}")
     print(f"Today ({data.get('today')}):")
@@ -1168,9 +1181,17 @@ def api_visitors_command() -> int:
     print(f"  page views: {today.get('page_views', 0)}")
     print(f"  new visitors: {today.get('new_visitors', 0)}")
     print(f"  returning visitors: {today.get('returning_visitors', 0)}")
+    print("\nDashboard clicks")
+    print(f"All-time clicks: {clicks.get('total_clicks', 0)}")
+    print(f"Clicks today: {clicks.get('clicks_today', 0)}")
+    by_action = clicks.get("by_action_today") or []
+    if by_action:
+        print("Clicks by action today:")
+        for row in by_action:
+            print(f"  {row.get('action')}: {row.get('click_count', 0)}")
     recent = data.get("recent_days") or []
     if recent:
-        print("Recent days:")
+        print("\nRecent days:")
         for row in recent:
             print(f"  {row.get('day')}: {row.get('unique_visitors', 0)} visitors, {row.get('page_views', 0)} views")
     return 0

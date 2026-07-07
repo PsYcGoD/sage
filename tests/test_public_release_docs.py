@@ -69,3 +69,9 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "ml_training_examples" in worker
     assert "agent_quality_metrics" in worker
     assert "sanitizeSavingsByAgent" in worker
+    assert "/v1/dashboard-click" in worker
+    assert "dashboard_clicks" in worker
+    assert "new_installs_today" in worker
+    assert "live_installs_15m" in worker
+    assert "live_api_users_15m" in worker
+    assert "clicks_today" in worker

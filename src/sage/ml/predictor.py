@@ -42,7 +42,7 @@ class FailurePredictor:
         self.family_model = FamilyFailureModel(extractor=self.feature_extractor)
         self.model = None
         self.trained = False
-        self._vector_store: CommandVectorStore | None = None
+        self._vector_store = None
         self._v2_failed = False
 
     def _get_vector_store(self):

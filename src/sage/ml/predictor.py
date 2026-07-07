@@ -11,13 +11,20 @@ from .features import FeatureExtractor
 from .model import SklearnFailureModel
 from .family_model import FamilyFailureModel
 
-try:
-    from .embeddings import CommandEmbedder, _HAS_ML_DEPS
-    from .vector_store import CommandVectorStore, build_vector_store
+_HAS_V2 = None  # Lazy: checked on first predict call
 
-    _HAS_V2 = _HAS_ML_DEPS
-except ImportError:
-    _HAS_V2 = False
+
+def _check_v2_available():
+    global _HAS_V2
+    if _HAS_V2 is not None:
+        return _HAS_V2
+    try:
+        import importlib
+        mod = importlib.import_module(".embeddings", __package__)
+        _HAS_V2 = getattr(mod, "_HAS_ML_DEPS", False)
+    except ImportError:
+        _HAS_V2 = False
+    return _HAS_V2
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +45,15 @@ class FailurePredictor:
         self._vector_store: CommandVectorStore | None = None
         self._v2_failed = False
 
-    def _get_vector_store(self) -> CommandVectorStore | None:
+    def _get_vector_store(self):
         """Lazily initialize the V2 vector store (returns None if unavailable)."""
-        if not _HAS_V2 or self._v2_failed:
+        if not _check_v2_available() or self._v2_failed:
             return None
         if self._vector_store is not None:
             return self._vector_store
 
         try:
+            from .vector_store import build_vector_store
             store = build_vector_store(db_path(), use_cache=True)
             self._vector_store = store
             logger.info(f"ML V2 vector store ready: {store.size} commands indexed")

@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 def _require_ml_deps():
     if not _HAS_ML_DEPS:
         raise ImportError(
-            "ML V2 requires optional dependencies. "
-            "Install with: pip install psycgod-sage[ml]"
+            "ML V2 requires sentence-transformers, faiss-cpu, and numpy. "
+            "Reinstall with: pip install --upgrade psycgod-sage"
         )
 
 

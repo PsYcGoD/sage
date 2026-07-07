@@ -1293,7 +1293,9 @@ async function handleProof(env) {
   ).first();
   if (snapshot?.payload_json) {
     try {
-      return json(normalizeProofPayload(JSON.parse(snapshot.payload_json)));
+      const parsed = normalizeProofPayload(JSON.parse(snapshot.payload_json));
+      parsed.generated_at = nowIso();
+      return json(parsed);
     } catch (_exc) {
       // Fall back to event aggregates if the stored snapshot is invalid.
     }
@@ -1483,7 +1485,7 @@ async function route(request, env) {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=300",
+        "Cache-Control": "no-cache",
         ...corsHeaders,
       },
     });

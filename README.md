@@ -29,13 +29,13 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 7,229 |
+| Commands processed | 6,288 |
 | Tokens processed | 16,742,284 |
 | Tokens compressed | 1,429,155 |
 | Tokens saved | 15,314,377 |
 | Estimated savings | $45.94 |
 | Compression rate | 91.47% |
-| Success rate | 86.01% |
+| Success rate | 99.5% |
 
 These stats reflect live dashboard metrics as of July 7, 2026. Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.

@@ -24,10 +24,11 @@ __all__ = [
     "write_validation_report",
 ]
 
-# V2 exports (available only when [ml] extras installed)
+# V2 exports (available only when ML deps installed)
 try:
     from .embeddings import CommandEmbedder, EmbeddingStore, get_embedder
     from .vector_store import CommandVectorStore, CommandOutcome, build_vector_store
+    from .neural_center import NeuralCommandCenter, NeuralResult
 
     __all__ += [
         "CommandEmbedder",
@@ -36,6 +37,8 @@ try:
         "CommandVectorStore",
         "CommandOutcome",
         "build_vector_store",
+        "NeuralCommandCenter",
+        "NeuralResult",
     ]
 except ImportError:
     pass

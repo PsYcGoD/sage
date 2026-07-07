@@ -33,3 +33,14 @@ oauth.env
 
 # Local Firebase CLI debug output
 firebase-debug.log
+
+# Personal files not for public repo
+.claude/
+REPO_DESCRIPTION.txt
+TODO.md
+TODO_100_USERS.md
+ROADMAP.md
+ANNOUNCEMENT.md
+docs/AGENT_LAYER_IMPLEMENTATION.md
+scripts/deploy_to_cloudflare.ps1
+scripts/deploy_to_cloudflare.sh

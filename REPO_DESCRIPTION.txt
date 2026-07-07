@@ -1,3 +1,0 @@
-🧠 SAGE V2.0 - Smart Agent Guidance Engine | 99.3% token compression for AI coding agents | Built-in GUI with `sage gui` | Editable install with `pip install -e .` | Commands route through `sage run --` | Real 24-agent fan-out | ML auto-fix | Privacy-first local proof 🚀
-
-Production-ready AI development orchestration platform that extends AI assistant context with automatic terminal-output compression. Use the built-in desktop GUI or install once in editable mode so AI coding agents can route commands through SAGE and start saving tokens. Features: 24 specialist agents, live agent progress, auto-fix, workflows, MCP tools, public proof dashboard, and local-first privacy. Comment or DM for early access. By PsYc+GoD AI & ML

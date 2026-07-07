@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
-SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
+MODEL_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
     "claude-sonnet": {
         "label": "Claude Sonnet",
         "provider": "Anthropic",
@@ -14,33 +14,108 @@ SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
         "provider": "OpenAI",
         "input_rate_per_million": 1.5,
     },
+    "gemini-pro": {
+        "label": "Gemini 2.5 Pro",
+        "provider": "Google",
+        "input_rate_per_million": 1.25,
+    },
+}
+
+AGENT_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
+    "claude-code": {
+        "label": "Claude Code",
+        "provider": "Anthropic",
+        "model": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
+    "opencode": {
+        "label": "OpenCode",
+        "provider": "OpenCode",
+        "model": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
+    "cursor": {
+        "label": "Cursor",
+        "provider": "Cursor",
+        "model": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
+    "cursor-openai": {
+        "label": "Cursor",
+        "provider": "Cursor",
+        "model": "OpenAI Codex",
+        "input_rate_per_million": 1.5,
+    },
+    "windsurf": {
+        "label": "Windsurf",
+        "provider": "Codeium",
+        "model": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
+    "aider": {
+        "label": "Aider",
+        "provider": "Aider",
+        "model": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
     "copilot": {
         "label": "GitHub Copilot coding agent",
         "provider": "GitHub",
+        "model": "GitHub Copilot",
         "input_rate_per_million": 0.0,
     },
 }
 
+# Backwards-compatible name used by the CLI.
+SAVINGS_PROFILES = MODEL_SAVINGS_PROFILES
+
+
+def _estimate(saved_tokens: int, input_rate_per_million: float) -> float:
+    return round((int(saved_tokens or 0) / 1_000_000) * input_rate_per_million, 4)
+
 
 def estimate_savings_usd(saved_tokens: int, agent: str) -> float:
-    profile = SAVINGS_PROFILES[agent]
+    profile = MODEL_SAVINGS_PROFILES[agent]
     input_rate = float(profile.get("input_rate_per_million", 0) or 0)
-    return round((int(saved_tokens or 0) / 1_000_000) * input_rate, 4)
+    return _estimate(saved_tokens, input_rate)
 
 
-def build_agent_savings(saved_tokens: int) -> list[dict[str, Any]]:
+def build_model_savings(saved_tokens: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for agent, profile in SAVINGS_PROFILES.items():
+    for model, profile in MODEL_SAVINGS_PROFILES.items():
+        input_rate = float(profile.get("input_rate_per_million", 0) or 0)
+        rows.append(
+            {
+                "model": model,
+                "label": str(profile["label"]),
+                "provider": str(profile["provider"]),
+                "saved_tokens": int(saved_tokens or 0),
+                "input_rate_per_million": input_rate,
+                "estimated_savings_usd": _estimate(saved_tokens, input_rate),
+            }
+        )
+    return rows
+
+
+def estimate_total_model_savings_usd(saved_tokens: int) -> float:
+    return round(sum(row["estimated_savings_usd"] for row in build_model_savings(saved_tokens)), 4)
+
+
+def build_agent_savings(saved_tokens: int, used_agents: dict[str, int] | None = None) -> list[dict[str, Any]]:
+    usage = used_agents or {}
+    rows: list[dict[str, Any]] = []
+    for agent, profile in AGENT_SAVINGS_PROFILES.items():
+        agent_saved = int(usage.get(agent, 0) or 0)
         input_rate = float(profile.get("input_rate_per_million", 0) or 0)
         rows.append(
             {
                 "agent": agent,
                 "label": str(profile["label"]),
                 "provider": str(profile["provider"]),
-                "saved_tokens": int(saved_tokens or 0),
+                "model": str(profile["model"]),
+                "saved_tokens": max(0, agent_saved),
                 "input_rate_per_million": input_rate,
-                "estimated_savings_usd": estimate_savings_usd(saved_tokens, agent),
+                "estimated_savings_usd": _estimate(agent_saved, input_rate),
             }
         )
     return rows
-

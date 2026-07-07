@@ -65,24 +65,30 @@ def run_command(
     if decision.risky:
         print(f"[sage] policy: {decision.decision} ({decision.mode}) - {decision.reason}")
 
-    # Auto-predict on every command using fast heuristics + family models.
-    # V2 embeddings only activate with --predict (heavy model load).
+    # Auto-predict: query ML daemon (fast, ~5ms) or fall back to local heuristics.
+    # Daemon auto-starts on first command if not running.
     if os.environ.get("SAGE_DISABLE_PREDICT") != "1":
         try:
-            from .ml.predictor import FailurePredictor
-            _predictor = FailurePredictor()
+            from .ml.client import predict_fast, daemon_healthy
 
-            if predict:
-                # Explicit --predict: use full V2 pipeline (may load model)
-                will_fail, confidence, reason = _predictor.predict(command_text)
-            else:
-                # Auto mode: skip V2 (slow), use heuristics + family models only
+            result = predict_fast(command_text)
+            if result is None and not daemon_healthy(timeout=0.1):
+                # Daemon not running — start it in background for next command
+                from .ml.daemon import start_daemon_background
+                threading.Thread(
+                    target=start_daemon_background, daemon=True, name="sage-ml-start"
+                ).start()
+                # Fall back to fast local heuristics for THIS command
+                from .ml.predictor import FailurePredictor
+                _predictor = FailurePredictor()
                 _predictor._v2_failed = True
                 will_fail, confidence, reason = _predictor.predict(command_text)
+                result = {"will_fail": will_fail, "confidence": confidence, "reason": reason}
 
-            if will_fail and confidence >= 0.55:
-                outcome = "likely to fail"
-                print(f"[sage] prediction: {outcome} ({confidence:.0%}) - {reason}")
+            if result and result.get("will_fail") and result.get("confidence", 0) >= 0.55:
+                conf = result["confidence"]
+                reason = result.get("reason", "")
+                print(f"[sage] prediction: likely to fail ({conf:.0%}) - {reason}")
         except Exception:
             pass
 

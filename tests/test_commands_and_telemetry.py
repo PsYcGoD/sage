@@ -193,7 +193,7 @@ def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
 
     run_id = save_run(
         project="proof-test",
-        command="sage run -- pytest",
+        command="opencode run",
         exit_code=0,
         duration_ms=25,
         stdout="ok",
@@ -211,12 +211,11 @@ def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
     assert totals["savings_by_model"][0]["estimated_savings_usd"] == 4.5
     assert totals["savings_by_model"][1]["model"] == "codex"
     assert totals["savings_by_model"][1]["estimated_savings_usd"] == 2.25
-    assert totals["savings_by_agent"][0]["agent"] == "claude-code"
-    assert totals["savings_by_agent"][0]["model"] == "Claude Sonnet"
-    assert totals["savings_by_agent"][0]["estimated_savings_usd"] == 4.5
-    assert totals["savings_by_agent"][1]["agent"] == "codex"
-    assert totals["savings_by_agent"][1]["model"] == "OpenAI Codex"
-    assert totals["savings_by_agent"][1]["estimated_savings_usd"] == 2.25
+    agent_rows = {row["agent"]: row for row in totals["savings_by_agent"]}
+    assert agent_rows["opencode"]["model"] == "Claude Sonnet"
+    assert agent_rows["opencode"]["estimated_savings_usd"] == 4.5
+    assert agent_rows["claude-code"]["estimated_savings_usd"] == 0
+    assert agent_rows["codex"]["estimated_savings_usd"] == 0
     unused_agents = {
         row["agent"]: row for row in totals["savings_by_agent"] if row["agent"] in {"sage", "cursor", "windsurf", "aider"}
     }

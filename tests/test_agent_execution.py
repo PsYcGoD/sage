@@ -97,6 +97,7 @@ def test_execute_agents_for_run_uses_only_matched_specialists(monkeypatch, tmp_p
 
 
 def test_run_command_executes_agents_for_saved_run(monkeypatch, tmp_path):
+    import time
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.setenv("SAGE_SUPPRESS_FOOTER", "1")
     monkeypatch.delenv("SAGE_DISABLE_AGENTS", raising=False)
@@ -104,6 +105,21 @@ def test_run_command_executes_agents_for_saved_run(monkeypatch, tmp_path):
     exit_code = run_command(["python", "-c", "print('pytest failed with error')"])
 
     assert exit_code == 0
+
+    # Agents run in background thread — wait briefly for them to complete
+    for _ in range(20):
+        time.sleep(0.25)
+        with connect() as conn:
+            run = conn.execute("SELECT id FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+            if run is None:
+                continue
+            task_count = conn.execute(
+                "SELECT COUNT(*) FROM agent_tasks WHERE run_id = ?",
+                (run["id"],),
+            ).fetchone()[0]
+            if task_count > 0:
+                break
+
     with connect() as conn:
         run = conn.execute("SELECT id FROM runs ORDER BY id DESC LIMIT 1").fetchone()
         assert run is not None

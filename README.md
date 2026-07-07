@@ -61,9 +61,7 @@ For local development:
 ```bash
 git clone https://github.com/PsYcGoD/sage.git
 cd sage
-pip install -e .          # Base install
-pip install -e ".[ml]"   # With ML V2 (embeddings + vector search)
-pip install -e ".[all]"  # Everything (AI providers + ML V2)
+pip install -e .
 sage --version
 ```
 
@@ -202,15 +200,11 @@ SAGE V2 introduces **semantic embedding-based prediction** using the `all-MiniLM
 | Recall | — | **85%** | NEW |
 | F1 Score | — | **86%** | NEW |
 
-Install with ML V2 support:
+Everything is included in the base install — no extras needed:
 
 ```bash
-pip install psycgod-sage[ml]
-# or from GitHub:
-pip install "psycgod-sage[ml] @ git+https://github.com/PsYcGoD/sage.git"
+pip install psycgod-sage
 ```
-
-V2 is opt-in — base SAGE works without it, and V2 gracefully falls back to V1 when the `[ml]` extras aren't installed or not enough command history exists.
 
 See [docs/ML_V2.md](docs/ML_V2.md) for full architecture, API usage, and benchmarks.
 
@@ -248,7 +242,7 @@ This command prints the roadmap status instead of launching a desktop app. The G
 - Telemetry level `0` is local-only; higher levels are opt-in and constrained by account/key policy.
 - The public dashboard is aggregate-only and does not expose raw commands, raw outputs, file paths, or local logs.
 - ML training and agent quality improve with usage volume - fresh installations have minimal training data initially.
-- ML V2 embeddings require `[ml]` extras (sentence-transformers, faiss-cpu, torch ~90MB model download on first use). Without them, V1 heuristic predictors still work.
+- ML V2 embeddings download a ~90MB model on first use (all-MiniLM-L6-v2). First prediction takes ~2.5 min to build the index; subsequent predictions are instant (cached to disk).
 
 ## Privacy
 

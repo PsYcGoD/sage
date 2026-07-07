@@ -229,7 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_login_args(api_rotate)
     api_sub.add_parser("logout", help="Disconnect local SAGE API credentials.")
 
-    # 🔒 NEW: Primary connect command (GitHub OAuth)
+    # Primary connect command (GitHub OAuth)
     connect_parser = sub.add_parser("connect", help="Connect SAGE with GitHub authentication (required for first use).")
     connect_parser.add_argument("--display-name", help="Optional display name (defaults to GitHub name).")
     connect_parser.add_argument("--public-profile", action="store_true", help="Show your name on public proof.")
@@ -1212,29 +1212,29 @@ def logout_command() -> int:
     return 0
 
 def connect_command(args) -> int:
-    """🔒 Connect SAGE with GitHub OAuth (primary authentication method)."""
+    """Connect SAGE with GitHub OAuth."""
     from . import telemetry
-    from .github_oauth import github_oauth_flow
+    from .github_oauth import github_device_flow, github_oauth_flow
     from .install import install_sage_system_wide, is_sage_installed_system_wide
     import subprocess
 
     # Check if already connected
     status = telemetry.api_status()
     if status.get("connected"):
-        print(f"✅ SAGE already connected")
+        print("SAGE already connected")
         print(f"GitHub: @{status.get('profile', {}).get('username')}")
         print(f"Key expires: {status.get('expires_at', 'Never')}")
         print(f"\nTo rotate key: sage api rotate")
         print(f"To disconnect: sage logout")
         return 0
 
-    print("🔐 SAGE Connection - GitHub Authentication")
+    print("SAGE Connection - GitHub Authentication")
     print("=" * 60)
     print("SAGE requires GitHub authentication for:")
-    print("  ✅ Free API access (no credit card)")
-    print("  ✅ 1 account = 1 API key (prevents abuse)")
-    print("  ✅ Automatic agent config installation")
-    print("  ✅ 99.3% token compression for all commands")
+    print("  - Free API access (no credit card)")
+    print("  - 1 account = 1 API key (prevents abuse)")
+    print("  - Automatic agent config installation")
+    print("  - Token compression for wrapped commands")
     print("=" * 60)
     print()
     expiry_days = _resolve_expiry_days(args)
@@ -1242,19 +1242,13 @@ def connect_command(args) -> int:
     print()
 
     try:
-        # Run GitHub OAuth flow
-        oauth_result = github_oauth_flow()
-
-        if not oauth_result.get("auth_code"):
-            print("❌ GitHub authentication failed")
-            return 1
-
-        print("✅ GitHub authentication successful")
-
-        # Send to SAGE API (which will validate with GitHub and create key)
-        print("🔄 Creating SAGE API key...")
-
         try:
+            oauth_result = github_oauth_flow()
+            if not oauth_result.get("auth_code"):
+                raise RuntimeError("GitHub authentication returned no authorization code.")
+
+            print("GitHub authentication successful")
+            print("Creating SAGE API key...")
             result = telemetry.api_github_login(
                 auth_code=oauth_result["auth_code"],
                 redirect_uri=oauth_result.get("redirect_uri", ""),
@@ -1262,45 +1256,56 @@ def connect_command(args) -> int:
                 public_profile=args.public_profile if hasattr(args, "public_profile") else False,
                 expiry_days=expiry_days,
             )
-        except Exception as oauth_exc:
-            print(f"Browser OAuth API exchange failed: {oauth_exc}")
-            print("Trying GitHub CLI fallback...")
-            gh = subprocess.run(
-                ["gh", "auth", "token"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=20,
-            )
-            token = gh.stdout.strip()
-            if gh.returncode != 0 or not token:
-                details = (gh.stderr or gh.stdout or "").strip()
-                raise RuntimeError(
-                    "Browser OAuth failed and GitHub CLI fallback is not available. "
-                    f"gh output: {details or 'no token returned'}"
-                ) from oauth_exc
-            result = telemetry.api_github_login(
-                github_access_token=token,
-                display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
-                public_profile=args.public_profile if hasattr(args, "public_profile") else False,
-                expiry_days=expiry_days,
-            )
+        except Exception as browser_exc:
+            print(f"Browser OAuth failed: {browser_exc}")
+            print("Trying GitHub device login...")
+            try:
+                device_result = github_device_flow(status_callback=print)
+                result = telemetry.api_github_login(
+                    github_access_token=device_result["access_token"],
+                    display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
+                    public_profile=args.public_profile if hasattr(args, "public_profile") else False,
+                    expiry_days=expiry_days,
+                )
+            except Exception as device_exc:
+                print(f"GitHub device login failed: {device_exc}")
+                print("Trying GitHub CLI fallback...")
+                gh = subprocess.run(
+                    ["gh", "auth", "token"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=20,
+                )
+                token = gh.stdout.strip()
+                if gh.returncode != 0 or not token:
+                    details = (gh.stderr or gh.stdout or "").strip()
+                    raise RuntimeError(
+                        "Browser OAuth and GitHub device login failed, and GitHub CLI fallback is not available. "
+                        f"gh output: {details or 'no token returned'}"
+                    ) from device_exc
+                result = telemetry.api_github_login(
+                    github_access_token=token,
+                    display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
+                    public_profile=args.public_profile if hasattr(args, "public_profile") else False,
+                    expiry_days=expiry_days,
+                )
 
-        print("\n✅ SAGE API connected")
+        print("\nSAGE API connected")
         print(f"GitHub: @{result.get('username')}")
         print(f"Key ID: {result.get('key_id')}")
         print(f"Expires: {result.get('expires_at')}")
 
         # Install agent configs system-wide
         if not is_sage_installed_system_wide():
-            print("\n🚀 Installing SAGE agent configs system-wide...")
+            print("\nInstalling SAGE agent configs system-wide...")
             install_sage_system_wide()
-            print("\n✅ All AI agents on this PC will now use SAGE automatically")
+            print("\nSupported local agent configs now include the SAGE requirement")
         else:
-            print("\nℹ️  SAGE agent configs already installed")
+            print("\nSAGE agent configs already installed")
 
-        print("\n🎉 Setup complete! You can now use SAGE:")
+        print("\nSetup complete. You can now use SAGE:")
         print("   sage run -- python test.py")
         print("   sage run -- pytest")
         print("   sage run -- npm install")
@@ -1308,7 +1313,7 @@ def connect_command(args) -> int:
         return 0
 
     except Exception as exc:
-        print(f"\n❌ Connection failed: {exc}")
+        print(f"\nConnection failed: {exc}")
         print("\nTroubleshooting:")
         print("  1. Check internet connection")
         print("  2. Allow browser popup for GitHub login")

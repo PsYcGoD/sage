@@ -86,7 +86,7 @@ def _keyring_delete(account: str) -> None:
 def resolve_api_key(config: dict[str, Any] | None = None) -> str:
     """Return the API key from keyring, with legacy config fallback."""
     config = config or load_config()
-    if str(config.get("api_key_storage", "")).lower() == "keyring":
+    if "keyring" in str(config.get("api_key_storage", "")).lower():
         api_key = _keyring_get(_keyring_account(config))
         if api_key:
             return api_key.strip()
@@ -101,11 +101,10 @@ def _store_api_key(config: dict[str, Any], api_key: str, key_id: str) -> str:
     """
     account = key_id or _keyring_account(config)
     config["api_key_account"] = account
-    if _keyring_set(account, api_key):
-        config.pop("api_key", None)
-        config["api_key_storage"] = "keyring"
-        return "keyring"
     config["api_key"] = api_key
+    if _keyring_set(account, api_key) and _keyring_get(account) == api_key:
+        config["api_key_storage"] = "keyring+file-fallback"
+        return "keyring+file-fallback"
     config["api_key_storage"] = "file-fallback"
     return "file-fallback"
 

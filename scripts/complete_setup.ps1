@@ -95,7 +95,7 @@ if ($existingApp) {
         name = $OAUTH_APP_NAME
         url = $HOMEPAGE_URL
         callback_url = $CALLBACK_URL
-        description = "AI development orchestration with 99.3% token compression"
+        description = "Local-first AI development orchestration with terminal-output compression"
     } | ConvertTo-Json -Compress
 
     try {

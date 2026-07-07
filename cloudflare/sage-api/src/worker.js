@@ -13,10 +13,9 @@ const MODEL_SAVINGS_PROFILES = [
 ];
 
 const AGENT_SAVINGS_PROFILES = [
-  { agent: "claude-cli", label: "Claude CLI", provider: "Anthropic", model: "Claude Sonnet", input_rate_per_million: 3.0 },
-  { agent: "codex-cli", label: "Codex CLI", provider: "OpenAI", model: "OpenAI Codex", input_rate_per_million: 1.5 },
-  { agent: "sage-desktop", label: "SAGE Desktop", provider: "SAGE", model: "Desktop app", input_rate_per_million: 0.0 },
   { agent: "claude-code", label: "Claude Code", provider: "Anthropic", model: "Claude Sonnet", input_rate_per_million: 3.0 },
+  { agent: "codex", label: "Codex", provider: "OpenAI", model: "OpenAI Codex", input_rate_per_million: 1.5 },
+  { agent: "sage", label: "SAGE", provider: "SAGE", model: "Local app", input_rate_per_million: 0.0 },
   { agent: "opencode", label: "OpenCode", provider: "OpenCode", model: "Claude Sonnet", input_rate_per_million: 3.0 },
   { agent: "cursor", label: "Cursor", provider: "Cursor", model: "OpenAI Codex", input_rate_per_million: 1.5 },
   { agent: "windsurf", label: "Windsurf", provider: "Codeium", model: "Claude Sonnet", input_rate_per_million: 3.0 },
@@ -228,7 +227,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
           <summary>Money Saved by each AI Agent</summary>
           <table class="savings-table" aria-label="Estimated savings by AI agent">
             <thead>
-              <tr><th>AI agent/provider</th><th>Model used</th><th>Estimated saved</th></tr>
+              <tr><th>AI Agent / Provider</th><th>Model Used</th><th>Estimated Saved</th></tr>
             </thead>
             <tbody id="agent-savings-rows">
               <tr><td colspan="3">Loading aggregate savings...</td></tr>
@@ -1047,6 +1046,10 @@ async function handleProof(env) {
       "compression_percent",
       "success_rate",
       "failure_prediction_stats",
+      "total_agents",
+      "agent_runs_completed",
+      "ml_training_examples",
+      "agent_quality_metrics",
       "public_contributors",
     ],
     totals: {
@@ -1068,6 +1071,10 @@ async function handleProof(env) {
             ? null
             : Number(Number(prediction.avg_prediction_score).toFixed(4)),
       },
+      total_agents: 0,
+      agent_runs_completed: 0,
+      ml_training_examples: 0,
+      agent_quality_metrics: 0,
     },
     public_contributors: (contributors.results || []).map((row) => ({
       display_name: row.display_name || "",
@@ -1120,6 +1127,10 @@ async function handleProofSnapshot(env, request) {
       "compression_percent",
       "success_rate",
       "failure_prediction_stats",
+      "total_agents",
+      "agent_runs_completed",
+      "ml_training_examples",
+      "agent_quality_metrics",
     ],
     totals: {
       total_runs: totalRuns,
@@ -1137,6 +1148,10 @@ async function handleProofSnapshot(env, request) {
         events_with_prediction: clampInt(totals.failure_prediction_stats?.events_with_prediction, 0, 2147483647, 0),
         avg_prediction_score: numberValue(totals.failure_prediction_stats?.avg_prediction_score, 0),
       },
+      total_agents: clampInt(totals.total_agents, 0, 2147483647, 0),
+      agent_runs_completed: clampInt(totals.agent_runs_completed, 0, 2147483647, 0),
+      ml_training_examples: clampInt(totals.ml_training_examples, 0, 2147483647, 0),
+      agent_quality_metrics: clampInt(totals.agent_quality_metrics, 0, 2147483647, 0),
     },
   };
   await env.DB.prepare(

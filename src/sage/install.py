@@ -11,7 +11,7 @@ from pathlib import Path
 SAGE_BLOCK_START = "# SAGE MANAGED BLOCK START"
 SAGE_BLOCK_END = "# SAGE MANAGED BLOCK END"
 
-SAGE_MANDATORY_BODY = """## 🔒 SAGE Integration - MANDATORY
+SAGE_MANDATORY_BODY = """## SAGE Integration - MANDATORY
 
 This system has SAGE installed. You MUST route every shell command through SAGE.
 
@@ -161,7 +161,7 @@ def install_sage_system_wide() -> dict[str, bool]:
     - ~/.aider.conf.yml, only when it already exists
     """
     results: dict[str, bool] = {}
-    print("🚀 Installing SAGE agent configs system-wide...")
+    print("Installing SAGE agent configs system-wide...")
 
     for target in _targets():
         changed = inject_sage_requirement(
@@ -171,21 +171,21 @@ def install_sage_system_wide() -> dict[str, bool]:
         )
         results[target.name] = changed
         if changed:
-            print(f"✅ Installed SAGE instruction for {target.name}: {target.path}")
+            print(f"Installed SAGE instruction for {target.name}: {target.path}")
         elif target.path.exists():
-            print(f"ℹ️  {target.name} already has a SAGE instruction or was unchanged")
+            print(f"{target.name} already has a SAGE instruction or was unchanged")
         else:
-            print(f"ℹ️  Skipped {target.name}; config file does not exist")
+            print(f"Skipped {target.name}; config file does not exist")
 
     # Register MCP server for Claude Code
     mcp_registered = _register_mcp_server()
     results["mcp_server"] = mcp_registered
     if mcp_registered:
-        print(f"✅ Registered SAGE MCP server in Claude Code")
+        print("Registered SAGE MCP server in Claude Code")
     else:
-        print(f"ℹ️  MCP server already registered or Claude Code not found")
+        print("MCP server already registered or Claude Code not found")
 
-    print("\n✅ SAGE prompt integration complete")
+    print("\nSAGE prompt integration complete")
     return results
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import __version__
 from .runner import run_command
-from .savings import SAVINGS_PROFILES, build_agent_savings, estimate_savings_usd
+from .savings import SAVINGS_PROFILES, build_agent_savings, build_model_savings, estimate_savings_usd
 from .store import connect, db_path, latest_run, recent_runs
 from .suggestions import suggest_next_steps
 from .autofix import AutoFixEngine
@@ -1688,6 +1688,7 @@ def savings_command(args) -> int:
         "saved_tokens": totals["saved"],
         "compression_rate": round(rate, 2),
         "estimated_savings_usd": dollars_saved,
+        "savings_by_model": build_model_savings(totals["saved"]),
         "savings_by_agent": build_agent_savings(totals["saved"]),
     }
     if args.format == "json":

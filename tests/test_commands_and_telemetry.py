@@ -206,11 +206,14 @@ def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
     totals = snapshot["totals"]
 
     assert totals["tokens_saved"] == 1_500_000
-    assert totals["estimated_savings_usd"] == 4.5
-    assert totals["savings_by_agent"][0]["agent"] == "claude-sonnet"
-    assert totals["savings_by_agent"][0]["estimated_savings_usd"] == 4.5
-    assert totals["savings_by_agent"][1]["agent"] == "codex"
-    assert totals["savings_by_agent"][1]["estimated_savings_usd"] == 2.25
+    assert totals["estimated_savings_usd"] == 8.625
+    assert totals["savings_by_model"][0]["model"] == "claude-sonnet"
+    assert totals["savings_by_model"][0]["estimated_savings_usd"] == 4.5
+    assert totals["savings_by_model"][1]["model"] == "codex"
+    assert totals["savings_by_model"][1]["estimated_savings_usd"] == 2.25
+    assert totals["savings_by_agent"][0]["agent"] == "claude-code"
+    assert totals["savings_by_agent"][0]["model"] == "Claude Sonnet"
+    assert totals["savings_by_agent"][0]["estimated_savings_usd"] == 0
     assert "command" not in snapshot
     assert "stdout" not in snapshot
 

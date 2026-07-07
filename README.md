@@ -19,7 +19,7 @@ Current public proof includes:
 
 - Total commands processed through SAGE
 - Tokens processed, compressed, and saved
-- Estimated savings by AI agent/provider
+- Estimated savings by model/provider
 - Compression rate and command success rate
 - ML prediction scoring from local command history
 
@@ -27,13 +27,13 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 4,861 |
-| Tokens processed | 16,941,223 |
-| Tokens compressed | 1,242,421 |
-| Tokens saved | 15,698,802 |
-| Estimated savings | $47.10 |
-| Compression rate | 92.67% |
-| Success rate | 97.82% |
+| Commands processed | 5,488 |
+| Tokens processed | 17,431,631 |
+| Tokens compressed | 1,352,607 |
+| Tokens saved | 16,079,024 |
+| Estimated savings | $92.45 |
+| Compression rate | 92.24% |
+| Success rate | 98.78% |
 
 These stats reflect the public CLI proof snapshot after the hosted dashboard went live.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform as platform_module
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
+from . import __version__
 from .classify import workspace_hash as _workspace_hash
 from .savings import build_agent_savings, build_model_savings, estimate_total_model_savings_usd
 from .security import redact_text
@@ -40,6 +42,14 @@ LEVEL_NAMES = {
 }
 # Keys that must NEVER appear in a Level 1 payload.
 LEVEL1_FORBIDDEN_KEYS = {"command", "stdout", "stderr", "output", "raw", "project", "path", "file"}
+
+
+def _client_version() -> str:
+    return str(__version__)
+
+
+def _platform() -> str:
+    return f"{platform_module.system()} {platform_module.release()}".strip()
 
 
 def config_path() -> Path:
@@ -270,6 +280,10 @@ def api_github_login(
         "expiry_days": max(1, min(365, int(expiry_days))),
         "scope": "personal",
     }
+    config = load_config()
+    payload["installation_id"] = config["installation_id"]
+    payload["client_version"] = _client_version()
+    payload["platform"] = _platform()
 
     last_error = ""
     for candidate in _endpoint_candidates(base_url or DEFAULT_API_BASE_URL):
@@ -309,7 +323,6 @@ def api_github_login(
             raise RuntimeError("SAGE API did not return an API key.")
 
         # Save config
-        config = load_config()
         config["api_base_url"] = candidate
         config["api_endpoint"] = f"{candidate}/v1/telemetry"
         config["api_key_id"] = key_id
@@ -920,6 +933,28 @@ def get_visitor_stats() -> dict[str, Any]:
         raw = response.read().decode("utf-8")
         if response.status < 200 or response.status >= 300:
             raise OSError(f"SAGE API visitor stats failed: HTTP {response.status} {raw}")
+        return json.loads(raw)
+
+
+def get_admin_users() -> dict[str, Any]:
+    """Fetch private connected-user stats using the saved SAGE API key."""
+    config = load_config()
+    base_url = str(config.get("api_base_url") or DEFAULT_API_BASE_URL).strip().rstrip("/")
+    api_key = resolve_api_key(config)
+    if not base_url or not api_key:
+        raise RuntimeError("SAGE API is not connected.")
+    request = urllib_request.Request(
+        f"{base_url}/v1/admin/users",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "SAGE-CLI/0.1",
+        },
+        method="GET",
+    )
+    with urllib_request.urlopen(request, timeout=15) as response:
+        raw = response.read().decode("utf-8")
+        if response.status < 200 or response.status >= 300:
+            raise OSError(f"SAGE API users failed: HTTP {response.status} {raw}")
         return json.loads(raw)
 
 

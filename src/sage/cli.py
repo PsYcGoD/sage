@@ -225,6 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_login_args(api_login)
     api_sub.add_parser("whoami", help="Show the current SAGE API identity.")
     api_sub.add_parser("visitors", help="Show private public-dashboard visitor stats.")
+    api_sub.add_parser("users", help="Show private connected GitHub users.")
     api_rotate = api_sub.add_parser("rotate", help="Rotate API key (generates new key, revokes old one).")
     _add_login_args(api_rotate)
     api_sub.add_parser("logout", help="Disconnect local SAGE API credentials.")
@@ -1129,6 +1130,8 @@ def api_command(args) -> int:
         return whoami_command()
     if sub == "visitors":
         return api_visitors_command()
+    if sub == "users":
+        return api_users_command()
     if sub == "rotate":
         return rotate_key_command(args)
     if sub == "logout":
@@ -1164,16 +1167,16 @@ def api_visitors_command() -> int:
     clicks = data.get("clicks", {}) or {}
     print("SAGE private dashboard analytics")
     print(f"Generated: {data.get('generated_at')}")
-    print("\nInstalls and users")
-    print(f"All-time installs: {installs.get('total_installs', 0)}")
-    print(f"New installs today: {installs.get('new_installs_today', 0)}")
-    print(f"Live installs now (15m): {installs.get('live_installs_15m', 0)}")
-    print(f"Active installs (24h): {installs.get('active_installs_24h', 0)}")
-    print(f"Connected API users: {users.get('connected_users', 0)}")
-    print(f"New GitHub logins today: {users.get('new_logins_today', 0)}")
-    print(f"Live API users now (15m): {users.get('live_api_users_15m', 0)}")
-    print(f"Active API users (24h): {users.get('active_api_users_24h', 0)}")
-    print("\nDashboard visitors")
+    print("\nSAGE installs and connected GitHub users")
+    print(f"Telemetry installs seen: {installs.get('total_installs', 0)}")
+    print(f"New telemetry installs today: {installs.get('new_installs_today', 0)}")
+    print(f"Live telemetry installs now (15m): {installs.get('live_installs_15m', 0)}")
+    print(f"Active telemetry installs (24h): {installs.get('active_installs_24h', 0)}")
+    print(f"Connected GitHub users: {users.get('connected_users', 0)}")
+    print(f"GitHub connect events today: {users.get('new_logins_today', 0)}")
+    print(f"Live GitHub users now (15m): {users.get('live_api_users_15m', 0)}")
+    print(f"Active GitHub users (24h): {users.get('active_api_users_24h', 0)}")
+    print("\nPublic dashboard visitors")
     print(f"All-time unique visitors: {totals.get('unique_visitors', 0)}")
     print(f"All-time page views: {totals.get('page_views', 0)}")
     print(f"Today ({data.get('today')}):")
@@ -1194,6 +1197,35 @@ def api_visitors_command() -> int:
         print("\nRecent days:")
         for row in recent:
             print(f"  {row.get('day')}: {row.get('unique_visitors', 0)} visitors, {row.get('page_views', 0)} views")
+    return 0
+
+def api_users_command() -> int:
+    from . import telemetry
+
+    try:
+        data = telemetry.get_admin_users()
+    except Exception as exc:
+        print(f"SAGE API users failed: {exc}")
+        return 1
+
+    users = data.get("users") or []
+    print("SAGE connected GitHub users")
+    print(f"Generated: {data.get('generated_at')}")
+    if not users:
+        print("No users found.")
+        return 0
+    for row in users:
+        name = row.get("display_name") or "(no name)"
+        username = row.get("username") or "n/a"
+        status = "active" if row.get("active") else "inactive"
+        print(
+            f"- {name} @{username} [{status}] "
+            f"keys={row.get('active_key_count', 0)}/{row.get('key_count', 0)} "
+            f"installs={row.get('install_count', 0)} "
+            f"telemetry_installs={row.get('telemetry_install_count', 0)} "
+            f"runs={row.get('run_count', 0)} "
+            f"last_used={row.get('last_used_at') or 'never'}"
+        )
     return 0
 
 def login_command(args) -> int:

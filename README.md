@@ -61,7 +61,9 @@ For local development:
 ```bash
 git clone https://github.com/PsYcGoD/sage.git
 cd sage
-pip install -e .
+pip install -e .          # Base install
+pip install -e ".[ml]"   # With ML V2 (embeddings + vector search)
+pip install -e ".[all]"  # Everything (AI providers + ML V2)
 sage --version
 ```
 
@@ -176,6 +178,42 @@ SAGE includes 10+ specialized agents that analyze every command:
 - **Workflow Agent** - Multi-step task orchestration
 - **Red Team Agent** - Adversarial security testing
 
+### ML V2 — Neural Command Center
+
+SAGE V2 introduces **semantic embedding-based prediction** using the `all-MiniLM-L6-v2` model (384-dim vectors, 90MB, Apache 2.0). The Neural Command Center orchestrates 8 specialized predictors for precise failure detection:
+
+| Predictor | What it detects | Example |
+|-----------|----------------|---------|
+| **Syntax** | Typos, unmatched quotes, malformed flags | `pytst` → "Did you mean: pytest?" |
+| **Dependency** | Missing modules/packages | `python -m missing_pkg` → "Install: pip install..." |
+| **Auth** | Missing credentials, SSH keys | `git push` without SSH agent |
+| **Timeout** | Commands that will hang | `tail -f`, `vim`, known slow builds |
+| **Permission** | Needs sudo/admin | `npm install -g` on system prefix |
+| **Context** | Wrong directory, inactive venv | `cargo build` without Cargo.toml |
+| **Compression** | Best output strategy | `git diff` → diff strategy, `pytest` → test_output |
+| **Agent Ranker** | Which agents to run | `pytest` → [Test, Code]; `git push` → [Security, Code] |
+
+**Benchmark results** (7,654 real commands, 80/20 temporal split):
+
+| Metric | V1 (sklearn) | V2 (embeddings) | Improvement |
+|--------|:---:|:---:|:---:|
+| Accuracy | 58% | **76%** | +31% |
+| Precision | — | **87%** | NEW |
+| Recall | — | **85%** | NEW |
+| F1 Score | — | **86%** | NEW |
+
+Install with ML V2 support:
+
+```bash
+pip install psycgod-sage[ml]
+# or from GitHub:
+pip install "psycgod-sage[ml] @ git+https://github.com/PsYcGoD/sage.git"
+```
+
+V2 is opt-in — base SAGE works without it, and V2 gracefully falls back to V1 when the `[ml]` extras aren't installed or not enough command history exists.
+
+See [docs/ML_V2.md](docs/ML_V2.md) for full architecture, API usage, and benchmarks.
+
 ### ML Training & Metrics
 
 All installations automatically collect ML training data for improving agent quality:
@@ -210,6 +248,7 @@ This command prints the roadmap status instead of launching a desktop app. The G
 - Telemetry level `0` is local-only; higher levels are opt-in and constrained by account/key policy.
 - The public dashboard is aggregate-only and does not expose raw commands, raw outputs, file paths, or local logs.
 - ML training and agent quality improve with usage volume - fresh installations have minimal training data initially.
+- ML V2 embeddings require `[ml]` extras (sentence-transformers, faiss-cpu, torch ~90MB model download on first use). Without them, V1 heuristic predictors still work.
 
 ## Privacy
 
@@ -224,7 +263,8 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for the detailed dat
 ## Development
 
 ```bash
-python -m pytest -q
+python -m pytest -q                    # Run all tests (169 total)
+python -m pytest tests/test_ml_v2.py   # ML V2 tests only (28 tests)
 ```
 
 The public package is CLI-first. GUI source, GUI tests, and GUI-only dependencies are intentionally not shipped in this repo at this time.

@@ -107,5 +107,55 @@ if APIRouter:
                 "agent_tasks_processed": result["agent_tasks"] or 0,
                 "total_agents": result["total_agents"] or 0,
             }
+
+    @router.get("/metrics/ml/v2")
+    async def get_ml_v2_status():
+        """Get ML V2 embedding model status and metrics."""
+        try:
+            from ...ml.embeddings import _HAS_ML_DEPS
+        except ImportError:
+            _HAS_ML_DEPS = False
+
+        if not _HAS_ML_DEPS:
+            return {
+                "available": False,
+                "reason": "ML dependencies not installed (pip install psycgod-sage[ml])",
+            }
+
+        result = {
+            "available": True,
+            "model": "all-MiniLM-L6-v2",
+            "embedding_dim": 384,
+            "index_cached": False,
+            "index_size": 0,
+            "embeddings_stored": 0,
+        }
+
+        from ...store import db_path as get_db_path
+        import sqlite3
+        from pathlib import Path
+
+        db = get_db_path()
+
+        # Check cached index
+        index_path = db.parent / "ml_v2_index.faiss"
+        result["index_cached"] = index_path.exists()
+
+        # Count commands in DB
+        with sqlite3.connect(db) as conn:
+            row = conn.execute(
+                "SELECT COUNT(DISTINCT command) FROM runs WHERE command IS NOT NULL AND command != ''"
+            ).fetchone()
+            result["index_size"] = row[0] if row else 0
+
+            # Check embeddings table
+            try:
+                row = conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()
+                result["embeddings_stored"] = row[0] if row else 0
+            except sqlite3.OperationalError:
+                result["embeddings_stored"] = 0
+
+        return result
+
 else:
     router = None

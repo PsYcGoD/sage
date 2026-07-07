@@ -99,6 +99,12 @@ def build_parser() -> argparse.ArgumentParser:
     ml_validate.add_argument("--output", help="Write the JSON report to this file.")
     ml_validate.add_argument("--family-models", action="store_true", help="Validate per-family models (v4) instead of global model (v3).")
 
+    serve_parser = sub.add_parser("serve", help="ML prediction daemon (auto-starts on first sage run).")
+    serve_sub = serve_parser.add_subparsers(dest="serve_action")
+    serve_sub.add_parser("start", help="Start the ML daemon (default if no subcommand).")
+    serve_sub.add_parser("stop", help="Stop the ML daemon.")
+    serve_sub.add_parser("status", help="Check if the ML daemon is running.")
+
     explain_parser = sub.add_parser("explain", help="Explain the most recent command.")
     explain_parser.add_argument(
         "--failed",
@@ -366,19 +372,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Gate command execution behind API connection, while still allowing the
-    # first-run account/status commands needed to connect.
-    ALLOWED_WITHOUT_API = ["connect", "login", "whoami", "logout", "doctor", "gui", "api", "db"]
+    # Keep local command wrapping usable before OAuth. Only commands that
+    # publish to external services should require an API connection up front.
+    REQUIRES_API = {"github-bot"}
 
-    if args.command_name not in ALLOWED_WITHOUT_API:
+    if args.command_name in REQUIRES_API:
         from . import telemetry
         status = telemetry.api_status()
         if not status.get("connected"):
-            print("SAGE requires API connection to use this command.")
+            print("This SAGE command requires connected mode.")
             print("\nConnect with GitHub (free, takes 30 seconds):")
             print("   sage connect")
-            print("\nThen bind SAGE instructions for local agents:")
-            print("   sage init")
+            print("\nLocal commands still work without login:")
+            print("   sage run -- python -m pytest")
+            print("   sage context report")
             return 1
 
     if args.command_name == "run":
@@ -401,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "ml":
         return ml_command(args)
+
+    if args.command_name == "serve":
+        return serve_command(args)
 
     if args.command_name == "explain":
         return explain(only_failed=args.failed)
@@ -1349,6 +1359,10 @@ def connect_command(args) -> int:
         print(f"GitHub: @{result.get('username')}")
         print(f"Key ID: {result.get('key_id')}")
         print(f"Expires: {result.get('expires_at')}")
+        print("\nConnected mode enabled.")
+        print("SAGE CLI will sync aggregate counters for public proof/dashboard stats.")
+        print("Raw command text, raw output, paths, secrets, and full logs are not uploaded.")
+        print("To disable sync: set SAGE_AUTO_SEND_TELEMETRY=0 or run sage telemetry off.")
 
         # Install agent configs system-wide
         if not is_sage_installed_system_wide():
@@ -1440,6 +1454,39 @@ def rotate_key_command(args) -> int:
     print(f"Stored key: {result['api_key_redacted']}")
     print(f"Old key revoked by server: {old_status.get('key_id') if old_status.get('connected') else 'N/A'}")
     return 0
+
+def serve_command(args) -> int:
+    """Manage the ML prediction daemon."""
+    from .ml.daemon import is_daemon_running, start_daemon_background, stop_daemon, MLDaemon
+
+    action = getattr(args, "serve_action", None) or "start"
+
+    if action == "stop":
+        if stop_daemon():
+            print("[sage-ml] daemon stopped.")
+        else:
+            print("[sage-ml] daemon is not running.")
+        return 0
+
+    if action == "status":
+        if is_daemon_running():
+            from .ml.daemon import PID_FILE
+            pid = PID_FILE.read_text().strip() if PID_FILE.exists() else "?"
+            print(f"[sage-ml] daemon running (pid {pid})")
+        else:
+            print("[sage-ml] daemon is not running.")
+        return 0
+
+    # action == "start" (default)
+    if is_daemon_running():
+        print("[sage-ml] daemon already running.")
+        return 0
+
+    print("[sage-ml] starting daemon (loading ML model, this takes ~10s on first run)...")
+    daemon = MLDaemon()
+    daemon.start()
+    return 0
+
 
 def predict_command(command: list[str]) -> int:
     """Predict command failure risk without executing it."""

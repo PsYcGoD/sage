@@ -38,3 +38,15 @@ Do not use direct Read/Grep/Glob/Edit/Write or bare Bash/PowerShell.
 ```
 
 Project hooks block non-SAGE shell commands and direct file tools.
+
+## ML Prediction Daemon
+
+SAGE includes a background ML daemon that predicts command failures automatically.
+It auto-starts on first `sage run` command. If predictions stop appearing, restart it:
+
+```powershell
+sage serve start
+```
+
+The daemon loads the model once (~10s) then serves predictions in ~5ms per query.
+Commands: `sage serve start`, `sage serve stop`, `sage serve status`.

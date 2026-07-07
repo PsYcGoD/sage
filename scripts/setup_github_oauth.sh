@@ -36,7 +36,7 @@ echo ""
 OAUTH_APP_NAME="SAGE-Smart-Agent-Guidance-Engine"
 HOMEPAGE_URL="https://github.com/PsYcGoD/SAGE"
 CALLBACK_URL="http://localhost:8765/oauth/callback"
-DESCRIPTION="AI development orchestration with 99.3% token compression. Requires OAuth for API access."
+DESCRIPTION="Local-first AI development orchestration with terminal-output compression. Requires OAuth for API access."
 
 # Check if app already exists
 EXISTING_APP=$(gh api -X GET /user/applications 2>/dev/null | jq -r ".[] | select(.name==\"$OAUTH_APP_NAME\") | .client_id" || echo "")

@@ -22,29 +22,23 @@ MODEL_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
 }
 
 AGENT_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
-    "claude-cli": {
-        "label": "Claude CLI",
-        "provider": "Anthropic",
-        "model": "Claude Sonnet",
-        "input_rate_per_million": 3.0,
-    },
-    "codex-cli": {
-        "label": "Codex CLI",
-        "provider": "OpenAI",
-        "model": "OpenAI Codex",
-        "input_rate_per_million": 1.5,
-    },
-    "sage-desktop": {
-        "label": "SAGE Desktop",
-        "provider": "SAGE",
-        "model": "Desktop app",
-        "input_rate_per_million": 0.0,
-    },
     "claude-code": {
         "label": "Claude Code",
         "provider": "Anthropic",
         "model": "Claude Sonnet",
         "input_rate_per_million": 3.0,
+    },
+    "codex": {
+        "label": "Codex",
+        "provider": "OpenAI",
+        "model": "OpenAI Codex",
+        "input_rate_per_million": 1.5,
+    },
+    "sage": {
+        "label": "SAGE",
+        "provider": "SAGE",
+        "model": "Local app",
+        "input_rate_per_million": 0.0,
     },
     "opencode": {
         "label": "OpenCode",
@@ -119,8 +113,8 @@ def default_agent_usage(saved_tokens: int) -> dict[str, int]:
     if not saved:
         return {}
     return {
-        "claude-cli": saved,
-        "codex-cli": saved,
+        "claude-code": saved,
+        "codex": saved,
     }
 
 

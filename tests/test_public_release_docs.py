@@ -55,13 +55,17 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "Estimated savings by model" in worker
     assert "Estimated savings by AI agent" in worker
     assert "Money Saved by each AI Agent" in worker
-    assert "Claude CLI" in worker
-    assert "Codex CLI" in worker
-    assert "SAGE Desktop" in worker
+    assert "AI Agent / Provider" in worker
+    assert "Codex" in worker
+    assert "SAGE" in worker
     assert "Claude Code" in worker
     assert "OpenCode" in worker
     assert "Cursor" in worker
     assert "estimated_savings_usd" in worker
     assert "savings_by_model" in worker
     assert "savings_by_agent" in worker
+    assert "total_agents" in worker
+    assert "agent_runs_completed" in worker
+    assert "ml_training_examples" in worker
+    assert "agent_quality_metrics" in worker
     assert "sanitizeSavingsByAgent" in worker

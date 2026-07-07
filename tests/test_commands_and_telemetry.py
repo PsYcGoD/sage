@@ -211,14 +211,14 @@ def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
     assert totals["savings_by_model"][0]["estimated_savings_usd"] == 4.5
     assert totals["savings_by_model"][1]["model"] == "codex"
     assert totals["savings_by_model"][1]["estimated_savings_usd"] == 2.25
-    assert totals["savings_by_agent"][0]["agent"] == "claude-cli"
+    assert totals["savings_by_agent"][0]["agent"] == "claude-code"
     assert totals["savings_by_agent"][0]["model"] == "Claude Sonnet"
     assert totals["savings_by_agent"][0]["estimated_savings_usd"] == 4.5
-    assert totals["savings_by_agent"][1]["agent"] == "codex-cli"
+    assert totals["savings_by_agent"][1]["agent"] == "codex"
     assert totals["savings_by_agent"][1]["model"] == "OpenAI Codex"
     assert totals["savings_by_agent"][1]["estimated_savings_usd"] == 2.25
     unused_agents = {
-        row["agent"]: row for row in totals["savings_by_agent"] if row["agent"] in {"cursor", "windsurf", "aider"}
+        row["agent"]: row for row in totals["savings_by_agent"] if row["agent"] in {"sage", "cursor", "windsurf", "aider"}
     }
     assert unused_agents
     assert all(row["estimated_savings_usd"] == 0 for row in unused_agents.values())
@@ -352,14 +352,36 @@ def test_api_key_storage_uses_keyring(monkeypatch):
     config = {"installation_id": "install-test"}
     storage = telemetry._store_api_key(config, "sage_live_secret", "key_test")
 
-    assert storage == "keyring"
-    assert config["api_key_storage"] == "keyring"
-    assert "api_key" not in config
+    assert storage == "keyring+file-fallback"
+    assert config["api_key_storage"] == "keyring+file-fallback"
+    assert config["api_key"] == "sage_live_secret"
     assert telemetry.resolve_api_key(config) == "sage_live_secret"
 
     telemetry._delete_api_key(config)
 
     assert telemetry.resolve_api_key(config) == ""
+
+
+def test_api_key_storage_falls_back_when_keyring_readback_fails(monkeypatch):
+    import sys
+    import types
+
+    from sage import telemetry
+
+    fake_keyring = types.SimpleNamespace(
+        set_password=lambda service, account, password: None,
+        get_password=lambda service, account: None,
+        delete_password=lambda service, account: None,
+    )
+    monkeypatch.setitem(sys.modules, "keyring", fake_keyring)
+
+    config = {"installation_id": "install-test"}
+    storage = telemetry._store_api_key(config, "sage_live_secret", "key_test")
+
+    assert storage == "file-fallback"
+    assert config["api_key_storage"] == "file-fallback"
+    assert config["api_key"] == "sage_live_secret"
+    assert telemetry.resolve_api_key(config) == "sage_live_secret"
 
 
 def test_run_command_spawns_sender_when_output_is_captured(monkeypatch, tmp_path):

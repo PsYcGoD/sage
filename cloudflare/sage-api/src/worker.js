@@ -1,4 +1,4 @@
-// ?? SECURITY: Whitelist only trusted origins (prevents stolen key abuse from evil websites)
+// Restrict browser access to the dashboard and local SAGE UI.
 const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
   "http://127.0.0.1:8765",           // Alternative localhost
@@ -196,6 +196,20 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       </section>
 
       <section class="panel">
+        <h2>🤖 Agent & ML Activity</h2>
+        <div class="hero-stats" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 0;">
+          <div class="card" style="min-height: 130px;"><div class="label">Total Agents</div><div class="value" id="total-agents" style="font-size: 2.5rem;">-</div><div class="sub">Active agent types</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">Agent Runs</div><div class="value" id="agent-runs" style="font-size: 2.5rem;">-</div><div class="sub">Total completions</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">ML Examples</div><div class="value" id="ml-examples" style="font-size: 2.5rem;">-</div><div class="sub">Training dataset</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">Quality Metrics</div><div class="value" id="quality-metrics" style="font-size: 2.5rem;">-</div><div class="sub">Tracked signals</div></div>
+        </div>
+        <p class="description" style="margin-top: 20px; font-size: 0.95rem;">
+          SAGE uses <strong>10+ specialized AI agents</strong> (Security, Code, Debug, Test, Dependency, Research, Frontend, Performance, Workflow, Red Team) 
+          that analyze every command in real-time. The ML system continuously learns from your command patterns to optimize compression strategies and predict failures.
+        </p>
+      </section>
+
+      <section class="panel">
         <h2>&#128200; Compression Performance</h2>
         <div class="bar-wrap"><div class="bar" id="compression-bar">0%</div></div>
         <div class="bar-labels">
@@ -326,6 +340,13 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         const pred = totals.failure_prediction_stats || {};
         document.getElementById("events-predicted").textContent = Number(pred.events_with_prediction || 0).toLocaleString();
         document.getElementById("avg-prediction").textContent = (Number(pred.avg_prediction_score || 0) * 100).toFixed(1) + "%";
+        
+        // Load ML and agent stats
+        document.getElementById("total-agents").textContent = Number(totals.total_agents || 0).toLocaleString();
+        document.getElementById("agent-runs").textContent = Number(totals.agent_runs_completed || 0).toLocaleString();
+        document.getElementById("ml-examples").textContent = Number(totals.ml_training_examples || 0).toLocaleString();
+        document.getElementById("quality-metrics").textContent = Number(totals.agent_quality_metrics || 0).toLocaleString();
+        
         document.getElementById("last-updated").textContent = new Date(data.generated_at).toLocaleString();
         loading.style.display = "none";
         content.style.display = "block";
@@ -507,7 +528,7 @@ async function requireKey(env, request, options = {}) {
 
   if (!key) return { error: error("Invalid or revoked SAGE API key", 401) };
 
-  // ?? SECURITY: Check key expiration
+  // Reject expired API keys before applying rate limits.
   if (key.expires_at && key.expires_at !== "" && new Date(key.expires_at) < new Date(now)) {
     return { error: error("API key expired", 401) };
   }
@@ -776,7 +797,7 @@ async function handleGitHubLogin(env, request) {
 }
 
 async function handleCreateKey(env, request) {
-  // ?? SECURITY: Require master key for key generation
+  // Key creation is restricted to trusted clients.
   const masterKey = request.headers.get("X-SAGE-Master-Key");
   if (!masterKey || !env.MASTER_KEY_SECRET || masterKey !== env.MASTER_KEY_SECRET) {
     return error("Unauthorized - Key generation requires master key", 403);
@@ -794,11 +815,9 @@ async function handleCreateKey(env, request) {
   const token = `sage_live_${keyId}_${secret}`;
   const createdAt = nowIso();
 
-  // ?? SECURITY: Key expiration (user chooses: 30/60/90 days, default 30)
-  const expiryDays = clampInt(body.expiry_days, 1, 365, 30); // Default 30 days
+  const expiryDays = clampInt(body.expiry_days, 1, 365, 30);
   const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
 
-  // ?? SECURITY: Rate limiting per key (default 1000/hour)
   const rateLimitPerHour = clampInt(body.rate_limit_per_hour, 100, 10000, 10000);
 
   const displayName = textValue(body.display_name || body.profile_name || body.name, 80);
@@ -855,14 +874,13 @@ async function handleTelemetry(env, request) {
     return error("Invalid telemetry JSON", 400, String(exc.message || exc));
   }
 
-  // ?? SECURITY: Timestamp validation (prevents replay attacks)
+  // Reject stale telemetry requests to reduce replay risk.
   const timestamp = request.headers.get("X-SAGE-Timestamp") || body.request_timestamp || body.timestamp;
   if (timestamp) {
     const requestTime = new Date(timestamp).getTime();
     const now = Date.now();
     const fiveMinutes = 5 * 60 * 1000;
 
-    // Reject requests older than 5 minutes or from the future
     if (Math.abs(now - requestTime) > fiveMinutes) {
       return error("Request timestamp expired or invalid (must be within 5 minutes)", 401);
     }

@@ -1,7 +1,7 @@
 """Client-side telemetry: privacy levels, payloads, queue, accounts.
 
 Everything here is local until a server endpoint is explicitly configured.
-Default level is 0 (local only) — SAGE never uploads anything unless the
+Default level is 0 (local only) - SAGE never uploads anything unless the
 user raises the level AND configures an endpoint. Level 1 payloads contain
 counters only: no command text, no output, no paths.
 
@@ -31,9 +31,6 @@ DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
 FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
 KEYRING_SERVICE = "psycgod-sage"
 
-# 🔒 SECURITY: Master key for API key generation
-# This is intentionally in the code (not in repo) and used by local CLI clients.
-# If compromised, we can rotate it in Cloudflare environment variables
 LEVEL_NAMES = {
     0: "local-only",
     1: "anonymous-metrics",
@@ -374,12 +371,11 @@ def api_login(
         "public_profile": bool(public_profile),
         "privacy_max": max(0, min(4, int(privacy_max))),
         "scope": scope,
-        "expiry_days": max(1, min(365, int(expiry_days))),  # 🔒 SECURITY: Clamp 1-365 days
+        "expiry_days": max(1, min(365, int(expiry_days))),
     }
     last_error = ""
     for candidate in _endpoint_candidates(base_url or DEFAULT_API_BASE_URL):
         try:
-            # 🔒 SECURITY: Send master key in header
             data = json.dumps(payload).encode("utf-8")
             request = urllib_request.Request(
                 f"{candidate}/v1/keys",
@@ -835,6 +831,19 @@ def build_proof_snapshot() -> dict[str, Any]:
             FROM runs
             """
         ).fetchone()
+        
+        # ML and agent stats
+        ml_stats = conn.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM ml_training_examples) as ml_examples,
+                (SELECT COUNT(*) FROM agent_runs) as agent_runs,
+                (SELECT COUNT(*) FROM agent_quality_metrics) as quality_metrics,
+                (SELECT COUNT(*) FROM agent_tasks) as agent_tasks,
+                (SELECT COUNT(*) FROM agents) as total_agents
+            """
+        ).fetchone()
+        
     original = int(token_stats["estimated_tokens"] or 0)
     compressed = int(token_stats["compressed_tokens"] or 0)
     saved = int(token_stats["saved_tokens"] or 0)
@@ -859,6 +868,11 @@ def build_proof_snapshot() -> dict[str, Any]:
             "compression_percent": round((saved / original) * 100, 2) if original else 0,
             "success_rate": round((successful / total_runs) * 100, 2) if total_runs else 0,
             "failure_prediction_stats": prediction_stats,
+            "ml_training_examples": int(ml_stats["ml_examples"] or 0),
+            "agent_runs_completed": int(ml_stats["agent_runs"] or 0),
+            "agent_quality_metrics": int(ml_stats["quality_metrics"] or 0),
+            "agent_tasks_processed": int(ml_stats["agent_tasks"] or 0),
+            "total_agents": int(ml_stats["total_agents"] or 0),
         },
     }
 

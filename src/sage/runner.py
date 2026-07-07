@@ -160,7 +160,26 @@ def run_command(
         # Check if this is an AI-related command. Agent terminal mode invokes the
         # provider as `sage run -- claude ...` or `sage run -- codex ...`, not
         # with `--claude`/`--codex` flags.
-        ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd"}
+        ai_commands = {
+            "claude",
+            "claude.exe",
+            "claude.cmd",
+            "codex",
+            "codex.exe",
+            "codex.cmd",
+            "opencode",
+            "opencode.exe",
+            "opencode.cmd",
+            "cursor",
+            "cursor.exe",
+            "cursor.cmd",
+            "windsurf",
+            "windsurf.exe",
+            "windsurf.cmd",
+            "aider",
+            "aider.exe",
+            "aider.cmd",
+        }
         first_command = Path(command_parts[0]).name.lower() if command_parts else ""
         is_ai_related = (
             first_command in ai_commands
@@ -357,7 +376,29 @@ def _run_interactive_passthrough(
         session_id = os.environ.get("SAGE_SESSION_ID", "")
 
     if not is_ai_session:
-        ai_commands = {"claude", "claude.exe", "claude.cmd", "codex", "codex.exe", "codex.cmd", "ollama", "ollama.exe", "ollama.cmd"}
+        ai_commands = {
+            "claude",
+            "claude.exe",
+            "claude.cmd",
+            "codex",
+            "codex.exe",
+            "codex.cmd",
+            "opencode",
+            "opencode.exe",
+            "opencode.cmd",
+            "cursor",
+            "cursor.exe",
+            "cursor.cmd",
+            "windsurf",
+            "windsurf.exe",
+            "windsurf.cmd",
+            "aider",
+            "aider.exe",
+            "aider.cmd",
+            "ollama",
+            "ollama.exe",
+            "ollama.cmd",
+        }
         first_command = Path(command_parts[0]).name.lower() if command_parts else ""
         is_ai_session = 1 if first_command in ai_commands or caller in ["mcp", "agent"] else 0
         if is_ai_session and not session_id:

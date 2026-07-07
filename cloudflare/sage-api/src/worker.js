@@ -759,12 +759,21 @@ async function handleVisitorStats(env, request) {
      )`
   ).bind(`${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
   const userTotals = await env.DB.prepare(
-    `SELECT
-      COUNT(CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN 1 END) AS connected_users,
-      COUNT(CASE WHEN created_at >= ? THEN 1 END) AS new_logins_today,
-      COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN key_id END) AS live_api_users_15m,
-      COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN key_id END) AS active_api_users_24h
-     FROM api_keys`
+    `WITH keyed_users AS (
+      SELECT
+        COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), NULLIF(github_id, ''), key_id) AS user_identity,
+        created_at,
+        last_used_at,
+        revoked_at,
+        expires_at
+      FROM api_keys
+     )
+     SELECT
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN user_identity END) AS connected_users,
+      COUNT(DISTINCT CASE WHEN created_at >= ? THEN user_identity END) AS new_logins_today,
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN user_identity END) AS live_api_users_15m,
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN user_identity END) AS active_api_users_24h
+     FROM keyed_users`
   ).bind(nowIso(), `${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
   const clickTotals = await env.DB.prepare(
     `SELECT
@@ -818,6 +827,87 @@ async function handleVisitorStats(env, request) {
       day: row.day,
       unique_visitors: Number(row.unique_visitors || 0),
       page_views: Number(row.page_views || 0),
+    })),
+  });
+}
+
+async function handleAdminUsers(env, request) {
+  const auth = await requireKey(env, request);
+  if (auth.error) return auth.error;
+  const now = nowIso();
+  const rows = await env.DB.prepare(
+    `WITH keyed_users AS (
+      SELECT
+        COALESCE(NULLIF(k.github_username, ''), NULLIF(k.username, ''), NULLIF(k.github_id, ''), k.key_id) AS user_identity,
+        k.*
+      FROM api_keys k
+     ),
+     user_summary AS (
+      SELECT
+        user_identity,
+        MAX(display_name) AS display_name,
+        MAX(username) AS username,
+        MAX(github_username) AS github_username,
+        MAX(github_id) AS github_id,
+        MIN(created_at) AS first_connected_at,
+        MAX(last_used_at) AS last_used_at,
+        COUNT(*) AS key_count,
+        SUM(CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN 1 ELSE 0 END) AS active_key_count
+      FROM keyed_users
+      GROUP BY user_identity
+     ),
+     install_summary AS (
+      SELECT
+        k.user_identity,
+        COUNT(DISTINCT installation_id) AS install_count
+      FROM keyed_users k
+      JOIN installations i ON i.key_id = k.key_id
+      GROUP BY k.user_identity
+     ),
+     run_summary AS (
+      SELECT
+        k.user_identity,
+        COUNT(*) AS run_count,
+        COUNT(DISTINCT t.installation_id) AS telemetry_install_count
+      FROM keyed_users k
+      JOIN telemetry_events t ON t.key_id = k.key_id
+      GROUP BY k.user_identity
+     )
+     SELECT
+      u.user_identity,
+      MAX(u.display_name) AS display_name,
+      MAX(u.username) AS username,
+      MAX(u.github_username) AS github_username,
+      MAX(u.github_id) AS github_id,
+      MIN(u.first_connected_at) AS first_connected_at,
+      MAX(u.last_used_at) AS last_used_at,
+      MAX(u.key_count) AS key_count,
+      MAX(u.active_key_count) AS active_key_count,
+      COALESCE(SUM(i.install_count), 0) AS install_count,
+      COALESCE(SUM(r.telemetry_install_count), 0) AS telemetry_install_count,
+      COALESCE(SUM(r.run_count), 0) AS run_count
+     FROM user_summary u
+     LEFT JOIN install_summary i ON i.user_identity = u.user_identity
+     LEFT JOIN run_summary r ON r.user_identity = u.user_identity
+     GROUP BY u.user_identity
+     ORDER BY last_used_at DESC, first_connected_at DESC
+     LIMIT 100`
+  ).bind(now).all();
+  return json({
+    ok: true,
+    generated_at: nowIso(),
+    users: (rows.results || []).map((row) => ({
+      display_name: row.display_name || "",
+      username: row.github_username || row.username || "",
+      github_id: row.github_id || "",
+      first_connected_at: row.first_connected_at || "",
+      last_used_at: row.last_used_at || "",
+      active: Number(row.active_key_count || 0) > 0,
+      key_count: Number(row.key_count || 0),
+      active_key_count: Number(row.active_key_count || 0),
+      install_count: Number(row.install_count || 0),
+      telemetry_install_count: Number(row.telemetry_install_count || 0),
+      run_count: Number(row.run_count || 0),
     })),
   });
 }
@@ -923,8 +1013,11 @@ async function handleGitHubLogin(env, request) {
   const rateLimitPerHour = 10000; // Default for GitHub users and telemetry backfills
 
   const publicProfile = body.public_profile === true || body.public_profile === 1 ? 1 : 0;
+  const installationId = textValue(body.installation_id, 120);
+  const clientVersion = textValue(body.client_version, 80);
+  const platform = textValue(body.platform, 80);
 
-  await env.DB.prepare(
+  const statements = [env.DB.prepare(
     `INSERT INTO api_keys
       (key_id, secret_hash, prefix, scope, display_name, username, github_id, github_username,
        public_profile, privacy_max, expires_at, rate_limit_per_hour, created_at)
@@ -945,7 +1038,21 @@ async function handleGitHubLogin(env, request) {
       rateLimitPerHour,
       createdAt
     )
-    .run();
+  ];
+  if (installationId) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO installations (installation_id, key_id, first_seen_at, last_seen_at, client_version, platform)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(installation_id) DO UPDATE SET
+          key_id = excluded.key_id,
+          last_seen_at = excluded.last_seen_at,
+          client_version = excluded.client_version,
+          platform = excluded.platform`
+      ).bind(installationId, keyId, createdAt, createdAt, clientVersion, platform)
+    );
+  }
+  await env.DB.batch(statements);
 
   return json({
     ok: true,
@@ -1379,6 +1486,7 @@ async function route(request, env) {
   if (request.method === "POST" && url.pathname === "/v1/telemetry") return handleTelemetry(env, request);
   if (request.method === "POST" && url.pathname === "/v1/proof-snapshot") return handleProofSnapshot(env, request);
   if (request.method === "GET" && url.pathname === "/v1/admin/visitors") return handleVisitorStats(env, request);
+  if (request.method === "GET" && url.pathname === "/v1/admin/users") return handleAdminUsers(env, request);
   if (request.method === "GET" && url.pathname === "/v1/proof") return handleProof(env);
   return error("Not found", 404);
 }

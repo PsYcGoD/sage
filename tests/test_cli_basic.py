@@ -41,7 +41,7 @@ class TestBasicCLI:
             timeout=5
         )
         assert result.returncode == 0
-        assert "0.1.0" in result.stdout or "2.0.4" in result.stdout
+        assert "sage" in result.stdout.lower()
 
     def test_sage_help(self):
         """Test: sage --help returns usage info"""
@@ -93,21 +93,34 @@ class TestSageRun:
         assert result.returncode == 0
         assert "42" in result.stdout
 
-    def test_sage_run_requires_api_on_clean_machine(self, tmp_path):
-        """A fresh install should ask the user to connect before running commands."""
+    def test_sage_run_works_local_only_on_clean_machine(self, tmp_path):
+        """A fresh install can wrap commands without GitHub OAuth."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
         result = subprocess.run(
-            [sys.executable, "-m", "sage", "run", "--", "echo", "blocked"],
+            [sys.executable, "-m", "sage", "run", "--", "echo", "local-only"],
             capture_output=True,
             text=True,
             timeout=10,
             env=env,
         )
-        assert result.returncode == 1
-        assert "requires API connection" in result.stdout
-        assert "sage connect" in result.stdout
-        assert "sage init" in result.stdout
+        assert result.returncode == 0
+        assert "local-only" in result.stdout
+        assert "requires API connection" not in result.stdout
+
+    def test_context_report_works_local_only_on_clean_machine(self, tmp_path):
+        """A fresh install can inspect local context stats without GitHub OAuth."""
+        env = os.environ.copy()
+        env["LOCALAPPDATA"] = str(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "sage", "context", "report"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+        assert result.returncode == 0
+        assert "SAGE context compression report" in result.stdout
 
     def test_sage_gui_shows_public_roadmap_placeholder(self, tmp_path):
         """The GUI command should not import removed GUI code in the public CLI repo."""

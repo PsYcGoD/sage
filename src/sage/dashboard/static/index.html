@@ -245,6 +245,30 @@
                 <div class="stat-value" id="success-rate">-</div>
                 <div class="stat-change">Last 100 commands</div>
             </div>
+
+            <div class="stat-card">
+                <div class="stat-label">ML Training Examples</div>
+                <div class="stat-value" id="ml-examples">-</div>
+                <div class="stat-change">Learning from usage</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Agent Runs</div>
+                <div class="stat-value" id="agent-runs">-</div>
+                <div class="stat-change">Total completions</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Agent Tasks</div>
+                <div class="stat-value" id="agent-tasks">-</div>
+                <div class="stat-change">Tasks processed</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Quality Metrics</div>
+                <div class="stat-value" id="quality-metrics">-</div>
+                <div class="stat-change">Tracked signals</div>
+            </div>
         </div>
 
         <div class="main-grid">
@@ -316,6 +340,16 @@
                 document.getElementById('active-agents').textContent = metrics.active_agents || 0;
                 document.getElementById('success-rate').textContent =
                     Math.round((metrics.success_rate || 0) * 100) + '%';
+                
+                // Load ML metrics
+                document.getElementById('ml-examples').textContent = 
+                    (metrics.ml_training_examples || 0).toLocaleString();
+                document.getElementById('agent-runs').textContent = 
+                    (metrics.agent_runs_completed || 0).toLocaleString();
+                document.getElementById('agent-tasks').textContent = 
+                    (metrics.agent_tasks_processed || 0).toLocaleString();
+                document.getElementById('quality-metrics').textContent = 
+                    (metrics.agent_quality_metrics || 0).toLocaleString();
 
                 // Load commands
                 const commandsRes = await fetch('/api/v1/commands?limit=10');

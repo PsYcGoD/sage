@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Mapping
 
-from ..store import connect
+from ..store import connect, db_path
 from .features import FeatureExtractor
 from .model import SklearnFailureModel
 from .family_model import FamilyFailureModel
+
+try:
+    from .embeddings import CommandEmbedder, _HAS_ML_DEPS
+    from .vector_store import CommandVectorStore, build_vector_store
+
+    _HAS_V2 = _HAS_ML_DEPS
+except ImportError:
+    _HAS_V2 = False
+
+logger = logging.getLogger(__name__)
 
 
 class FailurePredictor:
@@ -24,10 +35,34 @@ class FailurePredictor:
         self.family_model = FamilyFailureModel(extractor=self.feature_extractor)
         self.model = None
         self.trained = False
+        self._vector_store: CommandVectorStore | None = None
+        self._v2_failed = False
+
+    def _get_vector_store(self) -> CommandVectorStore | None:
+        """Lazily initialize the V2 vector store (returns None if unavailable)."""
+        if not _HAS_V2 or self._v2_failed:
+            return None
+        if self._vector_store is not None:
+            return self._vector_store
+
+        try:
+            store = build_vector_store(db_path(), use_cache=True)
+            self._vector_store = store
+            logger.info(f"ML V2 vector store ready: {store.size} commands indexed")
+            return store
+        except (ValueError, RuntimeError, ImportError) as e:
+            logger.debug(f"ML V2 not available: {e}")
+            self._v2_failed = True
+            return None
 
     def predict(self, command: str) -> tuple[bool, float, str]:
         """Return (will_fail, confidence, reason)."""
-        # Try family-specific models first (v4)
+        # Try V2 embedding-based prediction first
+        v2_prediction = self._predict_v2(command)
+        if v2_prediction is not None:
+            return self._with_recent_failure_context(command, v2_prediction)
+
+        # Try family-specific models (v4)
         family_prediction = self.family_model.predict(command)
         if family_prediction is not None:
             return self._with_recent_failure_context(command, family_prediction)
@@ -83,6 +118,39 @@ class FailurePredictor:
         if context_reasons:
             reason = f"{reason}; " + "; ".join(context_reasons)
         return will_fail, confidence, reason
+
+    def _predict_v2(self, command: str) -> tuple[bool, float, str] | None:
+        """Embedding-based prediction using V2 vector similarity search."""
+        store = self._get_vector_store()
+        if store is None:
+            return None
+
+        try:
+            prob, neighbors = store.predict_success(command, k=10)
+            if not neighbors:
+                return None
+
+            # Only use V2 if we have reasonably close neighbors
+            best_sim = neighbors[0].similarity if neighbors else 0
+            if best_sim < 0.5:
+                return None
+
+            fail_prob = 1.0 - prob
+            will_fail = fail_prob >= 0.55
+            confidence = min(0.95, 0.4 + (best_sim * 0.5))
+
+            # Build explanation from neighbors
+            n_fail = sum(1 for n in neighbors if not n.success)
+            n_total = len(neighbors)
+            reason = (
+                f"V2 embedding: {n_fail}/{n_total} similar commands failed "
+                f"(best match: {neighbors[0].command!r}, sim={best_sim:.2f})"
+            )
+
+            return will_fail, confidence, reason
+        except Exception as e:
+            logger.debug(f"V2 prediction error: {e}")
+            return None
 
     def train(self, training_data: list | None = None, use_family_models: bool = True) -> bool:
         """Train and persist ML models from local command history."""

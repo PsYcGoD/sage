@@ -23,3 +23,19 @@ __all__ = [
     "validate_temporal",
     "write_validation_report",
 ]
+
+# V2 exports (available only when [ml] extras installed)
+try:
+    from .embeddings import CommandEmbedder, EmbeddingStore, get_embedder
+    from .vector_store import CommandVectorStore, CommandOutcome, build_vector_store
+
+    __all__ += [
+        "CommandEmbedder",
+        "EmbeddingStore",
+        "get_embedder",
+        "CommandVectorStore",
+        "CommandOutcome",
+        "build_vector_store",
+    ]
+except ImportError:
+    pass

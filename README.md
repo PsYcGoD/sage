@@ -7,6 +7,8 @@
 
 SAGE is a local-first command wrapper for AI coding agents that compresses terminal output, preserves raw logs locally, and proves token savings with privacy-safe metrics.
 
+Not only that—it uses **10+ specialized AI agents and ML learning** to analyze every command in real-time, detecting security risks, optimizing compression strategies, and continuously improving from your usage patterns. Your terminal becomes smarter with every command you run.
+
 The public package is CLI-first. The desktop GUI is not included in this public repository yet.
 
 ## Live Public Proof Dashboard

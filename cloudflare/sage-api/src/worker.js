@@ -13,10 +13,12 @@ const MODEL_SAVINGS_PROFILES = [
 ];
 
 const AGENT_SAVINGS_PROFILES = [
+  { agent: "claude-cli", label: "Claude CLI", provider: "Anthropic", model: "Claude Sonnet", input_rate_per_million: 3.0 },
+  { agent: "codex-cli", label: "Codex CLI", provider: "OpenAI", model: "OpenAI Codex", input_rate_per_million: 1.5 },
+  { agent: "sage-desktop", label: "SAGE Desktop", provider: "SAGE", model: "Desktop app", input_rate_per_million: 0.0 },
   { agent: "claude-code", label: "Claude Code", provider: "Anthropic", model: "Claude Sonnet", input_rate_per_million: 3.0 },
   { agent: "opencode", label: "OpenCode", provider: "OpenCode", model: "Claude Sonnet", input_rate_per_million: 3.0 },
-  { agent: "cursor", label: "Cursor", provider: "Cursor", model: "Claude Sonnet", input_rate_per_million: 3.0 },
-  { agent: "cursor-openai", label: "Cursor", provider: "Cursor", model: "OpenAI Codex", input_rate_per_million: 1.5 },
+  { agent: "cursor", label: "Cursor", provider: "Cursor", model: "OpenAI Codex", input_rate_per_million: 1.5 },
   { agent: "windsurf", label: "Windsurf", provider: "Codeium", model: "Claude Sonnet", input_rate_per_million: 3.0 },
   { agent: "aider", label: "Aider", provider: "Aider", model: "Claude Sonnet", input_rate_per_million: 3.0 },
   { agent: "copilot", label: "GitHub Copilot coding agent", provider: "GitHub", model: "GitHub Copilot", input_rate_per_million: 0.0 },
@@ -209,7 +211,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
           </tbody>
         </table>
         <details class="agent-savings">
-          <summary>Price by each AI Agent</summary>
+          <summary>Money Saved by each AI Agent</summary>
           <table class="savings-table" aria-label="Estimated savings by AI agent">
             <thead>
               <tr><th>AI agent/provider</th><th>Model used</th><th>Estimated saved</th></tr>
@@ -414,15 +416,15 @@ function buildSavingsByModel(savedTokens) {
   }));
 }
 
-function buildSavingsByAgent() {
+function buildSavingsByAgent(usageByAgent = {}) {
   return AGENT_SAVINGS_PROFILES.map((profile) => ({
     agent: profile.agent,
     label: profile.label,
     provider: profile.provider,
     model: profile.model,
-    saved_tokens: 0,
+    saved_tokens: clampInt(usageByAgent[profile.agent], 0, 2147483647, 0),
     input_rate_per_million: profile.input_rate_per_million,
-    estimated_savings_usd: 0,
+    estimated_savings_usd: roundMoney((clampInt(usageByAgent[profile.agent], 0, 2147483647, 0) / 1000000) * profile.input_rate_per_million),
   }));
 }
 

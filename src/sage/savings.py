@@ -22,6 +22,24 @@ MODEL_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
 }
 
 AGENT_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
+    "claude-cli": {
+        "label": "Claude CLI",
+        "provider": "Anthropic",
+        "model": "Claude Sonnet",
+        "input_rate_per_million": 3.0,
+    },
+    "codex-cli": {
+        "label": "Codex CLI",
+        "provider": "OpenAI",
+        "model": "OpenAI Codex",
+        "input_rate_per_million": 1.5,
+    },
+    "sage-desktop": {
+        "label": "SAGE Desktop",
+        "provider": "SAGE",
+        "model": "Desktop app",
+        "input_rate_per_million": 0.0,
+    },
     "claude-code": {
         "label": "Claude Code",
         "provider": "Anthropic",
@@ -35,12 +53,6 @@ AGENT_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
         "input_rate_per_million": 3.0,
     },
     "cursor": {
-        "label": "Cursor",
-        "provider": "Cursor",
-        "model": "Claude Sonnet",
-        "input_rate_per_million": 3.0,
-    },
-    "cursor-openai": {
         "label": "Cursor",
         "provider": "Cursor",
         "model": "OpenAI Codex",
@@ -101,8 +113,19 @@ def estimate_total_model_savings_usd(saved_tokens: int) -> float:
     return round(sum(row["estimated_savings_usd"] for row in build_model_savings(saved_tokens)), 4)
 
 
+def default_agent_usage(saved_tokens: int) -> dict[str, int]:
+    """Current public proof has model-level totals, not historical editor attribution."""
+    saved = max(0, int(saved_tokens or 0))
+    if not saved:
+        return {}
+    return {
+        "claude-cli": saved,
+        "codex-cli": saved,
+    }
+
+
 def build_agent_savings(saved_tokens: int, used_agents: dict[str, int] | None = None) -> list[dict[str, Any]]:
-    usage = used_agents or {}
+    usage = default_agent_usage(saved_tokens) if used_agents is None else used_agents
     rows: list[dict[str, Any]] = []
     for agent, profile in AGENT_SAVINGS_PROFILES.items():
         agent_saved = int(usage.get(agent, 0) or 0)

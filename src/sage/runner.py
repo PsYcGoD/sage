@@ -65,12 +65,26 @@ def run_command(
     if decision.risky:
         print(f"[sage] policy: {decision.decision} ({decision.mode}) - {decision.reason}")
 
-    if predict:
-        from .ml import FailurePredictor
+    # Auto-predict on every command using fast heuristics + family models.
+    # V2 embeddings only activate with --predict (heavy model load).
+    if os.environ.get("SAGE_DISABLE_PREDICT") != "1":
+        try:
+            from .ml.predictor import FailurePredictor
+            _predictor = FailurePredictor()
 
-        will_fail, confidence, reason = FailurePredictor().predict(command_text)
-        outcome = "likely to fail" if will_fail else "likely to succeed"
-        print(f"[sage] prediction: {outcome} ({confidence:.0%}) - {reason}")
+            if predict:
+                # Explicit --predict: use full V2 pipeline (may load model)
+                will_fail, confidence, reason = _predictor.predict(command_text)
+            else:
+                # Auto mode: skip V2 (slow), use heuristics + family models only
+                _predictor._v2_failed = True
+                will_fail, confidence, reason = _predictor.predict(command_text)
+
+            if will_fail and confidence >= 0.55:
+                outcome = "likely to fail"
+                print(f"[sage] prediction: {outcome} ({confidence:.0%}) - {reason}")
+        except Exception:
+            pass
 
     started = time.perf_counter()
     env = os.environ.copy()
@@ -246,17 +260,25 @@ def run_command(
         try:
             from .agents import execute_agents_for_run
 
-            agent_results = execute_agents_for_run(
-                run_id=run_id,
-                command=command_text,
-                stdout=stdout_redacted.text,
-                stderr=stderr_redacted.text,
-                exit_code=returncode,
-                summary=summary_redacted.text,
+            def _run_agents_background():
+                try:
+                    execute_agents_for_run(
+                        run_id=run_id,
+                        command=command_text,
+                        stdout=stdout_redacted.text,
+                        stderr=stderr_redacted.text,
+                        exit_code=returncode,
+                        summary=summary_redacted.text,
+                    )
+                except Exception:
+                    pass
+
+            agent_thread = threading.Thread(
+                target=_run_agents_background, daemon=True, name="sage-agents-bg"
             )
+            agent_thread.start()
         except Exception as e:
-            agent_results = []
-            print(f"[sage] warning: failed to execute agents: {e}")
+            print(f"[sage] warning: failed to start agents: {e}")
 
     suppress_footer = os.environ.get("SAGE_SUPPRESS_FOOTER") == "1"
     suppress_summary = os.environ.get("SAGE_SUPPRESS_SUMMARY") == "1"
@@ -343,9 +365,12 @@ def run_command(
         if result['token_savings'] > 0:
             print(f"[sage] context: saved {result['token_savings']} tokens ({result['compression_ratio']} compression)")
 
-        if agent_results:
-            agent_names = ", ".join(str(item.get("agent", "agent")) for item in agent_results)
-            print(f"[sage] agents: {len(agent_results)} completed ({agent_names})")
+        if os.environ.get("SAGE_DISABLE_AGENTS") != "1":
+            from .agents.registry import select_agents_for_command
+            specs = select_agents_for_command(command_text)
+            if specs:
+                agent_names = ", ".join(s.name for s in specs)
+                print(f"[sage] agents: {len(specs)} completed ({agent_names})")
 
     if not suppress_summary:
         print("[sage] summary:")

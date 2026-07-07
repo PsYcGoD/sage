@@ -271,6 +271,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
 
   <script>
     const API_ENDPOINT = window.location.origin + "/v1/proof";
+    const CLICK_ENDPOINT = window.location.origin + "/v1/dashboard-click";
     function formatNumber(num) {
       num = Number(num || 0);
       if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
@@ -356,6 +357,37 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         error.innerHTML = '<div class="error"><strong>Failed to load data.</strong><br>' + String(exc.message || exc) + '<br><br><button onclick="loadProofData()">Retry</button></div>';
       }
     }
+    function clickLabel(element) {
+      if (!element) return "";
+      return (
+        element.getAttribute("aria-label") ||
+        element.getAttribute("title") ||
+        element.textContent ||
+        element.getAttribute("href") ||
+        element.tagName ||
+        ""
+      ).trim().slice(0, 120);
+    }
+    function trackDashboardClick(event) {
+      const element = event.target && event.target.closest ? event.target.closest("a,button,summary") : null;
+      if (!element) return;
+      const payload = JSON.stringify({
+        action: element.tagName.toLowerCase(),
+        target: clickLabel(element),
+        path: window.location.pathname,
+      });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(CLICK_ENDPOINT, new Blob([payload], { type: "application/json" }));
+        return;
+      }
+      fetch(CLICK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    }
+    document.addEventListener("click", trackDashboardClick, { passive: true });
     loadProofData();
     setInterval(loadProofData, 10000);
   </script>
@@ -418,6 +450,51 @@ function clampInt(value, min, max, fallback = 0) {
 function numberValue(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function ensureDashboardAnalyticsTables(env) {
+  if (!env.DB) return;
+  await env.DB.batch([
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS dashboard_visitors (
+        visitor_hash TEXT PRIMARY KEY,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        visit_count INTEGER NOT NULL DEFAULT 0
+      )`
+    ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS dashboard_visit_days (
+        day TEXT NOT NULL,
+        visitor_hash TEXT NOT NULL,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        visit_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, visitor_hash)
+      )`
+    ),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_dashboard_visit_days_day ON dashboard_visit_days(day)"),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS dashboard_clicks (
+        id TEXT PRIMARY KEY,
+        visitor_hash TEXT NOT NULL,
+        action TEXT NOT NULL DEFAULT '',
+        target TEXT NOT NULL DEFAULT '',
+        path TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      )`
+    ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS dashboard_click_days (
+        day TEXT NOT NULL,
+        action TEXT NOT NULL DEFAULT '',
+        click_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, action)
+      )`
+    ),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_dashboard_clicks_created ON dashboard_clicks(created_at)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_dashboard_click_days_day ON dashboard_click_days(day)"),
+  ]);
 }
 
 function roundMoney(value) {
@@ -577,6 +654,7 @@ async function requireKey(env, request, options = {}) {
 
 async function trackDashboardVisit(env, request) {
   if (!env.DB) return;
+  await ensureDashboardAnalyticsTables(env);
   const now = nowIso();
   const day = now.slice(0, 10);
   const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "";
@@ -601,10 +679,49 @@ async function trackDashboardVisit(env, request) {
   ]);
 }
 
+async function visitorHashForRequest(request) {
+  const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "";
+  const ua = request.headers.get("User-Agent") || "";
+  const country = request.cf?.country || "";
+  return sha256(`sage-dashboard-v1:${ip}:${ua}:${country}`);
+}
+
+async function handleDashboardClick(env, request) {
+  if (!env.DB) return json({ ok: true, tracked: false });
+  await ensureDashboardAnalyticsTables(env);
+  let body = {};
+  try {
+    body = await readJson(request);
+  } catch {
+    body = {};
+  }
+  const now = nowIso();
+  const day = now.slice(0, 10);
+  const visitorHash = await visitorHashForRequest(request);
+  const action = textValue(body.action || "click", 80) || "click";
+  const target = textValue(body.target, 160);
+  const path = textValue(body.path || "/dashboard", 160);
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO dashboard_clicks (id, visitor_hash, action, target, path, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(newId("clk"), visitorHash, action, target, path, now),
+    env.DB.prepare(
+      `INSERT INTO dashboard_click_days (day, action, click_count)
+       VALUES (?, ?, 1)
+       ON CONFLICT(day, action) DO UPDATE SET click_count = click_count + 1`
+    ).bind(day, action),
+  ]);
+  return json({ ok: true, tracked: true });
+}
+
 async function handleVisitorStats(env, request) {
   const auth = await requireKey(env, request);
   if (auth.error) return auth.error;
+  await ensureDashboardAnalyticsTables(env);
   const today = nowIso().slice(0, 10);
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const totals = await env.DB.prepare(
     `SELECT
       COUNT(*) AS unique_visitors,
@@ -628,6 +745,41 @@ async function handleVisitorStats(env, request) {
      ORDER BY day DESC
      LIMIT 14`
   ).all();
+  const installTotals = await env.DB.prepare(
+    `SELECT
+      COUNT(*) AS total_installs,
+      COALESCE(SUM(CASE WHEN first_seen_at >= ? THEN 1 ELSE 0 END), 0) AS new_installs_today,
+      COALESCE(SUM(CASE WHEN last_seen_at >= ? THEN 1 ELSE 0 END), 0) AS live_installs_15m,
+      COALESCE(SUM(CASE WHEN last_seen_at >= ? THEN 1 ELSE 0 END), 0) AS active_installs_24h
+     FROM (
+      SELECT installation_id, MIN(received_at) AS first_seen_at, MAX(received_at) AS last_seen_at
+      FROM telemetry_events
+      WHERE installation_id <> ''
+      GROUP BY installation_id
+     )`
+  ).bind(`${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
+  const userTotals = await env.DB.prepare(
+    `SELECT
+      COUNT(CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN 1 END) AS connected_users,
+      COUNT(CASE WHEN created_at >= ? THEN 1 END) AS new_logins_today,
+      COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN key_id END) AS live_api_users_15m,
+      COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN key_id END) AS active_api_users_24h
+     FROM api_keys`
+  ).bind(nowIso(), `${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
+  const clickTotals = await env.DB.prepare(
+    `SELECT
+      COUNT(*) AS total_clicks,
+      COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) AS clicks_today
+     FROM dashboard_clicks`
+  ).bind(`${today}T00:00:00.000Z`).first();
+  const recentClicks = await env.DB.prepare(
+    `SELECT action, COALESCE(SUM(click_count), 0) AS click_count
+     FROM dashboard_click_days
+     WHERE day >= ?
+     GROUP BY action
+     ORDER BY click_count DESC
+     LIMIT 10`
+  ).bind(today).all();
   return json({
     ok: true,
     generated_at: nowIso(),
@@ -641,6 +793,26 @@ async function handleVisitorStats(env, request) {
       page_views: Number(todayTotals?.page_views || 0),
       new_visitors: Number(todayTotals?.new_visitors || 0),
       returning_visitors: Number(todayTotals?.returning_visitors || 0),
+    },
+    installs: {
+      total_installs: Number(installTotals?.total_installs || 0),
+      new_installs_today: Number(installTotals?.new_installs_today || 0),
+      live_installs_15m: Number(installTotals?.live_installs_15m || 0),
+      active_installs_24h: Number(installTotals?.active_installs_24h || 0),
+    },
+    users: {
+      connected_users: Number(userTotals?.connected_users || 0),
+      new_logins_today: Number(userTotals?.new_logins_today || 0),
+      live_api_users_15m: Number(userTotals?.live_api_users_15m || 0),
+      active_api_users_24h: Number(userTotals?.active_api_users_24h || 0),
+    },
+    clicks: {
+      total_clicks: Number(clickTotals?.total_clicks || 0),
+      clicks_today: Number(clickTotals?.clicks_today || 0),
+      by_action_today: (recentClicks.results || []).map((row) => ({
+        action: row.action,
+        click_count: Number(row.click_count || 0),
+      })),
     },
     recent_days: (recentDays.results || []).map((row) => ({
       day: row.day,
@@ -911,8 +1083,11 @@ async function handleTelemetry(env, request) {
   const success = body.success === true || clampInt(body.exit_code ?? metrics.exit_code, -999999, 999999, 0) === 0 ? 1 : 0;
   const exitCode = clampInt(body.exit_code ?? metrics.exit_code, -999999, 999999, success ? 0 : 1);
   const day = receivedAt.slice(0, 10);
+  const installationId = textValue(body.installation_id, 120);
+  const clientVersion = textValue(body.client_version, 80);
+  const platform = textValue(body.platform, 80);
 
-  await env.DB.batch([
+  const statements = [
     env.DB.prepare(
       `INSERT INTO telemetry_events
         (id, key_id, installation_id, workspace_hash, run_hash, idempotency_key, event_type,
@@ -923,7 +1098,7 @@ async function handleTelemetry(env, request) {
     ).bind(
       eventId,
       auth.keyId,
-      textValue(body.installation_id, 120),
+      installationId,
       textValue(body.workspace_hash, 160),
       textValue(body.run_hash || body.run_id_local_hash, 160),
       idempotencyKey,
@@ -944,8 +1119,8 @@ async function handleTelemetry(env, request) {
       receivedAt,
       JSON.stringify({
         schema_version: textValue(body.schema_version || "1.0", 20),
-        client_version: textValue(body.client_version, 80),
-        platform: textValue(body.platform, 80),
+        client_version: clientVersion,
+        platform,
       })
     ),
     env.DB.prepare(
@@ -970,7 +1145,21 @@ async function handleTelemetry(env, request) {
       savedTokens,
       clampInt(metrics.duration_ms ?? body.duration_ms, 0, 2147483647, 0)
     ),
-  ]);
+  ];
+  if (installationId) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO installations (installation_id, key_id, first_seen_at, last_seen_at, client_version, platform)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(installation_id) DO UPDATE SET
+          key_id = excluded.key_id,
+          last_seen_at = excluded.last_seen_at,
+          client_version = excluded.client_version,
+          platform = excluded.platform`
+      ).bind(installationId, auth.keyId, receivedAt, receivedAt, clientVersion, platform)
+    );
+  }
+  await env.DB.batch(statements);
 
   if (env.TELEMETRY_QUEUE) {
     await env.TELEMETRY_QUEUE.send({ event_id: eventId, key_id: auth.keyId, received_at: receivedAt });
@@ -1186,6 +1375,7 @@ async function route(request, env) {
   }
   if (request.method === "POST" && url.pathname === "/v1/keys") return handleCreateKey(env, request);
   if (request.method === "POST" && url.pathname === "/v1/github-login") return handleGitHubLogin(env, request);
+  if (request.method === "POST" && url.pathname === "/v1/dashboard-click") return handleDashboardClick(env, request);
   if (request.method === "POST" && url.pathname === "/v1/telemetry") return handleTelemetry(env, request);
   if (request.method === "POST" && url.pathname === "/v1/proof-snapshot") return handleProofSnapshot(env, request);
   if (request.method === "GET" && url.pathname === "/v1/admin/visitors") return handleVisitorStats(env, request);

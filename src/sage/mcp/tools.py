@@ -471,13 +471,64 @@ def sage_call(command: str, purpose: str = "unknown", agent: str = "mcp") -> dic
         with connect() as conn:
             conn.execute("UPDATE runs SET command_family = ? WHERE id = ?", (purpose, record.id))
             conn.commit()
-    return {
+    
+    result = {
         "success": exit_code == 0,
         "exit_code": exit_code,
         "run_id": record.id if record else None,
         "purpose": purpose,
         "agent": agent,
     }
+    
+    # Enhance with telemetry that terminal users see but MCP clients were missing
+    if record is not None:
+        with connect() as conn:
+            # Query compression stats
+            compression = conn.execute(
+                """
+                SELECT original_tokens, compressed_tokens, saved_tokens, strategy
+                FROM context_compression
+                WHERE run_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (record.id,)
+            ).fetchone()
+            
+            if compression:
+                saved = compression["saved_tokens"]
+                original = compression["original_tokens"]
+                compression_pct = f"{(saved / original * 100):.1f}%" if original > 0 else "0%"
+                result["compression"] = {
+                    "original_tokens": original,
+                    "compressed_tokens": compression["compressed_tokens"],
+                    "saved_tokens": saved,
+                    "compression_ratio": compression_pct,
+                    "strategy": compression["strategy"],
+                }
+            
+            # Query agent execution results
+            agents = conn.execute(
+                """
+                SELECT name, type, status
+                FROM agents
+                WHERE last_active >= datetime('now', '-5 seconds')
+                ORDER BY last_active DESC
+                """,
+            ).fetchall()
+            
+            if agents:
+                result["agents"] = {
+                    "count": len(agents),
+                    "completed": [dict(row) for row in agents],
+                    "names": [row["name"] for row in agents],
+                }
+            
+            # Add summary and duration
+            result["duration_ms"] = record.duration_ms
+            result["summary"] = record.summary
+    
+    return result
 
 
 def sage_write_file(path: str, content: str, overwrite: bool = False, append: bool = False) -> dict[str, Any]:

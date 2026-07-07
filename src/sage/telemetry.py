@@ -42,6 +42,28 @@ LEVEL_NAMES = {
 }
 # Keys that must NEVER appear in a Level 1 payload.
 LEVEL1_FORBIDDEN_KEYS = {"command", "stdout", "stderr", "output", "raw", "project", "path", "file"}
+AGENT_COMMANDS = {
+    "claude": "claude-code",
+    "claude.exe": "claude-code",
+    "claude.cmd": "claude-code",
+    "codex": "codex",
+    "codex.exe": "codex",
+    "codex.cmd": "codex",
+    "opencode": "opencode",
+    "opencode.exe": "opencode",
+    "opencode.cmd": "opencode",
+    "cursor": "cursor",
+    "cursor.exe": "cursor",
+    "cursor.cmd": "cursor",
+    "windsurf": "windsurf",
+    "windsurf.exe": "windsurf",
+    "windsurf.cmd": "windsurf",
+    "aider": "aider",
+    "aider.exe": "aider",
+    "aider.cmd": "aider",
+    "gh": "copilot",
+    "gh.exe": "copilot",
+}
 
 
 def _client_version() -> str:
@@ -50,6 +72,17 @@ def _client_version() -> str:
 
 def _platform() -> str:
     return f"{platform_module.system()} {platform_module.release()}".strip()
+
+
+def _agent_client(command: str, caller: str = "") -> str:
+    first = (str(command or "").strip().split(maxsplit=1) or [""])[0]
+    name = Path(first).name.lower()
+    if name in AGENT_COMMANDS:
+        if name in {"gh", "gh.exe"} and "copilot" not in str(command or "").lower():
+            return ""
+        return AGENT_COMMANDS[name]
+    caller_name = str(caller or "").strip().lower()
+    return AGENT_COMMANDS.get(caller_name, "")
 
 
 def config_path() -> Path:
@@ -516,6 +549,7 @@ def build_payload(run_id: int, *, level: int | None = None) -> dict[str, Any] | 
         "command_kind": str(run["command_kind"] or "unknown"),
         "command_family": str(run["command_family"] or "unknown"),
         "caller": str(run["caller"] or "cli"),
+        "agent_client": _agent_client(str(run["command"] or ""), str(run["caller"] or "")),
         "duration_ms": int(run["duration_ms"]),
         "exit_code": int(run["exit_code"]),
         "original_tokens": original,
@@ -855,6 +889,17 @@ def build_proof_snapshot() -> dict[str, Any]:
                 (SELECT COUNT(*) FROM agents) as total_agents
             """
         ).fetchone()
+        agent_rows = conn.execute(
+            """
+            SELECT
+                r.command,
+                r.caller,
+                COALESCE(SUM(CASE WHEN t.savings < 0 THEN 0 ELSE t.savings END), 0) AS saved_tokens
+            FROM token_usage t
+            JOIN runs r ON r.id = t.run_id
+            GROUP BY r.command, r.caller
+            """
+        ).fetchall()
         
     original = int(token_stats["estimated_tokens"] or 0)
     compressed = int(token_stats["compressed_tokens"] or 0)
@@ -863,7 +908,12 @@ def build_proof_snapshot() -> dict[str, Any]:
     successful = min(int(runs["successful_runs"] or 0), total_runs)
     prediction_stats = build_prediction_stats()
     savings_by_model = build_model_savings(saved)
-    savings_by_agent = build_agent_savings(saved)
+    agent_usage: dict[str, int] = {}
+    for row in agent_rows:
+        agent = _agent_client(str(row["command"] or ""), str(row["caller"] or ""))
+        if agent:
+            agent_usage[agent] = agent_usage.get(agent, 0) + max(0, int(row["saved_tokens"] or 0))
+    savings_by_agent = build_agent_savings(saved, agent_usage)
     return {
         "display_name": "PsYc+GoD AI & ML",
         "username": profile.get("username") or "PsYcGoD",

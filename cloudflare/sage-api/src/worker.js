@@ -652,6 +652,16 @@ async function requireKey(env, request, options = {}) {
   return { keyId, key };
 }
 
+async function requireAdminKey(env, request) {
+  const auth = await requireKey(env, request);
+  if (auth.error) return auth;
+  const username = String(auth.key.github_username || auth.key.username || "").toLowerCase();
+  if (username !== "psycgod") {
+    return { error: error("Admin analytics requires the owner SAGE API key", 403) };
+  }
+  return auth;
+}
+
 async function trackDashboardVisit(env, request) {
   if (!env.DB) return;
   await ensureDashboardAnalyticsTables(env);
@@ -716,7 +726,7 @@ async function handleDashboardClick(env, request) {
 }
 
 async function handleVisitorStats(env, request) {
-  const auth = await requireKey(env, request);
+  const auth = await requireAdminKey(env, request);
   if (auth.error) return auth.error;
   await ensureDashboardAnalyticsTables(env);
   const today = nowIso().slice(0, 10);
@@ -832,7 +842,7 @@ async function handleVisitorStats(env, request) {
 }
 
 async function handleAdminUsers(env, request) {
-  const auth = await requireKey(env, request);
+  const auth = await requireAdminKey(env, request);
   if (auth.error) return auth.error;
   const now = nowIso();
   const rows = await env.DB.prepare(
@@ -1228,6 +1238,8 @@ async function handleTelemetry(env, request) {
         schema_version: textValue(body.schema_version || "1.0", 20),
         client_version: clientVersion,
         platform,
+        caller: textValue(body.caller, 80),
+        agent_client: textValue(body.agent_client, 80),
       })
     ),
     env.DB.prepare(

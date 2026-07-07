@@ -29,15 +29,15 @@ Latest verified snapshot:
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 5,650 |
-| Tokens processed | 17,614,532 |
-| Tokens compressed | 1,378,116 |
-| Tokens saved | 16,236,416 |
-| Estimated savings | $93.36 |
-| Compression rate | 92.18% |
-| Success rate | 99.01% |
+| Commands processed | 7,229 |
+| Tokens processed | 16,742,284 |
+| Tokens compressed | 1,429,155 |
+| Tokens saved | 15,314,377 |
+| Estimated savings | $45.94 |
+| Compression rate | 91.47% |
+| Success rate | 86.01% |
 
-These stats reflect the public CLI proof snapshot after the hosted dashboard went live.
+These stats reflect live dashboard metrics as of July 7, 2026. Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 Raw commands, outputs, file paths, and logs stay local by default. Public proof uses aggregate counters only.
 
 ## Install From GitHub Until PyPI Is Live

@@ -236,4 +236,4 @@ wrangler tail
 
 ---
 
-**✅ One command deploys everything. No manual steps needed.** 🚀
+The scripts cover the normal deployment path. Review generated secrets and Cloudflare settings before publishing.

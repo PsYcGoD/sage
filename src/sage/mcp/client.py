@@ -29,7 +29,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2024-11-05"
-CLIENT_INFO = {"name": "psycgod-sage", "version": "2.0.2"}
+CLIENT_INFO = {"name": "psycgod-sage", "version": "2.0.3"}
 
 @dataclass
 class MCPConnectionResult:

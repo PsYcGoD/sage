@@ -41,7 +41,7 @@ class TestBasicCLI:
             timeout=5
         )
         assert result.returncode == 0
-        assert "0.1.0" in result.stdout or "2.0.2" in result.stdout
+        assert "0.1.0" in result.stdout or "2.0.3" in result.stdout
 
     def test_sage_help(self):
         """Test: sage --help returns usage info"""

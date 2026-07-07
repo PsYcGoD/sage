@@ -102,20 +102,20 @@ class TestCompressionMetrics:
         """Test: Real conversation compression saves >50% tokens"""
         compressor = ContextCompressor()
 
-        # Simulate real conversation context
+        # Simulate a long terminal discussion with repeated status sections.
         conversation = """
 User: ok so is my bot ready to launch to public
 
-Claude: Sensei, here's my PRODUCTION READINESS AUDIT for SAGE bot:
+Assistant: Here is the launch readiness audit for SAGE:
 
-## ✅ READY TO LAUNCH - But with Critical Issues to Address
+## Launch Readiness
 
-### WHAT WORKS ✅
+### Working areas
 
 1. Core Functionality - ALL WORKING
-   - ✅ CLI commands execute perfectly
-   - ✅ Command execution (sage run)
-   - ✅ Context compression (99.7% compression rate, saved 887k tokens!)
+   - CLI commands execute correctly
+   - Command execution through sage run
+   - Context compression reduces noisy terminal output
 """ * 5  # Repeat to simulate long conversation
 
         compressed = compressor.compress(conversation, strategy="auto")
@@ -126,7 +126,7 @@ Claude: Sensei, here's my PRODUCTION READINESS AUDIT for SAGE bot:
 
         compression_rate = (saved_tokens / original_tokens * 100) if original_tokens > 0 else 0
 
-        print(f"\n🗜️ Real Compression Test:")
+        print("\nReal Compression Test:")
         print(f"   Original: {original_tokens:,} tokens")
         print(f"   Compressed: {compressed_tokens:,} tokens")
         print(f"   Saved: {saved_tokens:,} tokens ({compression_rate:.1f}%)")

@@ -20,7 +20,7 @@ SAGE routes terminal commands through `sage run --`, compresses noisy output bef
 | Estimated savings | $45.94 |
 | Success rate | 99.5% |
 
-Live dashboard: [sage-api.pascoaldsouza28.workers.dev/dashboard](https://sage-api.pascoaldsouza28.workers.dev/dashboard)
+Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 
 ## Install
 

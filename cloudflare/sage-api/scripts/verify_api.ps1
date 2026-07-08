@@ -1,5 +1,5 @@
 param(
-  [string]$BaseUrl = "https://sage-api.pascoaldsouza28.workers.dev"
+  [string]$BaseUrl = "https://sage.api.marketingstudios.in"
 )
 
 $ErrorActionPreference = "Stop"

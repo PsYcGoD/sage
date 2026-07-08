@@ -1135,15 +1135,16 @@ def get_visitor_stats() -> dict[str, Any]:
         return json.loads(raw)
 
 
-def get_admin_users() -> dict[str, Any]:
+def get_admin_users(raw: bool = False) -> dict[str, Any]:
     """Fetch private connected-user stats using the saved SAGE API key."""
     config = load_config()
     base_url = str(config.get("api_base_url") or DEFAULT_API_BASE_URL).strip().rstrip("/")
     api_key = resolve_api_key(config)
     if not base_url or not api_key:
         raise RuntimeError("SAGE API is not connected.")
+    suffix = "?raw=1" if raw else ""
     request = urllib_request.Request(
-        f"{base_url}/v1/admin/users",
+        f"{base_url}/v1/admin/users{suffix}",
         headers={
             "Authorization": f"Bearer {api_key}",
             "User-Agent": "SAGE-CLI/0.1",

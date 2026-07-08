@@ -1,6 +1,7 @@
 """Tests for classification, read, grep, artifacts, and telemetry client."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -281,6 +282,72 @@ def test_send_without_endpoint_is_noop(isolated_telemetry):
     result = isolated_telemetry.send_queued(dry_run=False)
     assert result["sent"] == 0
     assert "not configured" in result["endpoint"]
+
+
+def test_api_users_default_output_hides_raw_identities(monkeypatch, capsys):
+    from sage import cli, telemetry
+
+    def fake_get_admin_users(raw=False):
+        assert raw is False
+        return {
+            "generated_at": "2026-07-08T09:55:39Z",
+            "users": [
+                {
+                    "display_name": "PsYcGoD",
+                    "username": "c5de820e30b9a9a94b79835dda2c2eabd2f7971663c49cf6edea84665897be8e",
+                    "label": "Connected user #1",
+                    "active": True,
+                    "active_key_count": 1,
+                    "key_count": 5,
+                    "install_count": 5,
+                    "telemetry_install_count": 3,
+                    "run_count": 10,
+                    "last_used_at": "2026-07-08T09:55:39Z",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(telemetry, "get_admin_users", fake_get_admin_users)
+
+    assert cli.api_users_command(SimpleNamespace(raw=False)) == 0
+    out = capsys.readouterr().out
+
+    assert "Connected user #1" in out
+    assert "PsYcGoD" not in out
+    assert "c5de820e30b9a9a94b79835dda2c2eabd2f7971663c49cf6edea84665897be8e" not in out
+    assert "telemetry_installs" not in out
+
+
+def test_api_users_raw_output_requires_explicit_flag(monkeypatch, capsys):
+    from sage import cli, telemetry
+
+    def fake_get_admin_users(raw=False):
+        assert raw is True
+        return {
+            "generated_at": "2026-07-08T09:55:39Z",
+            "users": [
+                {
+                    "display_name": "PsYcGoD",
+                    "username": "PsYcGoD",
+                    "active": True,
+                    "active_key_count": 6,
+                    "key_count": 9,
+                    "install_count": 1,
+                    "telemetry_install_count": 3,
+                    "run_count": 10178,
+                    "last_used_at": "2026-07-08T09:55:39Z",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(telemetry, "get_admin_users", fake_get_admin_users)
+
+    assert cli.api_users_command(SimpleNamespace(raw=True)) == 0
+    out = capsys.readouterr().out
+
+    assert "Raw admin view" in out
+    assert "PsYcGoD @PsYcGoD" in out
+    assert "telemetry_installs=3" in out
 
 
 def test_sync_all_refreshes_snapshot_when_queue_remains(isolated_telemetry, monkeypatch):

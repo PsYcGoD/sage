@@ -845,6 +845,7 @@ async function handleAdminUsers(env, request) {
   const auth = await requireAdminKey(env, request);
   if (auth.error) return auth.error;
   const now = nowIso();
+  const raw = new URL(request.url).searchParams.get("raw") === "1";
   const rows = await env.DB.prepare(
     `WITH keyed_users AS (
       SELECT
@@ -906,19 +907,26 @@ async function handleAdminUsers(env, request) {
   return json({
     ok: true,
     generated_at: nowIso(),
-    users: (rows.results || []).map((row) => ({
-      display_name: row.display_name || "",
-      username: row.github_username || row.username || "",
-      github_id: row.github_id || "",
-      first_connected_at: row.first_connected_at || "",
-      last_used_at: row.last_used_at || "",
-      active: Number(row.active_key_count || 0) > 0,
-      key_count: Number(row.key_count || 0),
-      active_key_count: Number(row.active_key_count || 0),
-      install_count: Number(row.install_count || 0),
-      telemetry_install_count: Number(row.telemetry_install_count || 0),
-      run_count: Number(row.run_count || 0),
-    })),
+    users: (rows.results || []).map((row, index) => {
+      const base = {
+        label: `Connected user #${index + 1}`,
+        first_connected_at: row.first_connected_at || "",
+        last_used_at: row.last_used_at || "",
+        active: Number(row.active_key_count || 0) > 0,
+        key_count: Number(row.key_count || 0),
+        active_key_count: Number(row.active_key_count || 0),
+        install_count: Number(row.install_count || 0),
+        run_count: Number(row.run_count || 0),
+      };
+      if (!raw) return base;
+      return {
+        ...base,
+        display_name: row.display_name || "",
+        username: row.github_username || row.username || "",
+        github_id: row.github_id || "",
+        telemetry_install_count: Number(row.telemetry_install_count || 0),
+      };
+    }),
   });
 }
 

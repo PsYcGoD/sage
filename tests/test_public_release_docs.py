@@ -67,3 +67,11 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "live_installs_15m" in worker
     assert "live_api_users_15m" in worker
     assert "clicks_today" in worker
+
+
+def test_admin_users_endpoint_defaults_to_sanitized_rows():
+    worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
+
+    assert 'searchParams.get("raw") === "1"' in worker
+    assert 'label: `Connected user #${index + 1}`' in worker
+    assert "if (!raw) return base;" in worker

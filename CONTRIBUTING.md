@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for working on SAGE. This repository currently ships the public CLI-first package.
+Thanks for working on SAGE CLI. This repository ships the public CLI-first package.
 
 ## Setup
 
@@ -9,7 +9,17 @@ pip install -e .[all]
 python -m pytest -q
 ```
 
-The published distribution name is `sage-cli`, but the CLI command remains `sage`.
+The published distribution name is `psycgod-sage`, but the CLI command remains `sage`.
+
+## Branches
+
+Use short, conventional branch names:
+
+```text
+docs/local-only-quickstart
+tests/local-only-no-oauth
+cli/first-run-message
+```
 
 ## Development Rules
 
@@ -18,6 +28,19 @@ The published distribution name is `sage-cli`, but the CLI command remains `sage
 - Preserve the local-first privacy model: raw terminal output stays local by default.
 - Add or update tests for behavior changes.
 - Keep README and release material honest about current public limitations.
+
+## Pull Request Checklist
+
+- [ ] The change is scoped and reviewable.
+- [ ] Docs match actual behavior.
+- [ ] Tests were added or updated for behavior changes.
+- [ ] `python -m compileall -q src/sage` passes.
+- [ ] `python -m pytest -q` passes, or any skipped test is explained.
+- [ ] No raw logs, secrets, caches, local databases, or private data are committed.
+
+## Good First Issues
+
+Good starter contributions include local-only screenshots, agent-specific usage guides, Windows install notes, small privacy-doc improvements, targeted tests, and clearer safety-policy error messages. Avoid fake activity, fake testimonials, inflated stats, or whitespace-only PRs.
 
 ## Release Checklist
 

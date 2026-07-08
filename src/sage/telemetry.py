@@ -123,7 +123,7 @@ def _machine_fingerprint() -> dict[str, str]:
     }
 
 
-def api_machine_login(*, expiry_days: int = 30, base_url: str = "") -> dict[str, Any]:
+def api_machine_login(*, expiry_days: int = 30, display_name: str = "", base_url: str = "") -> dict[str, Any]:
     """Register via hardware fingerprint — zero user interaction."""
     config = load_config()
     fp = _machine_fingerprint()
@@ -131,6 +131,7 @@ def api_machine_login(*, expiry_days: int = 30, base_url: str = "") -> dict[str,
         "fingerprint": fp["fingerprint"],
         "hostname": fp["hostname"],
         "platform": fp["platform"],
+        "display_name": display_name or fp["hostname"],
         "installation_id": config["installation_id"],
         "client_version": _client_version(),
         "expiry_days": max(1, min(365, int(expiry_days))),
@@ -171,9 +172,10 @@ def api_machine_login(*, expiry_days: int = 30, base_url: str = "") -> dict[str,
         config["api_endpoint"] = f"{candidate}/v1/telemetry"
         config["api_key_id"] = key_id
         storage = _store_api_key(config, api_key, key_id)
+        name = display_name or fp["hostname"]
         config["api_profile"] = {
-            "display_name": fp["hostname"],
-            "username": fp["fingerprint"][:12],
+            "display_name": name,
+            "username": name,
             "public_profile": False,
             "scope": "machine",
         }
@@ -182,7 +184,7 @@ def api_machine_login(*, expiry_days: int = 30, base_url: str = "") -> dict[str,
         return {
             "ok": True,
             "key_id": key_id,
-            "username": fp["hostname"],
+            "username": name,
             "expires_at": response.get("expires_at", ""),
             "method": "hardware",
             "storage": storage,

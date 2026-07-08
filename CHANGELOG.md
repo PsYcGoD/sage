@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.4.0
+
+### Added
+
+- `sage install` now performs system-wide local AI-agent enforcement without requiring cloud connection.
+- `sage init` now installs project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude Code hook/settings files.
+- Claude Code enforcement hook blocks bare shell commands, direct file/search/edit tools, and subagents without SAGE instructions.
+- Live command output is capped by default so very noisy commands do not flood agent context before the SAGE summary.
+- `sage telemetry off` sets local-only telemetry level 0, and `sage telemetry preview --level 0` is accepted.
+
+### Changed
+
+- README now makes `sage install` and `sage init` explicit first-class setup steps.
+- `sage connect` copy now describes optional public proof sync instead of implying local SAGE requires cloud auth.
+
 ## v2.3.1
 
 ### Changed

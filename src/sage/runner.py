@@ -166,6 +166,14 @@ def run_command(
     stderr_parts: list[str] = []
     stdout_done = False
     stderr_done = False
+    try:
+        live_output_limit = int(os.environ.get("SAGE_LIVE_OUTPUT_LIMIT", "12000"))
+    except ValueError:
+        live_output_limit = 12000
+    live_stdout_chars = 0
+    live_stderr_chars = 0
+    stdout_cap_reported = False
+    stderr_cap_reported = False
 
     while not (stdout_done and stderr_done):
         stream_name, line = output_queue.get()
@@ -178,10 +186,46 @@ def run_command(
 
         if stream_name == "stdout":
             stdout_parts.append(line)
-            _print_stream(line)
+            if live_output_limit <= 0:
+                _print_stream(line)
+            elif live_stdout_chars < live_output_limit:
+                remaining = live_output_limit - live_stdout_chars
+                _print_stream(line[:remaining])
+                live_stdout_chars += len(line[:remaining])
+                if len(line) > remaining and not stdout_cap_reported:
+                    _print_stream(
+                        f"\n[sage] live stdout capped at {live_output_limit} chars; "
+                        "full redacted output is stored locally and summary follows.\n"
+                    )
+                    stdout_cap_reported = True
+            elif not stdout_cap_reported:
+                _print_stream(
+                    f"\n[sage] live stdout capped at {live_output_limit} chars; "
+                    "full redacted output is stored locally and summary follows.\n"
+                )
+                stdout_cap_reported = True
         else:
             stderr_parts.append(line)
-            _print_stream(line, stderr=True)
+            if live_output_limit <= 0:
+                _print_stream(line, stderr=True)
+            elif live_stderr_chars < live_output_limit:
+                remaining = live_output_limit - live_stderr_chars
+                _print_stream(line[:remaining], stderr=True)
+                live_stderr_chars += len(line[:remaining])
+                if len(line) > remaining and not stderr_cap_reported:
+                    _print_stream(
+                        f"\n[sage] live stderr capped at {live_output_limit} chars; "
+                        "full redacted output is stored locally and summary follows.\n",
+                        stderr=True,
+                    )
+                    stderr_cap_reported = True
+            elif not stderr_cap_reported:
+                _print_stream(
+                    f"\n[sage] live stderr capped at {live_output_limit} chars; "
+                    "full redacted output is stored locally and summary follows.\n",
+                    stderr=True,
+                )
+                stderr_cap_reported = True
 
     returncode = process.wait()
     duration_ms = int((time.perf_counter() - started) * 1000)

@@ -40,7 +40,7 @@ def main() -> int:
     tool_name = str(payload.get("tool_name") or "")
     tool_input = payload.get("tool_input") or {}
 
-    if tool_name in {"Bash", "Shell"}:
+    if tool_name in {"Bash", "Shell", "PowerShell"}:
         command = str(tool_input.get("command") or "").strip()
         if not command.startswith(SAGE_PREFIX):
             return _deny("SAGE enforcement: shell commands must start with 'sage run --'.")

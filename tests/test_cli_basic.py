@@ -155,20 +155,71 @@ class TestSageRun:
 class TestAgentInstall:
     """Test first-run agent prompt installation."""
 
-    def test_system_wide_install_adds_codex_agents_file(self, tmp_path, monkeypatch):
+    def test_system_wide_install_adds_global_agent_enforcement(self, tmp_path, monkeypatch):
         from sage import install
 
         monkeypatch.setattr(install.Path, "home", staticmethod(lambda: tmp_path))
         results = install.install_sage_system_wide()
 
         codex_agents = tmp_path / ".codex" / "AGENTS.md"
+        claude_md = tmp_path / ".claude" / "CLAUDE.md"
+        claude_settings = tmp_path / ".claude" / "settings.json"
+        claude_hook = tmp_path / ".claude" / "hooks" / "enforce_sage.py"
+        cursor_rules = tmp_path / ".cursorrules"
+        windsurf_rules = tmp_path / ".windsurfrules"
+
         assert results["codex"] is True
         assert codex_agents.exists()
+        assert claude_md.exists()
+        assert claude_settings.exists()
+        assert claude_hook.exists()
+        assert cursor_rules.exists()
+        assert windsurf_rules.exists()
+
         content = codex_agents.read_text(encoding="utf-8")
         assert "SAGE MANAGED BLOCK START" in content
         assert "sage run -- <command>" in content
+        assert "mcp__sage__sage_read_file" in content
         assert "ð" not in content
         assert "â" not in content
+
+        settings = claude_settings.read_text(encoding="utf-8")
+        assert "PreToolUse" in settings
+        assert "Bash(sage run -- *)" in settings
+        assert "Read(*)" in settings
+        assert "mcpServers" in settings
+
+        hook = claude_hook.read_text(encoding="utf-8")
+        assert "PowerShell" in hook
+        assert "shell commands must start with 'sage run --'" in hook
+
+    def test_project_install_adds_local_claude_and_agents_files(self, tmp_path):
+        from sage.install import install_sage_project
+
+        results = install_sage_project(tmp_path)
+
+        assert results["agents_md"] is True
+        assert results["claude_md"] is True
+        assert results["sage_md"] is True
+        assert (tmp_path / "AGENTS.md").exists()
+        assert (tmp_path / "CLAUDE.md").exists()
+        assert (tmp_path / "SAGE.md").exists()
+        assert (tmp_path / ".claude" / "settings.json").exists()
+        assert (tmp_path / ".claude" / "settings.local.json").exists()
+        assert (tmp_path / ".claude" / "hooks" / "enforce_sage.py").exists()
+
+        claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "SAGE Integration - MANDATORY" in claude
+        assert "mcp__sage__sage_edit_file" in claude
+
+    def test_cli_install_command_runs_system_enforcement(self, tmp_path, monkeypatch):
+        from sage import install
+        from sage.cli import install_command
+
+        monkeypatch.setattr(install.Path, "home", staticmethod(lambda: tmp_path))
+        assert install_command() == 0
+        assert (tmp_path / ".claude" / "CLAUDE.md").exists()
+        assert (tmp_path / ".codex" / "AGENTS.md").exists()
 
 
 class TestDatabase:

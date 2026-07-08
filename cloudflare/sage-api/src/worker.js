@@ -2,8 +2,7 @@
 const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
   "http://127.0.0.1:8765",           // Alternative localhost
-  "https://sage.api.marketingstudios.in",  // Public dashboard
-  "https://sage-api.pascoaldsouza28.workers.dev", // Workers.dev fallback
+  "https://sage-api.pascoaldsouza28.workers.dev",  // Free Workers dashboard
 ];
 
 const MODEL_SAVINGS_PROFILES = [

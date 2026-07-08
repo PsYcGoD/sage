@@ -64,13 +64,6 @@ sage whoami
 sage api status
 ```
 
-To disable sync in connected mode:
-
-```bash
-sage telemetry off
-set SAGE_AUTO_SEND_TELEMETRY=0
-```
-
 ## Live Public Proof Dashboard
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)

@@ -1,3 +1,4 @@
+tests/test_soak.py
 tests/soak_report.json
 tests/soak_report.txt
 tests/soak_output.log

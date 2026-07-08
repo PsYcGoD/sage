@@ -203,7 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     telemetry_sub = telemetry_parser.add_subparsers(dest="telemetry_command")
     telemetry_preview = telemetry_sub.add_parser("preview", help="Show exactly what would be sent for a run.")
     telemetry_preview.add_argument("run_id", type=int, nargs="?", help="Run ID (defaults to latest).")
-    telemetry_preview.add_argument("--level", type=int, choices=[1, 2], help="Preview at a specific level.")
+    telemetry_preview.add_argument("--level", type=int, choices=[0, 1, 2], help="Preview at a specific level.")
     telemetry_queue_cmd = telemetry_sub.add_parser("queue", help="Queue a run's event locally.")
     telemetry_queue_cmd.add_argument("run_id", type=int, nargs="?", help="Run ID (defaults to latest).")
     telemetry_send = telemetry_sub.add_parser("send", help="Send queued events (dry-run by default).")
@@ -213,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     telemetry_sync.add_argument("--dry-run", action="store_true", default=True, help="Preview without sending (default).")
     telemetry_sync.add_argument("--for-real", action="store_true", help="Actually send every safe queued event.")
     telemetry_sub.add_parser("status", help="Show queue and level status.")
+    telemetry_sub.add_parser("off", help="Set telemetry to local-only level 0.")
     telemetry_sub.add_parser("delete-local-queue", help="Delete all queued (unsent) events.")
 
     account_parser = sub.add_parser("account", help="Manage local account contexts for telemetry.")
@@ -242,8 +243,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_login_args(api_rotate)
     api_sub.add_parser("logout", help="Disconnect local SAGE API credentials.")
 
-    # Primary connect command (GitHub OAuth)
-    connect_parser = sub.add_parser("connect", help="Connect SAGE with GitHub authentication (required for first use).")
+    # Primary connect command (optional public proof sync)
+    connect_parser = sub.add_parser("connect", help="Connect SAGE for optional public proof sync.")
     connect_parser.add_argument("--display-name", help="Optional display name (defaults to GitHub name).")
     connect_parser.add_argument("--public-profile", action="store_true", help="Show your name on public proof.")
     connect_parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
@@ -521,6 +522,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "api":
         return api_command(args)
+
+    if args.command_name == "install":
+        return install_command()
 
     if args.command_name == "connect":
         return connect_command(args)
@@ -1019,7 +1023,7 @@ def telemetry_command(args) -> int:
 
     sub = getattr(args, "telemetry_command", None)
     if sub is None:
-        print("Usage: sage telemetry <preview|queue|send|status|delete-local-queue>")
+        print("Usage: sage telemetry <preview|queue|send|status|off|delete-local-queue>")
         return 1
 
     def _resolve_run_id(value) -> int | None:
@@ -1096,6 +1100,11 @@ def telemetry_command(args) -> int:
             for item in errors:
                 message = item["last_error"].replace("\n", " ")[:220]
                 print(f"- id={item['id']} attempts={item['attempts']} {message}")
+        return 0
+
+    if sub == "off":
+        telemetry.set_level(0)
+        print("Telemetry level set to 0 (local-only). Nothing leaves this machine.")
         return 0
 
     if sub == "delete-local-queue":
@@ -2939,10 +2948,23 @@ def _render_context_report_md(payload: dict) -> str:
     return "\n".join(lines)
 
 def init_project() -> int:
-    path = Path.cwd() / "SAGE.md"
-    path.write_text(ASSISTANT_INSTRUCTIONS, encoding="utf-8")
-    print(f"Created {path}")
-    print("Tell local assistant or terminal agent: read SAGE.md before running terminal commands.")
+    from .install import install_sage_project
+
+    results = install_sage_project(Path.cwd())
+    print("SAGE project enforcement installed:")
+    for name, changed in results.items():
+        print(f"- {name.replace('_', ' ')}: {'updated' if changed else 'already configured'}")
+    print("Local agents should now read AGENTS.md / CLAUDE.md and Claude hooks will block non-SAGE tool use.")
+    return 0
+
+def install_command() -> int:
+    from .install import install_sage_system_wide
+
+    results = install_sage_system_wide()
+    print("\nSAGE system-wide enforcement status:")
+    for name, changed in results.items():
+        print(f"- {name.replace('_', ' ')}: {'updated' if changed else 'already configured or skipped'}")
+    print("\nRestart Claude/Codex/Cursor/Windsurf/OpenCode/Aider sessions so they reload instructions.")
     return 0
 
 def gui_command() -> int:

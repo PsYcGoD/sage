@@ -383,6 +383,27 @@ def test_api_key_storage_falls_back_when_keyring_readback_fails(monkeypatch):
     assert telemetry.resolve_api_key(config) == "sage_live_secret"
 
 
+def test_telemetry_off_cli_sets_local_only(monkeypatch, tmp_path, capsys):
+    from sage import telemetry
+    from sage.cli import main
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert main(["telemetry", "off"]) == 0
+    captured = capsys.readouterr()
+    assert "local-only" in captured.out
+    assert telemetry.effective_level() == 0
+
+
+def test_telemetry_preview_accepts_level_zero(monkeypatch, tmp_path, capsys):
+    from sage.cli import main
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert main(["telemetry", "preview", "--level", "0"]) == 1
+    captured = capsys.readouterr()
+    assert "invalid choice" not in captured.err
+    assert "No command history yet." in captured.out
+
+
 def test_run_command_spawns_sender_when_output_is_captured(monkeypatch, tmp_path):
     from sage import runner
     from sage import telemetry

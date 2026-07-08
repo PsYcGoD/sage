@@ -57,3 +57,22 @@ def test_run_command_redacts_before_storage(monkeypatch, tmp_path):
     assert secret not in row["stdout"]
     assert row["stdout_redactions"] >= 1
     assert len(row["command_sha256"]) == 64
+
+
+def test_run_command_caps_live_output_but_stores_full_output(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("SAGE_DISABLE_AGENTS", "1")
+    monkeypatch.setenv("SAGE_DISABLE_PREDICT", "1")
+    monkeypatch.setenv("SAGE_LIVE_OUTPUT_LIMIT", "80")
+
+    code = "for i in range(120): print(f'line-{i:03d}-' + 'x'*40)"
+    exit_code = run_command([sys.executable, "-c", code])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "[sage] live stdout capped at 80 chars" in captured.out
+    assert "line-119" not in captured.out
+
+    with connect() as conn:
+        row = conn.execute("SELECT stdout FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+    assert "line-119" in row["stdout"]

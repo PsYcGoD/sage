@@ -27,9 +27,12 @@ Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.market
 ```bash
 pip install psycgod-sage
 sage --version
+sage install
 ```
 
 Package name: `psycgod-sage` | CLI command: `sage`
+
+Run `sage install` once per machine to install mandatory SAGE instructions, MCP registration, and Claude Code hook settings for supported local AI agents. Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 
 ### First Run
 
@@ -37,8 +40,8 @@ On first use, SAGE walks you through setup:
 
 ```
 1. Install ML V2 dependencies? [y/N]     ← neural predictions (optional, ~2 GB)
-2. Hardware auth / GitHub OAuth           ← for public proof sync (optional)
-3. Your command runs through SAGE
+2. Local AI-agent enforcement             ← `sage install` / `sage init`
+3. Hardware auth / GitHub OAuth           ← optional public proof sync
 ```
 
 - Type `y` for ML V2: torch + sentence-transformers + faiss (76% prediction accuracy)
@@ -51,6 +54,8 @@ On first use, SAGE walks you through setup:
 sage run -- python -m pytest
 sage run -- npm test
 sage run -- git status
+sage install
+sage init
 sage context report
 ```
 
@@ -117,10 +122,10 @@ sage firewall status              # Safety policy status
 sage firewall rules list          # View blocked patterns
 sage ml setup                     # Install ML V2 (optional)
 sage ml train                     # Retrain on your history
+sage install                      # System-wide AI agent enforcement
+sage init                         # Per-project AGENTS.md/CLAUDE.md/hooks
 sage mcp install                  # MCP server for AI agents
 sage dashboard start              # Local proof dashboard
-sage install                      # System-wide AI agent config
-sage init                         # Per-project setup
 ```
 
 ## Screenshots

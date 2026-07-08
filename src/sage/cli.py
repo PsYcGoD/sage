@@ -98,6 +98,16 @@ def build_parser() -> argparse.ArgumentParser:
     ml_validate.add_argument("--format", choices=["text", "json"], default="text", help="Report format.")
     ml_validate.add_argument("--output", help="Write the JSON report to this file.")
     ml_validate.add_argument("--family-models", action="store_true", help="Validate per-family models (v4) instead of global model (v3).")
+    ml_soak = ml_sub.add_parser("soak", help="Run ML soak proof until Ctrl+C.")
+    ml_soak.add_argument("--hours", type=float, default=0.0, help="Optional max hours. Default runs until Ctrl+C.")
+    ml_soak.add_argument("--cycles", type=int, default=0, help="Optional max cycles for CI or a quick proof run.")
+    ml_soak.add_argument("--interval-seconds", type=float, default=30.0, help="Delay between cycles. Default 30.")
+    ml_soak.add_argument("--output-dir", default="sage-soak-proof", help="Directory for TXT, JSON, JSONL, and log proof files.")
+    ml_soak.add_argument(
+        "--use-current-db",
+        action="store_true",
+        help="Use the normal SAGE data directory instead of an isolated proof database.",
+    )
     ml_sub.add_parser("setup", help="Install ML V2 dependencies (torch, sentence-transformers, faiss-cpu).")
 
     serve_parser = sub.add_parser("serve", help="ML prediction daemon (auto-starts on first sage run).")
@@ -1761,7 +1771,7 @@ def ml_command(args) -> int:
     from .ml import SklearnFailureModel
 
     if not hasattr(args, "ml_command") or args.ml_command is None:
-        print("Usage: sage ml <train|import-history|status|setup>")
+        print("Usage: sage ml <train|import-history|status|validate|soak|setup>")
         return 1
 
     if args.ml_command == "setup":
@@ -1769,6 +1779,22 @@ def ml_command(args) -> int:
             print("[sage] ML V2 dependencies already installed.")
             return 0
         return _prompt_ml_v2_install()
+
+    if args.ml_command == "soak":
+        from .ml.soak import SoakConfig, run_ml_soak
+
+        output_dir = Path(args.output_dir)
+        isolated_data_dir = None if args.use_current_db else output_dir / "localappdata"
+        state = run_ml_soak(
+            SoakConfig(
+                output_dir=output_dir,
+                interval_seconds=max(0.0, args.interval_seconds),
+                cycles=args.cycles or None,
+                hours=args.hours or None,
+                isolated_data_dir=isolated_data_dir,
+            )
+        )
+        return 0 if state.total_failed == 0 else 1
 
     model = SklearnFailureModel()
 

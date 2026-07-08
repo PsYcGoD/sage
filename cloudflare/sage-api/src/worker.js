@@ -25,6 +25,19 @@ const AGENT_SAVINGS_PROFILES = [
   { agent: "ollama", label: "Ollama", provider: "Local", model: "Local Ollama model", input_rate_per_million: 0.0 },
 ];
 
+const AGENT_ALIASES = {
+  claude: "claude-code",
+  "claude-code": "claude-code",
+  codex: "codex",
+  sage: "sage",
+  opencode: "opencode",
+  cursor: "cursor",
+  windsurf: "windsurf",
+  aider: "aider",
+  copilot: "copilot",
+  ollama: "ollama",
+};
+
 function getCorsHeaders(origin) {
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "null";
   return {
@@ -537,6 +550,16 @@ function buildSavingsByAgent(usageByAgent = {}) {
   }));
 }
 
+function normalizeAgentId(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "";
+  if (AGENT_ALIASES[text]) return AGENT_ALIASES[text];
+  for (const [needle, agent] of Object.entries(AGENT_ALIASES)) {
+    if (text.includes(needle)) return agent;
+  }
+  return "";
+}
+
 function looksLikeHash(value) {
   const text = String(value || "").trim();
   return /^[a-f0-9]{32,}$/i.test(text);
@@ -593,6 +616,19 @@ function sanitizeSavingsByAgent(rows) {
     if (!seen.has(row.agent)) sanitized.push(row);
   }
   return sanitized;
+}
+
+function mergeSavingsByAgent(snapshotRows, aggregateRows) {
+  const usage = {};
+  for (const row of sanitizeSavingsByAgent(snapshotRows)) {
+    const agent = normalizeAgentId(row.agent);
+    if (agent) usage[agent] = Math.max(Number(usage[agent] || 0), clampInt(row.saved_tokens, 0, 2147483647, 0));
+  }
+  for (const row of sanitizeSavingsByAgent(aggregateRows)) {
+    const agent = normalizeAgentId(row.agent);
+    if (agent) usage[agent] = Math.max(Number(usage[agent] || 0), clampInt(row.saved_tokens, 0, 2147483647, 0));
+  }
+  return buildSavingsByAgent(usage);
 }
 
 function totalModelSavings(rows) {
@@ -1474,6 +1510,19 @@ async function getAggregateRunTotals(env) {
      FROM telemetry_events
      WHERE prediction_score IS NOT NULL`
   ).first();
+  const agentUsageRows = await env.DB.prepare(
+    `SELECT
+      COALESCE(NULLIF(json_extract(payload_json, '$.agent_client'), ''), command_family, command_kind, '') AS agent_client,
+      COALESCE(SUM(saved_tokens), 0) AS saved_tokens
+     FROM telemetry_events
+     GROUP BY agent_client`
+  ).all();
+  const agentUsage = {};
+  for (const usageRow of agentUsageRows.results || []) {
+    const agent = normalizeAgentId(usageRow.agent_client);
+    if (!agent) continue;
+    agentUsage[agent] = Number(agentUsage[agent] || 0) + Number(usageRow.saved_tokens || 0);
+  }
   const totalRuns = Number(row?.total_runs || 0);
   const successful = Number(row?.successful_runs || 0);
   const failed = Number(row?.failed_runs || Math.max(0, totalRuns - successful));
@@ -1481,6 +1530,7 @@ async function getAggregateRunTotals(env) {
   const compressed = Number(row?.compressed_tokens || 0);
   const saved = Number(row?.saved_tokens || 0);
   const savingsByModel = buildSavingsByModel(saved);
+  const savingsByAgent = buildSavingsByAgent(agentUsage);
   return {
     total_runs: totalRuns,
     successful_runs: successful,
@@ -1490,6 +1540,7 @@ async function getAggregateRunTotals(env) {
     tokens_saved: saved,
     estimated_savings_usd: totalModelSavings(savingsByModel),
     savings_by_model: savingsByModel,
+    savings_by_agent: savingsByAgent,
     compression_percent: original ? Number(((saved / original) * 100).toFixed(2)) : 0,
     success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
     failure_prediction_stats: {
@@ -1523,6 +1574,7 @@ function mergeSnapshotWithAggregateTotals(snapshotTotals = {}, aggregateTotals =
       compression_percent: aggregateTotals.compression_percent,
     });
   }
+  merged.savings_by_agent = mergeSavingsByAgent(merged.savings_by_agent, aggregateTotals.savings_by_agent);
 
   const snapshotPrediction = merged.failure_prediction_stats || {};
   const aggregatePrediction = aggregateTotals.failure_prediction_stats || {};
@@ -1566,9 +1618,9 @@ async function handleProof(env) {
       const liveCounts = await env.DB.prepare(
         `SELECT
           COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
-            COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS connected_users,
+            COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS connected_users,
           COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN
-            COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
+            COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
          FROM api_keys`
       ).bind(liveNow, new Date(Date.now() - 86400000).toISOString()).first();
       parsed.connected_users = Number(liveCounts?.connected_users || 0);
@@ -1604,9 +1656,9 @@ async function handleProof(env) {
   const userCounts = await env.DB.prepare(
     `SELECT
       COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
-        COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS connected_users,
+        COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS connected_users,
       COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN
-        COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
+        COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
      FROM api_keys`
   ).bind(now, new Date(Date.now() - 86400000).toISOString()).first();
   const contributors = await env.DB.prepare(

@@ -945,10 +945,16 @@ def build_prediction_stats(limit: int = 250) -> dict[str, Any]:
         accuracy = float(metrics.get("accuracy") or 0)
         roc_auc = float(metrics.get("roc_auc") or 0)
         score = accuracy or roc_auc
-        events = max(
+        training_samples = max(
             int(status.get("training_samples") or 0),
             int(status.get("history_samples") or 0),
         )
+        with connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM runs WHERE command IS NOT NULL AND command != ''"
+            ).fetchone()
+            live_commands = int(row["n"] or 0)
+        events = training_samples + live_commands
         if events and score:
             return {
                 "events_with_prediction": events,

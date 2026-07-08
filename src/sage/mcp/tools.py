@@ -216,6 +216,37 @@ SAGE_TOOLS = [
                 "limit": {"type": "integer", "default": 200}
             }
         }
+    },
+    {
+        "name": "sage_agentic_run",
+        "description": "Run a command with SAGE's agentic loop — auto-retries on failure, applies fixes, verifies. Use instead of sage_run_command when you want automatic error recovery.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "Command to execute with agentic retry"},
+                "max_retries": {"type": "integer", "description": "Max fix attempts", "default": 3},
+                "autonomy": {"type": "string", "enum": ["suggest", "ask", "auto"], "description": "How autonomous: suggest (report only), ask (confirm), auto (fix automatically)", "default": "auto"}
+            },
+            "required": ["command"]
+        }
+    },
+    {
+        "name": "sage_agentic_fix",
+        "description": "Get an auto-fix suggestion for the last failed command. Returns the fix command, strategy, and confidence.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command_id": {"type": "integer", "description": "Specific command ID (optional, defaults to last failed)"}
+            }
+        }
+    },
+    {
+        "name": "sage_agentic_session",
+        "description": "Get the current agentic session state — failure streak, recent errors, intent chain. Useful for understanding context before deciding next action.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 
@@ -652,4 +683,83 @@ def sage_show_raw(run_id: int | None = None) -> dict[str, Any]:
         "integrity": raw["verified"],
         "stdout": raw["stdout"],
         "stderr": raw["stderr"],
+    }
+
+
+# --- Agentic Loop Tools ---
+
+def sage_agentic_run(command: str, max_retries: int = 3, autonomy: str = "auto") -> dict[str, Any]:
+    """Run a command with the full agentic loop (auto-retry and fix on failure)."""
+    from ..agentic.engine import Autonomy
+    from ..agentic.loop import AgenticLoop
+
+    autonomy_map = {"suggest": Autonomy.SUGGEST, "ask": Autonomy.ASK, "auto": Autonomy.AUTO}
+    level = autonomy_map.get(autonomy, Autonomy.AUTO)
+
+    loop = AgenticLoop(autonomy=level, max_retries=max_retries)
+    result = loop.run(command)
+    return {
+        "success": result.final_exit_code == 0,
+        "command": result.original_command,
+        "exit_code": result.final_exit_code,
+        "state": result.state.value,
+        "attempts": result.attempts,
+        "fixes_applied": result.fixes_applied,
+        "message": result.message,
+    }
+
+
+def sage_agentic_fix(command_id: int = None) -> dict[str, Any]:
+    """Auto-fix the last failed command using the agentic fixer."""
+    from ..agentic.fixer import suggest_fix
+    from ..store import connect, latest_run
+
+    if command_id:
+        from ..store import connect
+        with connect() as conn:
+            row = conn.execute("SELECT * FROM runs WHERE id = ?", (command_id,)).fetchone()
+    else:
+        record = latest_run()
+        if record is None:
+            return {"success": False, "error": "No command history."}
+        from ..store import connect
+        with connect() as conn:
+            row = conn.execute("SELECT * FROM runs WHERE id = ?", (record.id,)).fetchone()
+
+    if not row:
+        return {"success": False, "error": "Command not found."}
+    if row["exit_code"] == 0:
+        return {"success": False, "error": "Command succeeded — nothing to fix."}
+
+    stderr = row.get("summary", "") or ""
+    fix = suggest_fix(row["command"], stderr)
+    if fix is None:
+        return {"success": False, "error": "No known fix pattern matched this error."}
+
+    return {
+        "success": True,
+        "strategy": fix.strategy,
+        "fix_command": fix.fix_command,
+        "explanation": fix.explanation,
+        "confidence": fix.confidence,
+        "destructive": fix.destructive,
+    }
+
+
+def sage_agentic_session() -> dict[str, Any]:
+    """Get the current agentic session state (history, patterns, intent)."""
+    from ..agentic.session import get_session
+
+    session = get_session()
+    return {
+        "success": True,
+        "failure_streak": session.failure_streak,
+        "total_commands": len(session.history),
+        "total_fixes_applied": session.total_fixes_applied,
+        "total_fixes_succeeded": session.total_fixes_succeeded,
+        "recent_failures": [
+            {"command": r.command, "exit_code": r.exit_code, "error": r.stderr_tail[:200]}
+            for r in session.recent_errors(5)
+        ],
+        "intent_chain": session.intent_chain,
     }

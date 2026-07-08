@@ -62,7 +62,7 @@ def send_batch_background(limit: int = 200) -> None:
 # or offline network keeps the queue non-empty, so every command spawns yet
 # another python sender that also cannot drain — they pile up and swap the box.
 # A single lock file gates spawns to at most one per _SENDER_DEBOUNCE_SECONDS.
-_SENDER_DEBOUNCE_SECONDS = 90
+_SENDER_DEBOUNCE_SECONDS = 30
 
 
 def _sender_lock_path() -> Path:

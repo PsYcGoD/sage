@@ -377,20 +377,26 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Keep local command wrapping usable before OAuth. Only commands that
-    # publish to external services should require an API connection up front.
-    REQUIRES_API = {"github-bot"}
+    # Auto-connect on first use if not yet connected
+    if args.command_name not in {"connect", "login", "logout", "version", "help", None}:
+        from . import telemetry
+        status = telemetry.api_status()
+        if not status.get("connected"):
+            print("SAGE is not connected yet. Running first-time setup...\n")
+            rc = connect_command(args)
+            if rc != 0:
+                print("\nConnection failed. You can still use local commands.")
+                print("To retry later: sage connect\n")
+            else:
+                print()
 
+    REQUIRES_API = {"github-bot"}
     if args.command_name in REQUIRES_API:
         from . import telemetry
         status = telemetry.api_status()
         if not status.get("connected"):
             print("This SAGE command requires connected mode.")
-            print("\nConnect with GitHub (free, takes 30 seconds):")
-            print("   sage connect")
-            print("\nLocal commands still work without login:")
-            print("   sage run -- python -m pytest")
-            print("   sage context report")
+            print("Run: sage connect")
             return 1
 
     if args.command_name == "run":

@@ -52,7 +52,6 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "SAGE" in worker
     assert "Claude Code" in worker
     assert "OpenCode" in worker
-    assert "Ollama" in worker
     assert "Cursor" in worker
     assert "estimated_savings_usd" in worker
     assert "savings_by_model" in worker

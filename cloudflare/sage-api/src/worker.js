@@ -922,6 +922,23 @@ async function handleAdminUsers(env, request) {
   });
 }
 
+async function handleWhoami(env, request) {
+  const auth = await requireKey(env, request, { skipRateLimit: true });
+  if (auth.error) return auth.error;
+  const key = auth.key;
+  return json({
+    ok: true,
+    key_id: key.key_id,
+    username: key.github_username || key.username || "",
+    github_id: key.github_id || "",
+    display_name: key.display_name || "",
+    scope: key.scope || "personal",
+    created_at: key.created_at || "",
+    expires_at: key.expires_at || "",
+    active: !key.revoked_at && (!key.expires_at || key.expires_at === "" || new Date(key.expires_at) > new Date()),
+  });
+}
+
 async function handleGitHubLogin(env, request) {
   // GitHub OAuth login. One GitHub account has one active SAGE API key.
   let body;
@@ -1295,6 +1312,17 @@ async function handleProof(env) {
     try {
       const parsed = normalizeProofPayload(JSON.parse(snapshot.payload_json));
       parsed.generated_at = nowIso();
+      const liveNow = nowIso();
+      const liveCounts = await env.DB.prepare(
+        `SELECT
+          COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
+            COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS connected_users,
+          COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN
+            COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
+         FROM api_keys`
+      ).bind(liveNow, new Date(Date.now() - 86400000).toISOString()).first();
+      parsed.connected_users = Number(liveCounts?.connected_users || 0);
+      parsed.active_users_24h = Number(liveCounts?.active_users_24h || 0);
       return json(parsed);
     } catch (_exc) {
       // Fall back to event aggregates if the stored snapshot is invalid.
@@ -1319,6 +1347,15 @@ async function handleProof(env) {
      FROM telemetry_events
      WHERE prediction_score IS NOT NULL`
   ).first();
+  const now = nowIso();
+  const userCounts = await env.DB.prepare(
+    `SELECT
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
+        COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS connected_users,
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN
+        COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
+     FROM api_keys`
+  ).bind(now, new Date(Date.now() - 86400000).toISOString()).first();
   const contributors = await env.DB.prepare(
     `SELECT
       k.display_name,
@@ -1360,8 +1397,12 @@ async function handleProof(env) {
       "agent_runs_completed",
       "ml_training_examples",
       "agent_quality_metrics",
+      "connected_users",
+      "active_users_24h",
       "public_contributors",
     ],
+    connected_users: Number(userCounts?.connected_users || 0),
+    active_users_24h: Number(userCounts?.active_users_24h || 0),
     totals: {
       total_runs: totalRuns,
       successful_runs: successful,
@@ -1495,6 +1536,7 @@ async function route(request, env) {
     return json({ ok: true, service: "sage-api", status: "healthy", generated_at: nowIso() });
   }
   if (request.method === "POST" && url.pathname === "/v1/keys") return handleCreateKey(env, request);
+  if (request.method === "GET" && url.pathname === "/v1/whoami") return handleWhoami(env, request);
   if (request.method === "POST" && url.pathname === "/v1/github-login") return handleGitHubLogin(env, request);
   if (request.method === "POST" && url.pathname === "/v1/dashboard-click") return handleDashboardClick(env, request);
   if (request.method === "POST" && url.pathname === "/v1/telemetry") return handleTelemetry(env, request);

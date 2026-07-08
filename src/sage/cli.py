@@ -238,7 +238,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_login_args(api_login)
     api_sub.add_parser("whoami", help="Show the current SAGE API identity.")
     api_sub.add_parser("visitors", help="Show private public-dashboard visitor stats.")
-    api_sub.add_parser("users", help="Show private connected GitHub users.")
+    api_users = api_sub.add_parser("users", help="Show private connected-user stats.")
+    api_users.add_argument("--raw", action="store_true", help="Show raw admin identity fields.")
     api_rotate = api_sub.add_parser("rotate", help="Rotate API key (generates new key, revokes old one).")
     _add_login_args(api_rotate)
     api_sub.add_parser("logout", help="Disconnect local SAGE API credentials.")
@@ -1176,7 +1177,7 @@ def api_command(args) -> int:
     if sub == "visitors":
         return api_visitors_command()
     if sub == "users":
-        return api_users_command()
+        return api_users_command(args)
     if sub == "rotate":
         return rotate_key_command(args)
     if sub == "logout":
@@ -1244,32 +1245,45 @@ def api_visitors_command() -> int:
             print(f"  {row.get('day')}: {row.get('unique_visitors', 0)} visitors, {row.get('page_views', 0)} views")
     return 0
 
-def api_users_command() -> int:
+def api_users_command(args=None) -> int:
     from . import telemetry
 
+    raw = bool(getattr(args, "raw", False))
     try:
-        data = telemetry.get_admin_users()
+        data = telemetry.get_admin_users(raw=raw)
     except Exception as exc:
         print(f"SAGE API users failed: {exc}")
         return 1
 
     users = data.get("users") or []
-    print("SAGE connected GitHub users")
+    print("SAGE connected users")
     print(f"Generated: {data.get('generated_at')}")
     if not users:
         print("No users found.")
         return 0
-    for row in users:
-        name = row.get("display_name") or "(no name)"
-        username = row.get("username") or "n/a"
+    if raw:
+        print("Raw admin view: names, usernames, and internal counters may be shown.")
+    for index, row in enumerate(users, start=1):
         status = "active" if row.get("active") else "inactive"
+        if raw:
+            name = row.get("display_name") or "(no name)"
+            username = row.get("username") or "n/a"
+            print(
+                f"- {name} @{username} [{status}] "
+                f"keys={row.get('active_key_count', 0)}/{row.get('key_count', 0)} "
+                f"installs={row.get('install_count', 0)} "
+                f"telemetry_installs={row.get('telemetry_install_count', 0)} "
+                f"runs={row.get('run_count', 0)} "
+                f"last_used={row.get('last_used_at') or 'never'}"
+            )
+            continue
+        label = row.get("label") or f"Connected user #{index}"
         print(
-            f"- {name} @{username} [{status}] "
-            f"keys={row.get('active_key_count', 0)}/{row.get('key_count', 0)} "
-            f"installs={row.get('install_count', 0)} "
-            f"telemetry_installs={row.get('telemetry_install_count', 0)} "
-            f"runs={row.get('run_count', 0)} "
-            f"last_used={row.get('last_used_at') or 'never'}"
+            f"- {label} [{status}] "
+            f"keys {row.get('active_key_count', 0)} active / {row.get('key_count', 0)} total, "
+            f"installs {row.get('install_count', 0)}, "
+            f"runs {row.get('run_count', 0)}, "
+            f"last used {row.get('last_used_at') or 'never'}"
         )
     return 0
 

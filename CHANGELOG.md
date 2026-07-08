@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.4.1
+
+### Fixed
+
+- `sage api users` now hides names, usernames, hashed runner identities, and raw telemetry-install counters by default.
+- The private admin users endpoint now returns sanitized connected-user rows by default; raw identity fields require `?raw=1`.
+- Added regression tests so raw identity output remains opt-in.
+
 ## v2.4.0
 
 ### Added

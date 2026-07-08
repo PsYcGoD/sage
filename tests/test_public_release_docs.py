@@ -73,5 +73,7 @@ def test_admin_users_endpoint_defaults_to_sanitized_rows():
     worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
 
     assert 'searchParams.get("raw") === "1"' in worker
-    assert 'label: `Connected user #${index + 1}`' in worker
+    assert "looksLikeHash" in worker
+    assert "firstUsefulText" in worker
+    assert "machine_ids" in worker
     assert "if (!raw) return base;" in worker

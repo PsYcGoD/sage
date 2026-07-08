@@ -525,6 +525,19 @@ function buildSavingsByAgent(usageByAgent = {}) {
   }));
 }
 
+function looksLikeHash(value) {
+  const text = String(value || "").trim();
+  return /^[a-f0-9]{32,}$/i.test(text);
+}
+
+function firstUsefulText(...values) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text && !looksLikeHash(text)) return text;
+  }
+  return "";
+}
+
 function sanitizeSavingsByModel(rows, savedTokens) {
   const fallback = buildSavingsByModel(savedTokens);
   if (!Array.isArray(rows) || rows.length === 0) return fallback;
@@ -870,7 +883,8 @@ async function handleAdminUsers(env, request) {
      install_summary AS (
       SELECT
         k.user_identity,
-        COUNT(DISTINCT installation_id) AS install_count
+        COUNT(DISTINCT installation_id) AS install_count,
+        GROUP_CONCAT(DISTINCT SUBSTR(installation_id, 1, 8)) AS machine_ids
       FROM keyed_users k
       JOIN installations i ON i.key_id = k.key_id
       GROUP BY k.user_identity
@@ -895,6 +909,7 @@ async function handleAdminUsers(env, request) {
       MAX(u.key_count) AS key_count,
       MAX(u.active_key_count) AS active_key_count,
       COALESCE(SUM(i.install_count), 0) AS install_count,
+      MAX(i.machine_ids) AS machine_ids,
       COALESCE(SUM(r.telemetry_install_count), 0) AS telemetry_install_count,
       COALESCE(SUM(r.run_count), 0) AS run_count
      FROM user_summary u
@@ -909,7 +924,13 @@ async function handleAdminUsers(env, request) {
     generated_at: nowIso(),
     users: (rows.results || []).map((row, index) => {
       const base = {
-        label: `Connected user #${index + 1}`,
+        label: firstUsefulText(row.display_name, row.github_username, row.username)
+          || `Machine ${String(row.machine_ids || "").split(",")[0] || index + 1}`,
+        machine_ids: String(row.machine_ids || "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .slice(0, 3),
         first_connected_at: row.first_connected_at || "",
         last_used_at: row.last_used_at || "",
         active: Number(row.active_key_count || 0) > 0,

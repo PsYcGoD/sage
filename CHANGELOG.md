@@ -1,5 +1,75 @@
 # Changelog
 
+## v2.3.1
+
+### Changed
+
+- First-run flow: ML V2 prompt (y/n) runs before `sage connect`.
+- Connect ending now confirms all detected AI agents use SAGE compulsorily.
+- Clearer ML prompt explains V1 keeps learning if user skips V2.
+- Connect prints "sage run -- pytest" as next step after setup completes.
+
+## v2.3.0
+
+### Changed
+
+- ML V2 dependencies (torch, sentence-transformers, faiss-cpu) are now optional.
+- Install base SAGE without CUDA/torch: `pip install psycgod-sage`.
+- Install with ML V2: `pip install psycgod-sage[ml]`.
+- Post-install prompt asks users if they want ML V2 features.
+
+### Fixed
+
+- Fix PowerShell built-in commands not working on Windows (sage now detects PowerShell vs cmd.exe).
+- Resolve version inconsistencies across README and CHANGELOG.
+
+## v2.2.2
+
+### Fixed
+
+- Stability fixes for context compression stats persistence.
+- Telemetry sender background thread reliability.
+
+## v2.2.0
+
+### Added
+
+- File operation tools: `sage read`, `sage grep`, `sage write`, `sage edit`, `sage glob`, `sage tree`.
+- `sage call` for tracked agent tool-calls.
+- `sage show --raw` to recover exact stored output.
+- MCP tools for file operations (`sage_read_file`, `sage_grep`, `sage_write_file`, `sage_edit_file`, `sage_glob`, `sage_tree`).
+
+### Changed
+
+- MCP tool surface expanded from run/explain/suggest/agents/workflow/history to include file and search tools.
+
+## v2.1.0
+
+### Added
+
+- LSP server (`sage lsp`) for editor and AI agent integration.
+- Agentic retry loop with circuit breaker for auto-fix workflows.
+- MCP tools: `sage_agentic_run`, `sage_agentic_fix`, `sage_agentic_session`.
+- `sage.toml` configuration for agentic autonomy level and LSP transport.
+
+### Changed
+
+- Agent firewall now supports interactive approval prompts.
+- Compression strategies are selectable per-command.
+
+## v2.0.1
+
+### Fixed
+
+- Package build verification for clean virtual environment installs.
+- Cloudflare Worker dashboard auto-refresh interval (now 10s).
+- Public proof snapshot includes `estimated_savings_usd` and `savings_by_agent`.
+
+### Documentation
+
+- README updated with live proof stats from public dashboard.
+- Install path clarified: GitHub-first until PyPI Trusted Publishing is resolved.
+
 ## v2.0.0-cli-public
 
 Public CLI-first release candidate for SAGE.

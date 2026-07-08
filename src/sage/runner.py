@@ -20,13 +20,37 @@ from .security import command_hash, evaluate_command, load_policy, redact_text, 
 
 log = logging.getLogger(__name__)
 
+
+def _build_popen_cmd(command_text: str, command_parts: list[str]) -> tuple:
+    """Return (args, use_shell) appropriate for the current shell on Windows.
+
+    On non-Windows: returns (command_parts, False).
+    On Windows + SAGE_SHELL set: uses that shell explicitly (e.g. pwsh, powershell).
+    On Windows default: cmd.exe via shell=True.
+
+    To run PowerShell built-ins through SAGE, set SAGE_SHELL=pwsh (or powershell).
+    """
+    if not sys.platform.startswith("win"):
+        return command_parts, False
+
+    shell_override = os.environ.get("SAGE_SHELL", "").strip()
+    if shell_override:
+        return [shell_override, "-NoProfile", "-Command", command_text], False
+
+    return command_text, True
+
+
 def _configure_stdio() -> None:
     """Keep Windows terminals from crashing or corrupting UTF-8 AI output."""
     for stream in (sys.stdout, sys.stderr):
         try:
+            if not hasattr(stream, "reconfigure"):
+                continue
+            if hasattr(stream, "isatty") and not stream.isatty():
+                continue
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
-            log.debug("suppressed", exc_info=True)
+            pass
 
 def _print_stream(text: str, *, stderr: bool = False) -> None:
     """Print one streamed chunk without losing the saved original text."""
@@ -110,9 +134,9 @@ def run_command(
             is_ai_session=is_ai_session,
         )
 
-    use_shell = sys.platform.startswith("win")
+    popen_args, use_shell = _build_popen_cmd(command_text, command_parts)
     process = subprocess.Popen(
-        command_text if use_shell else command_parts,
+        popen_args,
         shell=use_shell,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -437,10 +461,10 @@ def _run_interactive_passthrough(
             os.environ["SAGE_SESSION_ID"] = session_id
 
     command_class = classify_command(command_text)
-    use_shell = sys.platform.startswith("win")
+    popen_args, use_shell = _build_popen_cmd(command_text, command_parts)
     try:
         returncode = subprocess.call(
-            command_text if use_shell else command_parts,
+            popen_args,
             shell=use_shell,
             env=env,
         )

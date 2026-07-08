@@ -98,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     ml_validate.add_argument("--format", choices=["text", "json"], default="text", help="Report format.")
     ml_validate.add_argument("--output", help="Write the JSON report to this file.")
     ml_validate.add_argument("--family-models", action="store_true", help="Validate per-family models (v4) instead of global model (v3).")
+    ml_sub.add_parser("setup", help="Install ML V2 dependencies (torch, sentence-transformers, faiss-cpu).")
 
     serve_parser = sub.add_parser("serve", help="ML prediction daemon (auto-starts on first sage run).")
     serve_sub = serve_parser.add_subparsers(dest="serve_action")
@@ -377,12 +378,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Auto-connect on first use if not yet connected
-    if args.command_name not in {"connect", "login", "logout", "version", "help", None}:
+    # First-time setup: ML prompt first, then connect.
+    # Only triggers when user runs bare `sage` (no subcommand) for the first time.
+    # All other commands work immediately without setup.
+    if (
+        args.command_name is None
+        and os.environ.get("SAGE_SKIP_SETUP") != "1"
+        and sys.stdin.isatty()
+    ):
         from . import telemetry
         status = telemetry.api_status()
         if not status.get("connected"):
             print("SAGE is not connected yet. Running first-time setup...\n")
+            # Step 1: Offer ML V2 install
+            if not _check_ml_v2_deps():
+                _prompt_ml_v2_install()
+                print()
+            # Step 2: Connect (hardware auth / GitHub OAuth)
             rc = connect_command(args)
             if rc != 0:
                 print("\nConnection failed. You can still use local commands.")
@@ -1269,7 +1281,10 @@ def _resolve_expiry_days(args) -> int:
     print("  1. 30 days")
     print("  2. 60 days")
     print("  3. 90 days")
-    choice = input("Expiration [1/2/3, default 1]: ").strip()
+    try:
+        choice = input("Expiration [1/2/3, default 1]: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        choice = "1"
     return {"1": 30, "2": 60, "3": 90, "30": 30, "60": 60, "90": 90}.get(choice, 30)
 
 def whoami_command() -> int:
@@ -1381,7 +1396,10 @@ def connect_command(args) -> int:
     # Step 2: Ask display name
     display_name = ""
     if sys.stdin.isatty():
-        display_name = input("What can SAGE call you? ").strip()
+        try:
+            display_name = input("What can SAGE call you? ").strip()
+        except (EOFError, KeyboardInterrupt):
+            display_name = ""
     if not display_name:
         import socket
         display_name = socket.gethostname()
@@ -1506,20 +1524,20 @@ def connect_command(args) -> int:
     print("=" * 60)
 
     if agents:
-        print(f"\n  Detected {len(agents)} AI agent(s):")
+        print(f"\n  Detected {len(agents)} AI agent(s) — ALL now use SAGE:")
         for agent in agents:
             print(f"    - {agent['name']} ({agent['models']})")
-        print("\n  All the best — your token and money savings start now!")
+        print()
+        print("  Every command your AI agents run is now tracked, compressed,")
+        print("  and protected. Get ready to save tokens and money on every run.")
     else:
         print("\n  No AI agents detected yet. Install one:")
         print("    Claude Code: npm install -g @anthropic-ai/claude-code")
         print("    Codex CLI:   npm install -g @openai/codex")
 
     print()
-    print("  Quick commands:")
-    print("    sage run -- <any command>    Wrap and track a command")
-    print("    sage api whoami             Verify connection")
-    print("    sage status                 Check SAGE status")
+    print("  Next step:")
+    print("    sage run -- pytest")
     print()
     return 0
 
@@ -1654,13 +1672,73 @@ def predict_command(command: list[str]) -> int:
     print(f"Reason: {reason}")
     return 0
 
+def _check_ml_v2_deps() -> bool:
+    """Check if ML V2 dependencies (torch, sentence-transformers, faiss) are installed."""
+    try:
+        import sentence_transformers  # noqa: F401
+        import faiss  # noqa: F401
+        import torch  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _prompt_ml_v2_install() -> int:
+    """Prompt user to install ML V2 dependencies interactively."""
+    print("=" * 60)
+    print("  SAGE ML Setup")
+    print("=" * 60)
+    print()
+    print("  ML V2 — Neural Command Center (optional)")
+    print("  - 76% failure prediction accuracy (vs 58% without)")
+    print("  - Semantic search across your command history")
+    print("  - Smarter compression and agent ranking")
+    print()
+    print("  Downloads: torch + sentence-transformers + faiss (~2 GB)")
+    print()
+    print("  If you skip, ML V1 (scikit-learn) still works and learns")
+    print("  from every command you run. You can upgrade anytime with:")
+    print("  pip install psycgod-sage[ml]")
+    print()
+
+    if not sys.stdin.isatty():
+        print("  Non-interactive session — skipping ML V2.")
+        return 1
+
+    try:
+        answer = input("  Install ML V2? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\n  Skipped.")
+        return 0
+    if answer in ("y", "yes"):
+        print("\n  Installing ML V2 dependencies...\n")
+        import subprocess as _sp
+        rc = _sp.call([sys.executable, "-m", "pip", "install", "psycgod-sage[ml]"])
+        if rc == 0:
+            print("\n  ML V2 installed. Neural predictions active.")
+            return 0
+        else:
+            print("\n  ML V2 install failed. ML V1 still active.")
+            print("  Try later: pip install psycgod-sage[ml]")
+            return 1
+    else:
+        print("\n  ML V1 active — learns from your usage over time.")
+        return 0
+
+
 def ml_command(args) -> int:
     """Train and inspect ML models."""
     from .ml import SklearnFailureModel
 
     if not hasattr(args, "ml_command") or args.ml_command is None:
-        print("Usage: sage ml <train|import-history|status>")
+        print("Usage: sage ml <train|import-history|status|setup>")
         return 1
+
+    if args.ml_command == "setup":
+        if _check_ml_v2_deps():
+            print("[sage] ML V2 dependencies already installed.")
+            return 0
+        return _prompt_ml_v2_install()
 
     model = SklearnFailureModel()
 

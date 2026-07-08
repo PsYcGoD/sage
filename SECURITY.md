@@ -22,3 +22,20 @@ Do not include live API keys, OAuth tokens, raw command logs, or private termina
 - Level `1` sends aggregate counters only.
 - Higher levels are opt-in and constrained by account/key policy.
 - Public dashboard proof is aggregate-only and must not include raw commands, raw outputs, file paths, or local logs.
+
+## Command Safety
+
+SAGE CLI evaluates commands against a safety policy before execution. The denylist is intended to block destructive or high-risk commands in protected modes, such as irreversible file deletion, credential exposure, and unsafe repository resets.
+
+## Secret Redaction
+
+SAGE CLI redacts common credential patterns before storing captured output. Redacted patterns include GitHub tokens, OpenAI-style API keys, AWS access keys, bearer tokens, password assignments, private key blocks, `.env`-style secrets, and other high-risk token shapes.
+
+Redaction is a defense-in-depth layer, not permission to paste secrets into public issues or logs.
+
+## What SAGE CLI Will Not Do
+
+- Upload raw command text or raw command output in local-only mode.
+- Publish source code, file paths, `.env` contents, private logs, or secrets to the dashboard.
+- Guarantee that every secret shape is detected.
+- Claim a command is safe solely because redaction ran.

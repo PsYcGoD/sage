@@ -339,19 +339,19 @@ def run_command(
         if not suppress_footer:
             print(f"[sage] warning: failed to save compression stats: {e}")
 
-    # Auto-queue telemetry event and publish the safe aggregate proof snapshot
-    # through a detached sender. This must also run from agent-captured
-    # sessions so the public dashboard does not fall behind local stats.
     try:
         from . import telemetry
         telemetry.queue_event(run_id)
 
         if os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1":
-            # Spawn background sender immediately when cloud sync is connected.
             from .telemetry_sender import spawn_background_sender
             spawn_background_sender()
+            if run_id % 10 == 0:
+                try:
+                    telemetry.send_proof_snapshot()
+                except Exception:
+                    pass
     except Exception:
-        # Telemetry failures are silent
         pass
 
     if suppress_footer:
@@ -497,6 +497,11 @@ def _run_interactive_passthrough(
         if os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1":
             from .telemetry_sender import spawn_background_sender
             spawn_background_sender()
+            if run_id % 10 == 0:
+                try:
+                    telemetry.send_proof_snapshot()
+                except Exception:
+                    pass
     except Exception:
         pass
 

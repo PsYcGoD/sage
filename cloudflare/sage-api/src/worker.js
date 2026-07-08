@@ -1433,23 +1433,103 @@ async function handleTelemetry(env, request) {
   return json({ ok: true, event_id: eventId, duplicate: false });
 }
 
-async function getAggregateRunTotals(env) {
+async function getAggregateProofTotals(env) {
   const row = await env.DB.prepare(
     `SELECT
       COALESCE(SUM(runs), 0) AS total_runs,
       COALESCE(SUM(successful_runs), 0) AS successful_runs,
-      COALESCE(SUM(failed_runs), 0) AS failed_runs
+      COALESCE(SUM(failed_runs), 0) AS failed_runs,
+      COALESCE(SUM(original_tokens), 0) AS original_tokens,
+      COALESCE(SUM(compressed_tokens), 0) AS compressed_tokens,
+      COALESCE(SUM(saved_tokens), 0) AS saved_tokens,
+      COALESCE(SUM(duration_ms), 0) AS duration_ms
      FROM aggregate_daily`
+  ).first();
+  const prediction = await env.DB.prepare(
+    `SELECT
+      COUNT(*) AS events_with_prediction,
+      AVG(prediction_score) AS avg_prediction_score
+     FROM telemetry_events
+     WHERE prediction_score IS NOT NULL`
   ).first();
   const totalRuns = Number(row?.total_runs || 0);
   const successful = Number(row?.successful_runs || 0);
   const failed = Number(row?.failed_runs || Math.max(0, totalRuns - successful));
+  const original = Number(row?.original_tokens || 0);
+  const compressed = Number(row?.compressed_tokens || 0);
+  const saved = Number(row?.saved_tokens || 0);
+  const savingsByModel = buildSavingsByModel(saved);
   return {
     total_runs: totalRuns,
     successful_runs: successful,
     failed_runs: failed,
+    tokens_processed: original,
+    tokens_compressed: compressed,
+    tokens_saved: saved,
+    estimated_savings_usd: totalModelSavings(savingsByModel),
+    savings_by_model: savingsByModel,
+    compression_percent: original ? Number(((saved / original) * 100).toFixed(2)) : 0,
     success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
+    failure_prediction_stats: {
+      events_with_prediction: Number(prediction?.events_with_prediction || 0),
+      avg_prediction_score:
+        prediction?.avg_prediction_score === null || prediction?.avg_prediction_score === undefined
+          ? null
+          : Number(Number(prediction.avg_prediction_score).toFixed(4)),
+    },
   };
+}
+
+function mergeSnapshotWithAggregateTotals(snapshotTotals = {}, aggregateTotals = {}) {
+  const merged = { ...snapshotTotals };
+  if (Number(aggregateTotals.total_runs || 0) > 0) {
+    Object.assign(merged, {
+      total_runs: aggregateTotals.total_runs,
+      successful_runs: aggregateTotals.successful_runs,
+      failed_runs: aggregateTotals.failed_runs,
+      success_rate: aggregateTotals.success_rate,
+    });
+  }
+
+  if (Number(aggregateTotals.tokens_saved || 0) > Number(merged.tokens_saved || 0)) {
+    Object.assign(merged, {
+      tokens_processed: aggregateTotals.tokens_processed,
+      tokens_compressed: aggregateTotals.tokens_compressed,
+      tokens_saved: aggregateTotals.tokens_saved,
+      estimated_savings_usd: aggregateTotals.estimated_savings_usd,
+      savings_by_model: aggregateTotals.savings_by_model,
+      compression_percent: aggregateTotals.compression_percent,
+    });
+  }
+
+  const snapshotPrediction = merged.failure_prediction_stats || {};
+  const aggregatePrediction = aggregateTotals.failure_prediction_stats || {};
+  if (Number(aggregatePrediction.events_with_prediction || 0) > Number(snapshotPrediction.events_with_prediction || 0)) {
+    merged.failure_prediction_stats = aggregatePrediction;
+  }
+  return merged;
+}
+
+function mergeSnapshotWithPreviousTotals(incoming, previous) {
+  if (!previous) return incoming;
+  const merged = { ...incoming };
+  for (const field of [
+    "tokens_processed",
+    "tokens_compressed",
+    "tokens_saved",
+    "total_agents",
+    "agent_runs_completed",
+    "ml_training_examples",
+    "agent_quality_metrics",
+  ]) {
+    merged[field] = Math.max(Number(merged[field] || 0), Number(previous[field] || 0));
+  }
+  const previousPrediction = previous.failure_prediction_stats || {};
+  const incomingPrediction = merged.failure_prediction_stats || {};
+  if (Number(previousPrediction.events_with_prediction || 0) > Number(incomingPrediction.events_with_prediction || 0)) {
+    merged.failure_prediction_stats = previousPrediction;
+  }
+  return merged;
 }
 
 async function handleProof(env) {
@@ -1471,13 +1551,8 @@ async function handleProof(env) {
       ).bind(liveNow, new Date(Date.now() - 86400000).toISOString()).first();
       parsed.connected_users = Number(liveCounts?.connected_users || 0);
       parsed.active_users_24h = Number(liveCounts?.active_users_24h || 0);
-      const aggregateRuns = await getAggregateRunTotals(env);
-      if (aggregateRuns.total_runs > 0) {
-        parsed.totals = {
-          ...(parsed.totals || {}),
-          ...aggregateRuns,
-        };
-      }
+      const aggregateTotals = await getAggregateProofTotals(env);
+      parsed.totals = mergeSnapshotWithAggregateTotals(parsed.totals || {}, aggregateTotals);
       return json(parsed);
     } catch (_exc) {
       // Fall back to event aggregates if the stored snapshot is invalid.
@@ -1610,8 +1685,35 @@ async function handleProofSnapshot(env, request) {
   const totalRuns = clampInt(totals.total_runs, 0, 2147483647, 0);
   const successful = clampInt(totals.successful_runs, 0, 2147483647, 0);
   const compressed = clampInt(totals.tokens_compressed, 0, 2147483647, 0);
-  const savingsByModel = sanitizeSavingsByModel(totals.savings_by_model, saved);
   const savingsByAgent = sanitizeSavingsByAgent(totals.savings_by_agent);
+  let previousTotals = null;
+  const previousSnapshot = await env.DB.prepare(
+    `SELECT payload_json FROM public_proof_snapshots WHERE id = 'latest' LIMIT 1`
+  ).first();
+  if (previousSnapshot?.payload_json) {
+    try {
+      previousTotals = normalizeProofPayload(JSON.parse(previousSnapshot.payload_json)).totals || null;
+    } catch (_exc) {
+      previousTotals = null;
+    }
+  }
+  const mergedTotals = mergeSnapshotWithPreviousTotals({
+    total_runs: totalRuns,
+    successful_runs: successful,
+    failed_runs: clampInt(totals.failed_runs, 0, 2147483647, Math.max(0, totalRuns - successful)),
+    tokens_processed: original,
+    tokens_compressed: compressed,
+    tokens_saved: saved,
+    failure_prediction_stats: {
+      events_with_prediction: clampInt(totals.failure_prediction_stats?.events_with_prediction, 0, 2147483647, 0),
+      avg_prediction_score: numberValue(totals.failure_prediction_stats?.avg_prediction_score, 0),
+    },
+    total_agents: clampInt(totals.total_agents, 0, 2147483647, 0),
+    agent_runs_completed: clampInt(totals.agent_runs_completed, 0, 2147483647, 0),
+    ml_training_examples: clampInt(totals.ml_training_examples, 0, 2147483647, 0),
+    agent_quality_metrics: clampInt(totals.agent_quality_metrics, 0, 2147483647, 0),
+  }, previousTotals);
+  const mergedSavingsByModel = sanitizeSavingsByModel(totals.savings_by_model, mergedTotals.tokens_saved);
   const snapshot = {
     ok: true,
     generated_at: nowIso(),
@@ -1639,25 +1741,26 @@ async function handleProofSnapshot(env, request) {
       "agent_quality_metrics",
     ],
     totals: {
-      total_runs: totalRuns,
-      successful_runs: successful,
-      failed_runs: clampInt(totals.failed_runs, 0, 2147483647, Math.max(0, totalRuns - successful)),
-      tokens_processed: original,
-      tokens_compressed: compressed,
-      tokens_saved: saved,
-      estimated_savings_usd: totalModelSavings(savingsByModel),
-      savings_by_model: savingsByModel,
+      total_runs: mergedTotals.total_runs,
+      successful_runs: mergedTotals.successful_runs,
+      failed_runs: mergedTotals.failed_runs,
+      tokens_processed: mergedTotals.tokens_processed,
+      tokens_compressed: mergedTotals.tokens_compressed,
+      tokens_saved: mergedTotals.tokens_saved,
+      estimated_savings_usd: totalModelSavings(mergedSavingsByModel),
+      savings_by_model: mergedSavingsByModel,
       savings_by_agent: savingsByAgent,
-      compression_percent: original ? Number(((saved / original) * 100).toFixed(2)) : 0,
-      success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
-      failure_prediction_stats: {
-        events_with_prediction: clampInt(totals.failure_prediction_stats?.events_with_prediction, 0, 2147483647, 0),
-        avg_prediction_score: numberValue(totals.failure_prediction_stats?.avg_prediction_score, 0),
-      },
-      total_agents: clampInt(totals.total_agents, 0, 2147483647, 0),
-      agent_runs_completed: clampInt(totals.agent_runs_completed, 0, 2147483647, 0),
-      ml_training_examples: clampInt(totals.ml_training_examples, 0, 2147483647, 0),
-      agent_quality_metrics: clampInt(totals.agent_quality_metrics, 0, 2147483647, 0),
+      compression_percent: mergedTotals.tokens_processed
+        ? Number(((mergedTotals.tokens_saved / mergedTotals.tokens_processed) * 100).toFixed(2))
+        : 0,
+      success_rate: mergedTotals.total_runs
+        ? Number(((mergedTotals.successful_runs / mergedTotals.total_runs) * 100).toFixed(2))
+        : 0,
+      failure_prediction_stats: mergedTotals.failure_prediction_stats,
+      total_agents: mergedTotals.total_agents,
+      agent_runs_completed: mergedTotals.agent_runs_completed,
+      ml_training_examples: mergedTotals.ml_training_examples,
+      agent_quality_metrics: mergedTotals.agent_quality_metrics,
     },
   };
   await env.DB.prepare(

@@ -1372,13 +1372,22 @@ def connect_command(args) -> int:
     expiry_days = _resolve_expiry_days(args)
     print(f"API key expiration: {expiry_days} days\n")
 
+    # Step 2: Ask display name
+    display_name = ""
+    if sys.stdin.isatty():
+        display_name = input("What can SAGE call you? ").strip()
+    if not display_name:
+        import socket
+        display_name = socket.gethostname()
+    print()
+
     result = None
     method = ""
 
     # Method 1: Hardware fingerprint (zero interaction)
     print("[1/3] Trying hardware authentication...")
     try:
-        result = telemetry.api_machine_login(expiry_days=expiry_days)
+        result = telemetry.api_machine_login(expiry_days=expiry_days, display_name=display_name)
         method = "hardware"
         print("      Hardware auth successful!")
     except Exception as hw_exc:

@@ -56,12 +56,19 @@ Local-only mode does not require GitHub OAuth and does not send data.
 | Connected proof | Yes | Yes | Aggregate counters only |
 | Debug/advanced telemetry | Optional | Opt-in only | Redacted diagnostic summaries only |
 
-Use connected mode only when you want optional public proof/dashboard sync:
+Use connected mode for optional public proof/dashboard sync. One command does everything — authenticates via GitHub, verifies server-side, installs agent configs, and confirms the connection:
 
 ```bash
 sage connect
-sage whoami
-sage api status
+```
+
+After connecting, useful commands:
+
+```bash
+sage api whoami       # Verify connection (pings server)
+sage api status      # Show endpoint and telemetry config
+sage run -- <cmd>    # Wrap any command (auto-sends telemetry)
+sage status          # Quick local status check
 ```
 
 ## Live Public Proof Dashboard

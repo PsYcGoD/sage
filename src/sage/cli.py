@@ -1271,8 +1271,25 @@ def whoami_command() -> int:
 
     data = telemetry.api_whoami()
     print("SAGE API identity")
-    for key, value in data.items():
-        print(f"{key}: {value}")
+    print(f"  Username: {data.get('username') or '(not set)'}")
+    print(f"  Display name: {data.get('display_name') or '(not set)'}")
+    print(f"  Key ID: {data.get('key_id')}")
+    print(f"  Key: {data.get('api_key')}")
+    print(f"  Endpoint: {data.get('endpoint')}")
+    print(f"  Telemetry: {data.get('effective_level_name')} (level {data.get('effective_level')})")
+    print()
+    if data.get("server_verified"):
+        print("Server verification: PASSED")
+        print(f"  Server confirms: @{data.get('server_username')}")
+        print(f"  Key active: {data.get('server_active')}")
+        print(f"  Expires: {data.get('server_expires_at')}")
+    elif data.get("server_verified") is False:
+        print("Server verification: FAILED")
+        print(f"  Error: {data.get('server_error')}")
+        print("  Your key may be expired, revoked, or the API is unreachable.")
+        print("  Try: sage connect")
+    else:
+        print("Server verification: skipped (not connected)")
     return 0
 
 def logout_command() -> int:
@@ -1363,37 +1380,91 @@ def connect_command(args) -> int:
                     expiry_days=expiry_days,
                 )
 
-        print("\nSAGE API connected")
-        print(f"GitHub: @{result.get('username')}")
-        print(f"Key ID: {result.get('key_id')}")
-        print(f"Expires: {result.get('expires_at')}")
-        print("\nConnected mode enabled.")
-        print("SAGE CLI will sync aggregate counters for public proof/dashboard stats.")
-        print("Raw command text, raw output, paths, secrets, and full logs are not uploaded.")
-        print("To disable sync: set SAGE_AUTO_SEND_TELEMETRY=0 or run sage telemetry off.")
+        # Auto-verify with server
+        print("\nVerifying connection with SAGE API server...")
+        verified = False
+        for attempt in range(3):
+            try:
+                whoami = telemetry.api_whoami()
+                if whoami.get("server_verified"):
+                    verified = True
+                    break
+            except Exception:
+                pass
+            import time
+            time.sleep(1)
 
         # Install agent configs system-wide
         if not is_sage_installed_system_wide():
-            print("\nInstalling SAGE agent configs system-wide...")
             install_sage_system_wide()
-            print("\nSupported local agent configs now include the SAGE requirement")
-        else:
-            print("\nSAGE agent configs already installed")
 
-        print("\nSetup complete. You can now use SAGE:")
-        print("   sage run -- python test.py")
-        print("   sage run -- pytest")
-        print("   sage run -- npm install")
+        # Show clean connected summary
+        key_storage = telemetry.load_config().get("api_key_storage", "file")
+        print()
+        print("=" * 60)
+        print("  SAGE CONNECTED")
+        print("=" * 60)
+        print(f"  GitHub:   @{result.get('username')}")
+        print(f"  Key ID:   {result.get('key_id')}")
+        print(f"  Storage:  {key_storage}")
+        print(f"  Expires:  {result.get('expires_at')}")
+        print(f"  Server:   {'VERIFIED' if verified else 'PENDING (retry: sage api whoami)'}")
+        print(f"  Telemetry: ON (anonymous metrics)")
+        print("=" * 60)
+        print()
+        print("  Quick commands:")
+        print("    sage run -- <any command>    Wrap and track a command")
+        print("    sage api whoami             Verify connection")
+        print("    sage api users              See all connected users (admin)")
+        print("    sage status                 Check SAGE status")
+        print("    sage telemetry show         View telemetry queue")
+        print()
+        if not verified:
+            print("  NOTE: Server verification pending. If this persists, run:")
+            print("    sage api whoami")
+            print()
 
         return 0
 
     except Exception as exc:
         print(f"\nConnection failed: {exc}")
-        print("\nTroubleshooting:")
-        print("  1. Check internet connection")
-        print("  2. Allow browser popup for GitHub login")
-        print("  3. Try again: sage connect")
-        return 1
+        print("\nRetrying automatically...")
+        import time
+        time.sleep(2)
+        # One auto-retry with device flow
+        try:
+            from .github_oauth import github_device_flow
+            device_result = github_device_flow(status_callback=print)
+            result = telemetry.api_github_login(
+                github_access_token=device_result["access_token"],
+                display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
+                public_profile=args.public_profile if hasattr(args, "public_profile") else False,
+                expiry_days=expiry_days,
+            )
+            print()
+            print("=" * 60)
+            print("  SAGE CONNECTED (via device flow)")
+            print("=" * 60)
+            print(f"  GitHub:   @{result.get('username')}")
+            print(f"  Key ID:   {result.get('key_id')}")
+            print(f"  Expires:  {result.get('expires_at')}")
+            print("=" * 60)
+            print()
+            print("  Quick commands:")
+            print("    sage run -- <any command>    Wrap and track a command")
+            print("    sage api whoami             Verify connection")
+            print("    sage status                 Check SAGE status")
+            print()
+            if not is_sage_installed_system_wide():
+                install_sage_system_wide()
+            return 0
+        except Exception as retry_exc:
+            print(f"\nAll connection methods failed: {retry_exc}")
+            print("\nTroubleshooting:")
+            print("  1. Check internet connection")
+            print("  2. Allow browser popup for GitHub login")
+            print("  3. Try again: sage connect")
+            return 1
 
 def rotate_key_command(args) -> int:
     """Rotate API key through GitHub OAuth."""

@@ -1,3 +1,6 @@
+tests/soak_report.json
+tests/soak_report.txt
+tests/soak_output.log
 __pycache__/
 *.py[cod]
 .pytest_cache/

@@ -52,6 +52,7 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "SAGE" in worker
     assert "Claude Code" in worker
     assert "OpenCode" in worker
+    assert "Ollama" in worker
     assert "Cursor" in worker
     assert "estimated_savings_usd" in worker
     assert "savings_by_model" in worker
@@ -77,3 +78,12 @@ def test_admin_users_endpoint_defaults_to_sanitized_rows():
     assert "firstUsefulText" in worker
     assert "machine_ids" in worker
     assert "if (!raw) return base;" in worker
+
+
+def test_public_proof_snapshot_uses_live_run_totals():
+    worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
+
+    assert "async function getAggregateRunTotals" in worker
+    assert "...aggregateRuns" in worker
+    assert "if (!seen.has(row.model)) sanitized.push(row);" in worker
+    assert "if (!seen.has(row.agent)) sanitized.push(row);" in worker

@@ -19,6 +19,11 @@ MODEL_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
         "provider": "Google",
         "input_rate_per_million": 1.25,
     },
+    "ollama": {
+        "label": "Ollama",
+        "provider": "Local",
+        "input_rate_per_million": 0.0,
+    },
 }
 
 AGENT_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
@@ -68,6 +73,12 @@ AGENT_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
         "label": "GitHub Copilot coding agent",
         "provider": "GitHub",
         "model": "GitHub Copilot",
+        "input_rate_per_million": 0.0,
+    },
+    "ollama": {
+        "label": "Ollama",
+        "provider": "Local",
+        "model": "Local Ollama model",
         "input_rate_per_million": 0.0,
     },
 }

@@ -949,6 +949,7 @@ async function handleMachineLogin(env, request) {
 
   const fingerprint = textValue(body.fingerprint, 128);
   const hostname = textValue(body.hostname, 120);
+  const displayName = textValue(body.display_name || body.hostname, 80);
   const platform = textValue(body.platform, 80);
   const installationId = textValue(body.installation_id, 120);
   const clientVersion = textValue(body.client_version, 80);
@@ -987,7 +988,7 @@ async function handleMachineLogin(env, request) {
     await sha256(token),
     "sage_live",
     "machine",
-    hostname || fingerprint.slice(0, 12),
+    displayName,
     fingerprint,
     "",
     "",
@@ -1017,7 +1018,7 @@ async function handleMachineLogin(env, request) {
     ok: true,
     key_id: keyId,
     api_key: token,
-    display_name: hostname || fingerprint.slice(0, 12),
+    display_name: displayName,
     fingerprint: fingerprint,
     created_at: createdAt,
     expires_at: expiresAt,

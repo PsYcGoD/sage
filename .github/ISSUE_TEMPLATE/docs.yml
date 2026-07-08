@@ -1,0 +1,24 @@
+name: Documentation
+description: Improve docs, examples, screenshots, or guides.
+title: "docs: "
+labels: ["docs", "good first issue", "help wanted"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What documentation should be added or improved?
+      placeholder: Add a local-only quickstart screenshot, agent usage guide, or clearer install note.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What should be true when this is done?
+      placeholder: |
+        - README/docs page is updated.
+        - Links work from GitHub and PyPI.
+        - No fake metrics or testimonials are added.
+    validations:
+      required: true

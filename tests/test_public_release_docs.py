@@ -77,6 +77,9 @@ def test_admin_users_endpoint_defaults_to_sanitized_rows():
     assert "looksLikeHash" in worker
     assert "firstUsefulText" in worker
     assert "machine_ids" in worker
+    assert "NULLIF(k.display_name, '')" in worker
+    assert "NULLIF(k.username, '')" in worker
+    assert worker.index("NULLIF(k.display_name, '')") < worker.index("NULLIF(k.username, '')")
     assert "if (!raw) return base;" in worker
 
 

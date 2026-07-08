@@ -806,7 +806,13 @@ async function handleVisitorStats(env, request) {
   const userTotals = await env.DB.prepare(
     `WITH keyed_users AS (
       SELECT
-        COALESCE(NULLIF(github_username, ''), NULLIF(username, ''), NULLIF(github_id, ''), key_id) AS user_identity,
+        COALESCE(
+          NULLIF(github_username, ''),
+          NULLIF(github_id, ''),
+          NULLIF(display_name, ''),
+          NULLIF(username, ''),
+          key_id
+        ) AS user_identity,
         created_at,
         last_used_at,
         revoked_at,
@@ -884,7 +890,13 @@ async function handleAdminUsers(env, request) {
   const rows = await env.DB.prepare(
     `WITH keyed_users AS (
       SELECT
-        COALESCE(NULLIF(k.github_username, ''), NULLIF(k.username, ''), NULLIF(k.github_id, ''), k.key_id) AS user_identity,
+        COALESCE(
+          NULLIF(k.github_username, ''),
+          NULLIF(k.github_id, ''),
+          NULLIF(k.display_name, ''),
+          NULLIF(k.username, ''),
+          k.key_id
+        ) AS user_identity,
         k.*
       FROM api_keys k
      ),

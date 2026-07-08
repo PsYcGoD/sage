@@ -1,0 +1,78 @@
+{
+  "name": "sage-lsp",
+  "displayName": "SAGE - Smart Agent Guidance Engine",
+  "description": "Terminal intelligence: predict command failures, auto-fix errors, agentic retry loops",
+  "version": "0.1.0",
+  "publisher": "marketingstudios",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other", "Linters"],
+  "activationEvents": [
+    "onLanguage:shellscript",
+    "onLanguage:powershell",
+    "onLanguage:bat",
+    "onCommand:sage.predict",
+    "onCommand:sage.fix",
+    "onCommand:sage.explain"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sage.predict",
+        "title": "SAGE: Predict Command Risk"
+      },
+      {
+        "command": "sage.fix",
+        "title": "SAGE: Fix Last Error"
+      },
+      {
+        "command": "sage.explain",
+        "title": "SAGE: Explain Last Error"
+      },
+      {
+        "command": "sage.session",
+        "title": "SAGE: Show Session State"
+      }
+    ],
+    "configuration": {
+      "title": "SAGE",
+      "properties": {
+        "sage.transport": {
+          "type": "string",
+          "default": "stdio",
+          "enum": ["stdio", "tcp"],
+          "description": "LSP transport mode"
+        },
+        "sage.tcpPort": {
+          "type": "number",
+          "default": 19473,
+          "description": "TCP port for LSP server"
+        },
+        "sage.autonomy": {
+          "type": "string",
+          "default": "suggest",
+          "enum": ["suggest", "ask", "auto"],
+          "description": "Agentic loop autonomy level"
+        },
+        "sage.predictOnType": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show predictions as you type commands"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0"
+  }
+}

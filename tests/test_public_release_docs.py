@@ -29,16 +29,17 @@ def test_public_release_docs_and_assets_exist():
 def test_readme_public_positioning():
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "## Install From GitHub Until PyPI Is Live" in readme
-    assert "pip install git+https://github.com/PsYcGoD/sage.git" in readme
+    assert "# SAGE CLI" in readme
     assert "pip install psycgod-sage" in readme
-    assert "PyPI publishing is prepared but still blocked by the Trusted Publisher project-name mismatch." in readme
-    assert "The prepared PyPI distribution is `psycgod-sage`; the installed CLI command is still `sage`." in readme
-    assert "local-first command wrapper for AI coding agents" in readme
+    assert "By default, SAGE CLI runs locally." in readme
+    assert "GitHub login is optional" in readme
+    assert "pip install psycgod-sage" in readme
+    assert "PyPI publishing is prepared but still blocked" not in readme
+    assert "Local-first terminal wrapper for AI coding agents" in readme
     assert "Estimated savings by model/provider" in readme
     assert "## Known Limitations" in readme
     assert "The desktop GUI is not available in this public repo right now." in readme
-    assert "docs/assets/sage-run.svg" in readme
+    assert "raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-run.svg" in readme
     assert "demo-sage-run.gif" in readme
     assert "Team Dashboard is not published yet" in readme
     assert "team-dashboard-preview.png" in readme

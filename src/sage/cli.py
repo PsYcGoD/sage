@@ -105,6 +105,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve_sub.add_parser("stop", help="Stop the ML daemon.")
     serve_sub.add_parser("status", help="Check if the ML daemon is running.")
 
+    lsp_parser = sub.add_parser("lsp", help="Start the SAGE LSP server for editor/AI integration.")
+    lsp_parser.add_argument("--tcp", action="store_true", help="Use TCP transport instead of stdio.")
+    lsp_parser.add_argument("--port", type=int, default=19473, help="TCP port (default: 19473).")
+    lsp_parser.add_argument("--host", default="127.0.0.1", help="TCP bind address (default: 127.0.0.1).")
+
     explain_parser = sub.add_parser("explain", help="Explain the most recent command.")
     explain_parser.add_argument(
         "--failed",
@@ -411,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "serve":
         return serve_command(args)
+
+    if args.command_name == "lsp":
+        return lsp_command(args)
 
     if args.command_name == "explain":
         return explain(only_failed=args.failed)
@@ -1485,6 +1493,18 @@ def serve_command(args) -> int:
     print("[sage-ml] starting daemon (loading ML model, this takes ~10s on first run)...")
     daemon = MLDaemon()
     daemon.start()
+    return 0
+
+
+def lsp_command(args) -> int:
+    """Start the SAGE LSP server."""
+    from .lsp.server import SageLSPServer
+
+    server = SageLSPServer()
+    if args.tcp:
+        server.start_tcp(host=args.host, port=args.port)
+    else:
+        server.start_stdio()
     return 0
 
 

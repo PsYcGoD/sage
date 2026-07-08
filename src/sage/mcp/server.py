@@ -25,6 +25,9 @@ from .tools import (
     sage_edit_file,
     sage_glob,
     sage_tree,
+    sage_agentic_run,
+    sage_agentic_fix,
+    sage_agentic_session,
 )
 
 
@@ -57,6 +60,9 @@ class MCPServer:
             "sage_edit_file": sage_edit_file,
             "sage_glob": sage_glob,
             "sage_tree": sage_tree,
+            "sage_agentic_run": sage_agentic_run,
+            "sage_agentic_fix": sage_agentic_fix,
+            "sage_agentic_session": sage_agentic_session,
         }
         if self.command_tools_enabled:
             self.tools["sage_run_command"] = sage_run_command

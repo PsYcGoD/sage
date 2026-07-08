@@ -4,10 +4,6 @@ compatibility_date = "2026-06-14"
 workers_dev = true
 account_id = "615b5d24ac380d486fb5873d2faadd05"
 
-[[routes]]
-pattern = "sage.api.marketingstudios.in"
-custom_domain = true
-
 [[d1_databases]]
 binding = "DB"
 database_name = "sage_telemetry"

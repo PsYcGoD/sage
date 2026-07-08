@@ -29,7 +29,7 @@ from .security import redact_text
 from .store import connect, data_dir
 
 SCHEMA_VERSION = "1.0"
-DEFAULT_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
+DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
 FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
 KEYRING_SERVICE = "psycgod-sage"
 

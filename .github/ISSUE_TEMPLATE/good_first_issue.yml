@@ -1,0 +1,30 @@
+name: Good first issue
+description: A small contribution that is safe for new contributors.
+title: "good first issue: "
+labels: ["good first issue", "help wanted"]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Task
+      description: What should a new contributor change?
+      placeholder: Add a Codex usage guide, improve a blocked-command message, or add one focused local-only regression test.
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Suggested files
+      description: List likely files to edit.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - Change is small and reviewable.
+        - Tests/docs are updated when needed.
+        - No fake stats, testimonials, or unrelated churn.
+    validations:
+      required: true

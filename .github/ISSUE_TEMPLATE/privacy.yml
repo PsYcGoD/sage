@@ -1,0 +1,22 @@
+name: Privacy or security docs
+description: Improve privacy, security, telemetry, or redaction docs.
+title: "privacy: "
+labels: ["privacy", "security", "good first issue", "help wanted"]
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: What needs clarification?
+      description: Do not include secrets, private logs, raw command output, or private file paths.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - Local-only behavior is clear.
+        - Connected proof behavior is clear.
+        - Docs match actual CLI behavior.
+    validations:
+      required: true

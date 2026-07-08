@@ -62,6 +62,8 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "ml_training_examples" in worker
     assert "agent_quality_metrics" in worker
     assert "sanitizeSavingsByAgent" in worker
+    assert "mergeSavingsByAgent" in worker
+    assert "json_extract(payload_json, '$.agent_client')" in worker
     assert "/v1/dashboard-click" in worker
     assert "dashboard_clicks" in worker
     assert "new_installs_today" in worker
@@ -80,6 +82,7 @@ def test_admin_users_endpoint_defaults_to_sanitized_rows():
     assert "NULLIF(k.display_name, '')" in worker
     assert "NULLIF(k.username, '')" in worker
     assert worker.index("NULLIF(k.display_name, '')") < worker.index("NULLIF(k.username, '')")
+    assert "NULLIF(display_name, '')" in worker
     assert "if (!raw) return base;" in worker
 
 

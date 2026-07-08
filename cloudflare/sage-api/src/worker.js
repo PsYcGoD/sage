@@ -123,41 +123,6 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     .bar-labels { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; color: #cbd5e1; flex-wrap: wrap; }
     .prediction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .mini { padding: 18px; border-radius: 12px; background: rgba(2,6,23,.35); border: 1px solid rgba(148,163,184,.15); }
-    .agent-savings {
-      margin-top: 20px;
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 12px;
-      overflow: hidden;
-      background: rgba(2,6,23,.22);
-    }
-    .agent-savings summary {
-      list-style: none;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      min-height: 58px;
-      padding: 0 16px;
-      cursor: pointer;
-      color: #dbeafe;
-      font-weight: 900;
-    }
-    .agent-savings summary::-webkit-details-marker { display: none; }
-    .agent-savings summary::after {
-      content: "v";
-      display: grid;
-      place-items: center;
-      width: 32px;
-      height: 32px;
-      flex: 0 0 auto;
-      border-radius: 999px;
-      color: #a7f3d0;
-      background: rgba(15,23,42,.82);
-      border: 1px solid rgba(148,163,184,.22);
-      transition: transform .16s ease;
-    }
-    .agent-savings[open] summary::after { transform: rotate(180deg); }
-    .agent-savings summary:focus-visible { outline: 2px solid #60a5fa; outline-offset: -2px; }
     .savings-table { width: 100%; border-collapse: collapse; overflow: hidden; }
     .model-savings-table { margin-top: 18px; }
     .savings-table th, .savings-table td { padding: 14px; border-bottom: 1px solid rgba(148,163,184,.16); text-align: left; }
@@ -239,25 +204,14 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
           <span>Original: <strong id="original-tokens">-</strong> tokens</span>
           <span>Compressed: <strong id="compressed-tokens">-</strong> tokens</span>
         </div>
-        <table class="savings-table model-savings-table" aria-label="Estimated savings by model">
+        <table class="savings-table model-savings-table" aria-label="Estimated savings by model and AI agent">
           <thead>
-            <tr><th>Model/provider</th><th>Reference input rate</th><th>Estimated saved</th></tr>
+            <tr><th>Model or agent/provider</th><th>Reference input rate</th><th>Estimated saved</th></tr>
           </thead>
           <tbody id="model-savings-rows">
             <tr><td colspan="3">Loading model savings...</td></tr>
           </tbody>
         </table>
-        <details class="agent-savings">
-          <summary>Money Saved by each AI Agent</summary>
-          <table class="savings-table" aria-label="Estimated savings by AI agent">
-            <thead>
-              <tr><th>AI Agent / Provider</th><th>Model Used</th><th>Estimated Saved</th></tr>
-            </thead>
-            <tbody id="agent-savings-rows">
-              <tr><td colspan="3">Loading aggregate savings...</td></tr>
-            </tbody>
-          </table>
-        </details>
       </section>
 
       <section class="panel">
@@ -319,20 +273,30 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         return '<tr><td><strong>' + label + '</strong><div class="sub">' + provider + '</div></td><td>$' + rate + '/M tokens</td><td><strong>' + formatCurrency(row.estimated_savings_usd) + '</strong></td></tr>';
       }).join("");
     }
-    function renderAgentSavings(rows) {
-      const body = document.getElementById("agent-savings-rows");
-      const safeRows = Array.isArray(rows) ? rows : [];
-      if (!safeRows.length) {
-        body.innerHTML = '<tr><td colspan="3">No AI agent usage yet.</td></tr>';
-        return;
+    function compressionSavingsRows(totals) {
+      const rows = [];
+      const seen = new Set();
+      for (const row of Array.isArray(totals.savings_by_model) ? totals.savings_by_model : []) {
+        const key = String(row.model || row.label || "").toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        rows.push(row);
       }
-      body.innerHTML = safeRows.map((row) => {
-        const label = String(row.label || row.agent || "Unknown").replace(/[<>&"]/g, "");
-        const provider = String(row.provider || "").replace(/[<>&"]/g, "");
-        const model = String(row.model || "Not used yet").replace(/[<>&"]/g, "");
-        const tokens = Number(row.saved_tokens || 0);
-        return '<tr><td><strong>' + label + '</strong><div class="sub">' + provider + '</div></td><td><strong>' + model + '</strong><div class="sub">' + formatNumber(tokens) + ' tokens saved</div></td><td><strong>' + formatCurrency(row.estimated_savings_usd) + '</strong></td></tr>';
-      }).join("");
+      for (const row of Array.isArray(totals.savings_by_agent) ? totals.savings_by_agent : []) {
+        const agent = String(row.agent || row.label || "").toLowerCase();
+        const key = "agent:" + agent;
+        if (!agent || seen.has(key)) continue;
+        seen.add(key);
+        rows.push({
+          model: key,
+          label: row.label || row.agent || "Unknown agent",
+          provider: row.provider || row.model || "",
+          saved_tokens: row.saved_tokens || 0,
+          input_rate_per_million: row.input_rate_per_million || 0,
+          estimated_savings_usd: row.estimated_savings_usd || 0,
+        });
+      }
+      return rows;
     }
     async function loadProofData() {
       const loading = document.getElementById("loading-state");
@@ -355,8 +319,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         document.getElementById("success-label").textContent = Number(totals.successful_runs || 0).toLocaleString() + "/" + Number(totals.total_runs || 0).toLocaleString() + " successful";
         document.getElementById("original-tokens").textContent = formatNumber(totals.tokens_processed);
         document.getElementById("compressed-tokens").textContent = formatNumber(totals.tokens_compressed);
-        renderModelSavings(totals.savings_by_model || totals.savings_by_agent);
-        renderAgentSavings(totals.savings_by_agent);
+        renderModelSavings(compressionSavingsRows(totals));
         const bar = document.getElementById("compression-bar");
         const pct = Math.max(0, Math.min(100, Number(totals.compression_percent || 0)));
         bar.style.width = pct + "%";

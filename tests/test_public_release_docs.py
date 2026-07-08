@@ -44,10 +44,11 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
 
     assert "Estimated Savings" in worker
-    assert "Estimated savings by model" in worker
-    assert "Estimated savings by AI agent" in worker
-    assert "Money Saved by each AI Agent" in worker
-    assert "AI Agent / Provider" in worker
+    assert "Estimated savings by model and AI agent" in worker
+    assert "Money Saved by each AI Agent" not in worker
+    assert "agent-savings" not in worker
+    assert "renderAgentSavings" not in worker
+    assert "compressionSavingsRows" in worker
     assert "Codex" in worker
     assert "SAGE" in worker
     assert "Claude Code" in worker

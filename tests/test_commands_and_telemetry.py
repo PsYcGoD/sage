@@ -284,7 +284,7 @@ def test_send_without_endpoint_is_noop(isolated_telemetry):
     assert "not configured" in result["endpoint"]
 
 
-def test_api_users_default_output_hides_raw_identities(monkeypatch, capsys):
+def test_api_users_default_output_shows_labels_without_raw_hashes(monkeypatch, capsys):
     from sage import cli, telemetry
 
     def fake_get_admin_users(raw=False):
@@ -295,7 +295,8 @@ def test_api_users_default_output_hides_raw_identities(monkeypatch, capsys):
                 {
                     "display_name": "PsYcGoD",
                     "username": "c5de820e30b9a9a94b79835dda2c2eabd2f7971663c49cf6edea84665897be8e",
-                    "label": "Connected user #1",
+                    "label": "PsYcGoD",
+                    "machine_ids": ["mach1234"],
                     "active": True,
                     "active_key_count": 1,
                     "key_count": 5,
@@ -312,8 +313,8 @@ def test_api_users_default_output_hides_raw_identities(monkeypatch, capsys):
     assert cli.api_users_command(SimpleNamespace(raw=False)) == 0
     out = capsys.readouterr().out
 
-    assert "Connected user #1" in out
-    assert "PsYcGoD" not in out
+    assert "PsYcGoD" in out
+    assert "machines mach1234" in out
     assert "c5de820e30b9a9a94b79835dda2c2eabd2f7971663c49cf6edea84665897be8e" not in out
     assert "telemetry_installs" not in out
 

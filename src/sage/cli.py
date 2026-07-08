@@ -1278,8 +1278,15 @@ def api_users_command(args=None) -> int:
             )
             continue
         label = row.get("label") or f"Connected user #{index}"
+        machine_ids = row.get("machine_ids") or []
+        if isinstance(machine_ids, str):
+            machine_ids = [machine_ids] if machine_ids else []
+        machine_text = ""
+        if machine_ids:
+            machine_text = f"machines {', '.join(str(item) for item in machine_ids[:3])}, "
         print(
             f"- {label} [{status}] "
+            f"{machine_text}"
             f"keys {row.get('active_key_count', 0)} active / {row.get('key_count', 0)} total, "
             f"installs {row.get('install_count', 0)}, "
             f"runs {row.get('run_count', 0)}, "

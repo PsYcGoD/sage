@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.4.2
+
+### Changed
+
+- `sage api users` now shows the saved display name or hostname by default, while still hiding hash-like internal usernames.
+- Connected-user rows now show short machine/install IDs so duplicate runner machines can be distinguished.
+
 ## v2.4.1
 
 ### Fixed

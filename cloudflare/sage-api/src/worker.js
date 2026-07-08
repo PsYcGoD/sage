@@ -939,6 +939,93 @@ async function handleWhoami(env, request) {
   });
 }
 
+async function handleMachineLogin(env, request) {
+  let body;
+  try {
+    body = await readJson(request);
+  } catch (exc) {
+    return error("Invalid JSON", 400, String(exc.message || exc));
+  }
+
+  const fingerprint = textValue(body.fingerprint, 128);
+  const hostname = textValue(body.hostname, 120);
+  const platform = textValue(body.platform, 80);
+  const installationId = textValue(body.installation_id, 120);
+  const clientVersion = textValue(body.client_version, 80);
+
+  if (!fingerprint) {
+    return error("Missing hardware fingerprint", 400);
+  }
+
+  const createdAt = nowIso();
+  const expiryDays = clampInt(body.expiry_days, 1, 365, 30);
+  const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+
+  // Check if this machine already has an active key
+  const existingKey = await env.DB.prepare(
+    "SELECT * FROM api_keys WHERE username = ? AND scope = 'machine' AND revoked_at = ''"
+  ).bind(fingerprint).first();
+
+  if (existingKey) {
+    // Revoke old and reissue
+    await env.DB.prepare(
+      "UPDATE api_keys SET revoked_at = ? WHERE key_id = ? AND revoked_at = ''"
+    ).bind(createdAt, existingKey.key_id).run();
+  }
+
+  const keyId = newId("key");
+  const secret = randomHex(32);
+  const token = `sage_live_${keyId}_${secret}`;
+
+  const statements = [env.DB.prepare(
+    `INSERT INTO api_keys
+      (key_id, secret_hash, prefix, scope, display_name, username, github_id, github_username,
+       public_profile, privacy_max, expires_at, rate_limit_per_hour, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    keyId,
+    await sha256(token),
+    "sage_live",
+    "machine",
+    hostname || fingerprint.slice(0, 12),
+    fingerprint,
+    "",
+    "",
+    0,
+    1,
+    expiresAt,
+    10000,
+    createdAt
+  )];
+
+  if (installationId) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO installations (installation_id, key_id, first_seen_at, last_seen_at, client_version, platform)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(installation_id) DO UPDATE SET
+          key_id = excluded.key_id,
+          last_seen_at = excluded.last_seen_at,
+          client_version = excluded.client_version,
+          platform = excluded.platform`
+      ).bind(installationId, keyId, createdAt, createdAt, clientVersion, platform)
+    );
+  }
+  await env.DB.batch(statements);
+
+  return json({
+    ok: true,
+    key_id: keyId,
+    api_key: token,
+    display_name: hostname || fingerprint.slice(0, 12),
+    fingerprint: fingerprint,
+    created_at: createdAt,
+    expires_at: expiresAt,
+    method: "hardware",
+    rotated_from: existingKey ? existingKey.key_id : "",
+  }, existingKey ? 200 : 201);
+}
+
 async function handleGitHubLogin(env, request) {
   // GitHub OAuth login. One GitHub account has one active SAGE API key.
   let body;
@@ -1537,6 +1624,7 @@ async function route(request, env) {
   }
   if (request.method === "POST" && url.pathname === "/v1/keys") return handleCreateKey(env, request);
   if (request.method === "GET" && url.pathname === "/v1/whoami") return handleWhoami(env, request);
+  if (request.method === "POST" && url.pathname === "/v1/machine-login") return handleMachineLogin(env, request);
   if (request.method === "POST" && url.pathname === "/v1/github-login") return handleGitHubLogin(env, request);
   if (request.method === "POST" && url.pathname === "/v1/dashboard-click") return handleDashboardClick(env, request);
   if (request.method === "POST" && url.pathname === "/v1/telemetry") return handleTelemetry(env, request);

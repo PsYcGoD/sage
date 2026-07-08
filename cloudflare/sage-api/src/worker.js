@@ -90,9 +90,19 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       background: rgba(15,23,42,.68);
       box-shadow: 0 18px 50px rgba(2,6,23,.22);
     }
-    .card { padding: 24px; min-height: 150px; }
+    .card { container-type: inline-size; padding: 24px; min-height: 150px; overflow: hidden; }
     .label { color: #94a3b8; text-transform: uppercase; font-size: .8rem; font-weight: 800; letter-spacing: .08em; }
-    .value { margin-top: 12px; font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 900; color: #a7f3d0; }
+    .value {
+      max-width: 100%;
+      margin-top: 12px;
+      overflow: hidden;
+      color: #a7f3d0;
+      font-size: clamp(2rem, 14cqw, 3.5rem);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.05;
+      white-space: nowrap;
+    }
     .sub { margin-top: 8px; color: #cbd5e1; }
     .panel { padding: 28px; margin-bottom: 24px; }
     .panel h2 { font-size: 1.55rem; margin-bottom: 18px; }

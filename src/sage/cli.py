@@ -1299,172 +1299,214 @@ def logout_command() -> int:
     print("SAGE API disconnected. Telemetry reset to local-only.")
     return 0
 
+def _print_connected_summary(whoami: dict, key_storage: str) -> None:
+    """Print already-connected status."""
+    print()
+    print("=" * 60)
+    print("  SAGE CONNECTED")
+    print("=" * 60)
+    print(f"  Identity:  {whoami.get('username') or whoami.get('server_username', 'machine')}")
+    print(f"  Key ID:    {whoami.get('key_id')}")
+    print(f"  Storage:   {key_storage}")
+    print(f"  Expires:   {whoami.get('server_expires_at', 'unknown')}")
+    print(f"  Server:    VERIFIED")
+    print(f"  Telemetry: ON")
+    print("=" * 60)
+    print()
+    print("  Quick commands:")
+    print("    sage run -- <any command>    Wrap and track a command")
+    print("    sage api whoami             Verify connection")
+    print("    sage status                 Check SAGE status")
+    print("    sage logout                 Disconnect")
+    print()
+
+
+def _detect_ai_agents() -> list[dict[str, str]]:
+    """Detect installed AI agents on the system."""
+    import shutil
+    agents = []
+    checks = [
+        ("claude", "Claude Code", "Anthropic Sonnet/Opus"),
+        ("codex", "OpenAI Codex CLI", "OpenAI GPT/o-series"),
+        ("opencode", "OpenCode", "Various models"),
+        ("aider", "Aider", "Various models"),
+        ("cursor", "Cursor", "GPT-4/Claude"),
+        ("windsurf", "Windsurf", "Codeium models"),
+    ]
+    for cmd, name, models in checks:
+        if shutil.which(cmd) or shutil.which(f"{cmd}.exe") or shutil.which(f"{cmd}.cmd"):
+            agents.append({"cmd": cmd, "name": name, "models": models})
+    # Check JetBrains AI
+    jetbrains_paths = [
+        Path.home() / ".config" / "JetBrains",
+        Path(os.environ.get("APPDATA", "")) / "JetBrains",
+    ]
+    for jb_path in jetbrains_paths:
+        if jb_path.exists():
+            agents.append({"cmd": "jetbrains", "name": "JetBrains AI", "models": "JetBrains AI Assistant"})
+            break
+    return agents
+
+
 def connect_command(args) -> int:
-    """Connect SAGE with GitHub OAuth."""
+    """Connect SAGE — hardware auth first, then GitHub OAuth as fallback."""
     from . import telemetry
-    from .github_oauth import github_device_flow, github_oauth_flow
     from .install import install_sage_system_wide, is_sage_installed_system_wide
-    import subprocess
+    import os
 
     # Check if already connected
     status = telemetry.api_status()
     if status.get("connected"):
-        print("SAGE already connected")
-        print(f"GitHub: @{status.get('profile', {}).get('username')}")
-        print(f"Key expires: {status.get('expires_at', 'Never')}")
-        print(f"\nTo rotate key: sage api rotate")
-        print(f"To disconnect: sage logout")
-        return 0
-
-    print("SAGE Connection - GitHub Authentication")
-    print("=" * 60)
-    print("SAGE requires GitHub authentication for:")
-    print("  - Free API access (no credit card)")
-    print("  - 1 account = 1 API key (prevents abuse)")
-    print("  - Automatic agent config installation")
-    print("  - Token compression for wrapped commands")
-    print("=" * 60)
-    print()
-    expiry_days = _resolve_expiry_days(args)
-    print(f"API key expiration: {expiry_days} days")
-    print()
-
-    try:
-        try:
-            oauth_result = github_oauth_flow()
-            if not oauth_result.get("auth_code"):
-                raise RuntimeError("GitHub authentication returned no authorization code.")
-
-            print("GitHub authentication successful")
-            print("Creating SAGE API key...")
-            result = telemetry.api_github_login(
-                auth_code=oauth_result["auth_code"],
-                redirect_uri=oauth_result.get("redirect_uri", ""),
-                display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
-                public_profile=args.public_profile if hasattr(args, "public_profile") else False,
-                expiry_days=expiry_days,
-            )
-        except Exception as browser_exc:
-            print(f"Browser OAuth failed: {browser_exc}")
-            print("Trying GitHub device login...")
-            try:
-                device_result = github_device_flow(status_callback=print)
-                result = telemetry.api_github_login(
-                    github_access_token=device_result["access_token"],
-                    display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
-                    public_profile=args.public_profile if hasattr(args, "public_profile") else False,
-                    expiry_days=expiry_days,
-                )
-            except Exception as device_exc:
-                print(f"GitHub device login failed: {device_exc}")
-                print("Trying GitHub CLI fallback...")
-                gh = subprocess.run(
-                    ["gh", "auth", "token"],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=20,
-                )
-                token = gh.stdout.strip()
-                if gh.returncode != 0 or not token:
-                    details = (gh.stderr or gh.stdout or "").strip()
-                    raise RuntimeError(
-                        "Browser OAuth and GitHub device login failed, and GitHub CLI fallback is not available. "
-                        f"gh output: {details or 'no token returned'}"
-                    ) from device_exc
-                result = telemetry.api_github_login(
-                    github_access_token=token,
-                    display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
-                    public_profile=args.public_profile if hasattr(args, "public_profile") else False,
-                    expiry_days=expiry_days,
-                )
-
-        # Auto-verify with server
-        print("\nVerifying connection with SAGE API server...")
-        verified = False
-        for attempt in range(3):
-            try:
-                whoami = telemetry.api_whoami()
-                if whoami.get("server_verified"):
-                    verified = True
-                    break
-            except Exception:
-                pass
-            import time
-            time.sleep(1)
-
-        # Install agent configs system-wide
-        if not is_sage_installed_system_wide():
-            install_sage_system_wide()
-
-        # Show clean connected summary
-        key_storage = telemetry.load_config().get("api_key_storage", "file")
-        print()
-        print("=" * 60)
-        print("  SAGE CONNECTED")
-        print("=" * 60)
-        print(f"  GitHub:   @{result.get('username')}")
-        print(f"  Key ID:   {result.get('key_id')}")
-        print(f"  Storage:  {key_storage}")
-        print(f"  Expires:  {result.get('expires_at')}")
-        print(f"  Server:   {'VERIFIED' if verified else 'PENDING (retry: sage api whoami)'}")
-        print(f"  Telemetry: ON (anonymous metrics)")
-        print("=" * 60)
-        print()
-        print("  Quick commands:")
-        print("    sage run -- <any command>    Wrap and track a command")
-        print("    sage api whoami             Verify connection")
-        print("    sage api users              See all connected users (admin)")
-        print("    sage status                 Check SAGE status")
-        print("    sage telemetry show         View telemetry queue")
-        print()
-        if not verified:
-            print("  NOTE: Server verification pending. If this persists, run:")
-            print("    sage api whoami")
-            print()
-
-        return 0
-
-    except Exception as exc:
-        print(f"\nConnection failed: {exc}")
-        print("\nRetrying automatically...")
-        import time
-        time.sleep(2)
-        # One auto-retry with device flow
-        try:
-            from .github_oauth import github_device_flow
-            device_result = github_device_flow(status_callback=print)
-            result = telemetry.api_github_login(
-                github_access_token=device_result["access_token"],
-                display_name=args.display_name if hasattr(args, "display_name") and args.display_name else None,
-                public_profile=args.public_profile if hasattr(args, "public_profile") else False,
-                expiry_days=expiry_days,
-            )
-            print()
-            print("=" * 60)
-            print("  SAGE CONNECTED (via device flow)")
-            print("=" * 60)
-            print(f"  GitHub:   @{result.get('username')}")
-            print(f"  Key ID:   {result.get('key_id')}")
-            print(f"  Expires:  {result.get('expires_at')}")
-            print("=" * 60)
-            print()
-            print("  Quick commands:")
-            print("    sage run -- <any command>    Wrap and track a command")
-            print("    sage api whoami             Verify connection")
-            print("    sage status                 Check SAGE status")
-            print()
-            if not is_sage_installed_system_wide():
-                install_sage_system_wide()
+        whoami = telemetry.api_whoami()
+        if whoami.get("server_verified"):
+            key_storage = telemetry.load_config().get("api_key_storage", "file")
+            _print_connected_summary(whoami, key_storage)
             return 0
-        except Exception as retry_exc:
-            print(f"\nAll connection methods failed: {retry_exc}")
+        print("SAGE config exists but server verification failed.")
+        print("Reconnecting...\n")
+
+    print("SAGE Connect")
+    print("=" * 60)
+
+    # Step 1: Ask expiry
+    expiry_days = _resolve_expiry_days(args)
+    print(f"API key expiration: {expiry_days} days\n")
+
+    result = None
+    method = ""
+
+    # Method 1: Hardware fingerprint (zero interaction)
+    print("[1/3] Trying hardware authentication...")
+    try:
+        result = telemetry.api_machine_login(expiry_days=expiry_days)
+        method = "hardware"
+        print("      Hardware auth successful!")
+    except Exception as hw_exc:
+        print(f"      Hardware auth unavailable: {hw_exc}")
+
+    # Method 2: GitHub CLI token (no browser needed if gh is logged in)
+    if not result:
+        print("[2/3] Trying GitHub CLI (silent)...")
+        import subprocess
+        try:
+            gh = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=10,
+            )
+            token = gh.stdout.strip()
+            if gh.returncode == 0 and token:
+                result_data = telemetry.api_github_login(
+                    github_access_token=token,
+                    expiry_days=expiry_days,
+                )
+                result = {
+                    "ok": True,
+                    "key_id": result_data.get("key_id"),
+                    "username": result_data.get("github_username") or result_data.get("username", ""),
+                    "expires_at": result_data.get("expires_at", ""),
+                    "method": "github-cli",
+                    "storage": telemetry.load_config().get("api_key_storage", "file"),
+                }
+                method = "github-cli"
+                print("      GitHub CLI auth successful!")
+            else:
+                raise RuntimeError("gh not authenticated")
+        except Exception as gh_exc:
+            print(f"      GitHub CLI unavailable: {gh_exc}")
+
+    # Method 3: GitHub OAuth (browser/device flow)
+    if not result:
+        print("[3/3] Starting GitHub OAuth...")
+        from .github_oauth import github_device_flow, github_oauth_flow
+        try:
+            try:
+                oauth_result = github_oauth_flow()
+                if not oauth_result.get("auth_code"):
+                    raise RuntimeError("No auth code returned")
+                result_data = telemetry.api_github_login(
+                    auth_code=oauth_result["auth_code"],
+                    redirect_uri=oauth_result.get("redirect_uri", ""),
+                    expiry_days=expiry_days,
+                )
+            except Exception:
+                print("      Browser OAuth failed, trying device flow...")
+                device_result = github_device_flow(status_callback=print)
+                result_data = telemetry.api_github_login(
+                    github_access_token=device_result["access_token"],
+                    expiry_days=expiry_days,
+                )
+            result = {
+                "ok": True,
+                "key_id": result_data.get("key_id"),
+                "username": result_data.get("github_username") or result_data.get("username", ""),
+                "expires_at": result_data.get("expires_at", ""),
+                "method": "github-oauth",
+                "storage": telemetry.load_config().get("api_key_storage", "file"),
+            }
+            method = "github-oauth"
+            print("      GitHub OAuth successful!")
+        except Exception as oauth_exc:
+            print(f"\nAll connection methods failed: {oauth_exc}")
             print("\nTroubleshooting:")
             print("  1. Check internet connection")
-            print("  2. Allow browser popup for GitHub login")
+            print("  2. Install GitHub CLI: https://cli.github.com")
             print("  3. Try again: sage connect")
             return 1
+
+    # Verify with server
+    print("\nVerifying with server...")
+    verified = False
+    for _ in range(3):
+        try:
+            whoami = telemetry.api_whoami()
+            if whoami.get("server_verified"):
+                verified = True
+                break
+        except Exception:
+            pass
+        import time
+        time.sleep(1)
+
+    # Install agent configs
+    if not is_sage_installed_system_wide():
+        install_sage_system_wide()
+
+    # Detect AI agents
+    agents = _detect_ai_agents()
+
+    # Print final summary
+    key_storage = result.get("storage") or telemetry.load_config().get("api_key_storage", "file")
+    print()
+    print("=" * 60)
+    print("  SAGE CONNECTED")
+    print("=" * 60)
+    print(f"  Method:    {method}")
+    print(f"  Identity:  {result.get('username', 'machine')}")
+    print(f"  Key ID:    {result.get('key_id')}")
+    print(f"  Storage:   {key_storage}")
+    print(f"  Expires:   {result.get('expires_at')}")
+    print(f"  Server:    {'VERIFIED' if verified else 'PENDING'}")
+    print(f"  Telemetry: ON (anonymous metrics only)")
+    print("=" * 60)
+
+    if agents:
+        print(f"\n  Detected {len(agents)} AI agent(s):")
+        for agent in agents:
+            print(f"    - {agent['name']} ({agent['models']})")
+        print("\n  All the best — your token and money savings start now!")
+    else:
+        print("\n  No AI agents detected yet. Install one:")
+        print("    Claude Code: npm install -g @anthropic-ai/claude-code")
+        print("    Codex CLI:   npm install -g @openai/codex")
+
+    print()
+    print("  Quick commands:")
+    print("    sage run -- <any command>    Wrap and track a command")
+    print("    sage api whoami             Verify connection")
+    print("    sage status                 Check SAGE status")
+    print()
+    return 0
 
 def rotate_key_command(args) -> int:
     """Rotate API key through GitHub OAuth."""

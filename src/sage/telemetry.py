@@ -74,6 +74,122 @@ def _platform() -> str:
     return f"{platform_module.system()} {platform_module.release()}".strip()
 
 
+def _machine_fingerprint() -> dict[str, str]:
+    """Generate a hardware fingerprint from machine ID + hostname."""
+    import socket
+    hostname = socket.gethostname()
+    machine_id = ""
+    try:
+        if platform_module.system() == "Windows":
+            import subprocess
+            result = subprocess.run(
+                ["wmic", "csproduct", "get", "UUID"],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.strip().splitlines():
+                line = line.strip()
+                if line and line.lower() != "uuid":
+                    machine_id = line
+                    break
+        elif platform_module.system() == "Linux":
+            for path in ["/etc/machine-id", "/var/lib/dbus/machine-id"]:
+                try:
+                    machine_id = Path(path).read_text().strip()
+                    if machine_id:
+                        break
+                except OSError:
+                    continue
+        elif platform_module.system() == "Darwin":
+            import subprocess
+            result = subprocess.run(
+                ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                if "IOPlatformUUID" in line:
+                    machine_id = line.split('"')[-2] if '"' in line else ""
+                    break
+    except Exception:
+        pass
+    if not machine_id:
+        machine_id = str(uuid.getnode())
+    fingerprint_raw = f"{machine_id}:{hostname}:{platform_module.system()}"
+    fingerprint_hash = hashlib.sha256(fingerprint_raw.encode()).hexdigest()
+    return {
+        "fingerprint": fingerprint_hash,
+        "hostname": hostname,
+        "platform": _platform(),
+        "machine_id_source": "uuid" if machine_id != str(uuid.getnode()) else "mac",
+    }
+
+
+def api_machine_login(*, expiry_days: int = 30, base_url: str = "") -> dict[str, Any]:
+    """Register via hardware fingerprint — zero user interaction."""
+    config = load_config()
+    fp = _machine_fingerprint()
+    payload = {
+        "fingerprint": fp["fingerprint"],
+        "hostname": fp["hostname"],
+        "platform": fp["platform"],
+        "installation_id": config["installation_id"],
+        "client_version": _client_version(),
+        "expiry_days": max(1, min(365, int(expiry_days))),
+    }
+    base = base_url or DEFAULT_API_BASE_URL
+    for candidate in _endpoint_candidates(base):
+        try:
+            data = json.dumps(payload).encode("utf-8")
+            request = urllib_request.Request(
+                f"{candidate}/v1/machine-login",
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "SAGE-CLI/0.1",
+                },
+                method="POST",
+            )
+            with urllib_request.urlopen(request, timeout=15) as resp:
+                body = resp.read().decode("utf-8")
+            response = json.loads(body or "{}")
+        except urllib_error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+                parsed = json.loads(body or "{}")
+                detail = parsed.get("detail") or parsed.get("error") or body
+            except Exception:
+                detail = str(exc)
+            raise RuntimeError(f"Machine login failed: HTTP {exc.code}: {detail}") from exc
+        except OSError as exc:
+            continue
+
+        api_key = str(response.get("api_key") or "")
+        key_id = str(response.get("key_id") or "")
+        if not api_key or not key_id:
+            raise RuntimeError("SAGE API did not return an API key.")
+
+        config["api_base_url"] = candidate
+        config["api_endpoint"] = f"{candidate}/v1/telemetry"
+        config["api_key_id"] = key_id
+        storage = _store_api_key(config, api_key, key_id)
+        config["api_profile"] = {
+            "display_name": fp["hostname"],
+            "username": fp["fingerprint"][:12],
+            "public_profile": False,
+            "scope": "machine",
+        }
+        config["telemetry_level"] = 1
+        save_config(config)
+        return {
+            "ok": True,
+            "key_id": key_id,
+            "username": fp["hostname"],
+            "expires_at": response.get("expires_at", ""),
+            "method": "hardware",
+            "storage": storage,
+        }
+    raise RuntimeError("Could not reach SAGE API server.")
+
+
 def _agent_client(command: str, caller: str = "") -> str:
     first = (str(command or "").strip().split(maxsplit=1) or [""])[0]
     name = Path(first).name.lower()

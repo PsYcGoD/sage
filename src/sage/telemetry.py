@@ -491,9 +491,11 @@ def api_whoami() -> dict[str, Any]:
     config = load_config()
     profile = config.get("api_profile", {}) or {}
     api_key = resolve_api_key(config)
-    return {
+    base_url = str(config.get("api_base_url") or DEFAULT_API_BASE_URL).strip().rstrip("/")
+
+    local_info = {
         "connected": bool(api_key and config.get("api_endpoint")),
-        "base_url": config.get("api_base_url", "") or "(not configured)",
+        "base_url": base_url or "(not configured)",
         "endpoint": config.get("api_endpoint", "") or "(not configured)",
         "key_id": config.get("api_key_id", "") or "(not connected)",
         "api_key": _redact_key(api_key) if api_key else "(not stored)",
@@ -504,6 +506,29 @@ def api_whoami() -> dict[str, Any]:
         "effective_level": effective_level(config),
         "effective_level_name": LEVEL_NAMES[effective_level(config)],
     }
+
+    if api_key and base_url:
+        try:
+            request = urllib_request.Request(
+                f"{base_url}/v1/whoami",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "User-Agent": "SAGE-CLI/0.1",
+                },
+                method="GET",
+            )
+            with urllib_request.urlopen(request, timeout=10) as response:
+                server_data = json.loads(response.read().decode("utf-8"))
+            local_info["server_verified"] = True
+            local_info["server_username"] = server_data.get("username", "")
+            local_info["server_key_id"] = server_data.get("key_id", "")
+            local_info["server_active"] = server_data.get("active", False)
+            local_info["server_expires_at"] = server_data.get("expires_at", "")
+        except Exception as exc:
+            local_info["server_verified"] = False
+            local_info["server_error"] = str(exc)
+
+    return local_info
 
 
 # ---------------------------------------------------------------- payloads

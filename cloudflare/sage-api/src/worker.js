@@ -10,6 +10,7 @@ const MODEL_SAVINGS_PROFILES = [
   { model: "claude-sonnet", label: "Claude Sonnet", provider: "Anthropic", input_rate_per_million: 3.0 },
   { model: "codex", label: "OpenAI Codex", provider: "OpenAI", input_rate_per_million: 1.5 },
   { model: "gemini-pro", label: "Gemini 2.5 Pro", provider: "Google", input_rate_per_million: 1.25 },
+  { model: "ollama", label: "Ollama", provider: "Local", input_rate_per_million: 0.0 },
 ];
 
 const AGENT_SAVINGS_PROFILES = [
@@ -21,6 +22,7 @@ const AGENT_SAVINGS_PROFILES = [
   { agent: "windsurf", label: "Windsurf", provider: "Codeium", model: "Claude Sonnet", input_rate_per_million: 3.0 },
   { agent: "aider", label: "Aider", provider: "Aider", model: "Claude Sonnet", input_rate_per_million: 3.0 },
   { agent: "copilot", label: "GitHub Copilot coding agent", provider: "GitHub", model: "GitHub Copilot", input_rate_per_million: 0.0 },
+  { agent: "ollama", label: "Ollama", provider: "Local", model: "Local Ollama model", input_rate_per_million: 0.0 },
 ];
 
 function getCorsHeaders(origin) {
@@ -555,7 +557,12 @@ function sanitizeSavingsByModel(rows, savedTokens) {
         : roundMoney(row?.estimated_savings_usd),
     };
   }).filter((row) => row.model || row.label);
-  return sanitized.length ? sanitized : fallback;
+  if (!sanitized.length) return fallback;
+  const seen = new Set(sanitized.map((row) => row.model));
+  for (const row of fallback) {
+    if (!seen.has(row.model)) sanitized.push(row);
+  }
+  return sanitized;
 }
 
 function sanitizeSavingsByAgent(rows) {
@@ -570,7 +577,12 @@ function sanitizeSavingsByAgent(rows) {
     input_rate_per_million: roundMoney(row?.input_rate_per_million),
     estimated_savings_usd: roundMoney(row?.estimated_savings_usd),
   })).filter((row) => (row.agent || row.label) && row.model);
-  return sanitized.length ? sanitized : fallback;
+  if (!sanitized.length) return fallback;
+  const seen = new Set(sanitized.map((row) => row.agent));
+  for (const row of fallback) {
+    if (!seen.has(row.agent)) sanitized.push(row);
+  }
+  return sanitized;
 }
 
 function totalModelSavings(rows) {
@@ -1421,6 +1433,25 @@ async function handleTelemetry(env, request) {
   return json({ ok: true, event_id: eventId, duplicate: false });
 }
 
+async function getAggregateRunTotals(env) {
+  const row = await env.DB.prepare(
+    `SELECT
+      COALESCE(SUM(runs), 0) AS total_runs,
+      COALESCE(SUM(successful_runs), 0) AS successful_runs,
+      COALESCE(SUM(failed_runs), 0) AS failed_runs
+     FROM aggregate_daily`
+  ).first();
+  const totalRuns = Number(row?.total_runs || 0);
+  const successful = Number(row?.successful_runs || 0);
+  const failed = Number(row?.failed_runs || Math.max(0, totalRuns - successful));
+  return {
+    total_runs: totalRuns,
+    successful_runs: successful,
+    failed_runs: failed,
+    success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
+  };
+}
+
 async function handleProof(env) {
   const snapshot = await env.DB.prepare(
     `SELECT payload_json FROM public_proof_snapshots ORDER BY created_at DESC LIMIT 1`
@@ -1440,6 +1471,13 @@ async function handleProof(env) {
       ).bind(liveNow, new Date(Date.now() - 86400000).toISOString()).first();
       parsed.connected_users = Number(liveCounts?.connected_users || 0);
       parsed.active_users_24h = Number(liveCounts?.active_users_24h || 0);
+      const aggregateRuns = await getAggregateRunTotals(env);
+      if (aggregateRuns.total_runs > 0) {
+        parsed.totals = {
+          ...(parsed.totals || {}),
+          ...aggregateRuns,
+        };
+      }
       return json(parsed);
     } catch (_exc) {
       // Fall back to event aggregates if the stored snapshot is invalid.

@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.4.3
+
+### Fixed
+
+- Public proof success rate now uses real SAGE run counts instead of token-usage rows, fixing bogus ratios like `15/7,502 successful`.
+
+### Added
+
+- Ollama is now included in public model and agent savings rows.
+- `sage run -- ollama ...` is attributed to the Ollama row in public proof snapshots.
+
 ## v2.4.2
 
 ### Changed

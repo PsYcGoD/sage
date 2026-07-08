@@ -61,6 +61,9 @@ AGENT_COMMANDS = {
     "aider": "aider",
     "aider.exe": "aider",
     "aider.cmd": "aider",
+    "ollama": "ollama",
+    "ollama.exe": "ollama",
+    "ollama.cmd": "ollama",
     "gh": "copilot",
     "gh.exe": "copilot",
 }
@@ -1053,7 +1056,7 @@ def build_proof_snapshot() -> dict[str, Any]:
     original = int(token_stats["estimated_tokens"] or 0)
     compressed = int(token_stats["compressed_tokens"] or 0)
     saved = int(token_stats["saved_tokens"] or 0)
-    total_runs = int(token_stats["total_commands"] or 0)
+    total_runs = int(runs["total_runs"] or 0)
     successful = min(int(runs["successful_runs"] or 0), total_runs)
     prediction_stats = build_prediction_stats()
     savings_by_model = build_model_savings(saved)

@@ -226,6 +226,60 @@ def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
     assert "stdout" not in snapshot
 
 
+def test_public_proof_success_rate_uses_run_count_not_token_rows(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    from sage.context.tracker import TokenTracker
+    from sage.store import save_run
+    from sage import telemetry
+
+    run_id = save_run(
+        project="proof-test",
+        command="python -m pytest",
+        exit_code=0,
+        duration_ms=25,
+        stdout="ok",
+        stderr="",
+        summary="ok",
+    )
+    tracker = TokenTracker()
+    tracker.record_usage(run_id, estimated_tokens=1_000, compressed_tokens=500)
+    tracker.record_usage(run_id, estimated_tokens=800, compressed_tokens=300)
+
+    totals = telemetry.build_proof_snapshot()["totals"]
+
+    assert totals["total_runs"] == 1
+    assert totals["successful_runs"] == 1
+    assert totals["success_rate"] == 100
+
+
+def test_public_proof_snapshot_attributes_ollama(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    from sage.context.tracker import TokenTracker
+    from sage.store import save_run
+    from sage import telemetry
+
+    run_id = save_run(
+        project="proof-test",
+        command="ollama run llama3.2",
+        exit_code=0,
+        duration_ms=25,
+        stdout="ok",
+        stderr="",
+        summary="ok",
+    )
+    TokenTracker().record_usage(run_id, estimated_tokens=1_000, compressed_tokens=400)
+
+    totals = telemetry.build_proof_snapshot()["totals"]
+    agent_rows = {row["agent"]: row for row in totals["savings_by_agent"]}
+    model_rows = {row["model"]: row for row in totals["savings_by_model"]}
+
+    assert agent_rows["ollama"]["provider"] == "Local"
+    assert agent_rows["ollama"]["saved_tokens"] == 600
+    assert model_rows["ollama"]["label"] == "Ollama"
+
+
 def test_strictest_policy_wins(isolated_telemetry):
     t = isolated_telemetry
     t.set_level(3)

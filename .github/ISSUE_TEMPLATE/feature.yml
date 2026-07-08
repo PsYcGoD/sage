@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a scoped SAGE CLI improvement.
+title: "cli: "
+labels: ["cli", "help wanted"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What developer workflow should this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Keep the scope small and reviewable.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true

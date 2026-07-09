@@ -42,9 +42,17 @@ def test_readme_public_positioning():
 
 def test_public_worker_dashboard_exposes_aggregate_savings():
     worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
+    wrangler = Path("cloudflare/sage-api/wrangler.toml").read_text(encoding="utf-8")
+    api_readme = Path("cloudflare/sage-api/README.md").read_text(encoding="utf-8")
 
     assert "Estimated Savings" in worker
     assert "Estimated savings by model and AI agent" in worker
+    assert 'url.pathname === "/" || url.pathname === "/dashboard"' in worker
+    assert 'url.pathname === "/health"' in worker
+    assert "workers_dev = false" in wrangler
+    assert "Workers.dev fallback | Disabled" in api_readme
+    assert "sage-api.pascoaldsouza28.workers.dev" not in worker
+    assert "sage-api.pascoaldsouza28.workers.dev" not in api_readme
     assert "Money Saved by each AI Agent" not in worker
     assert "agent-savings" not in worker
     assert "renderAgentSavings" not in worker

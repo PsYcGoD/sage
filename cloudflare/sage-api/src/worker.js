@@ -3,7 +3,6 @@ const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
   "http://127.0.0.1:8765",           // Alternative localhost
   "https://sage.api.marketingstudios.in",  // Public dashboard
-  "https://sage-api.pascoaldsouza28.workers.dev", // Workers.dev fallback
 ];
 
 const MODEL_SAVINGS_PROFILES = [
@@ -1814,8 +1813,8 @@ async function route(request, env) {
   const corsHeaders = origin ? getCorsHeaders(origin) : {};
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
-  // Serve public proof dashboard HTML
-  if (request.method === "GET" && url.pathname === "/dashboard") {
+  // Serve public proof dashboard HTML on the custom domain root and dashboard path.
+  if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/dashboard")) {
     await trackDashboardVisit(env, request);
     return new Response(PUBLIC_PROOF_DASHBOARD_HTML, {
       status: 200,
@@ -1827,7 +1826,7 @@ async function route(request, env) {
     });
   }
 
-  if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
+  if (request.method === "GET" && url.pathname === "/health") {
     return json({ ok: true, service: "sage-api", status: "healthy", generated_at: nowIso() });
   }
   if (request.method === "POST" && url.pathname === "/v1/keys") return handleCreateKey(env, request);

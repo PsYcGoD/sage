@@ -7,6 +7,7 @@ const ALLOWED_ORIGINS = [
 
 const MODEL_SAVINGS_PROFILES = [
   { model: "claude-sonnet", label: "Claude Sonnet", provider: "Anthropic", input_rate_per_million: 3.0 },
+  { model: "claude-opus", label: "Claude Opus", provider: "Anthropic", input_rate_per_million: 5.0 },
   { model: "codex", label: "OpenAI Codex", provider: "OpenAI", input_rate_per_million: 1.5 },
   { model: "gemini-pro", label: "Gemini 2.5 Pro", provider: "Google", input_rate_per_million: 1.25 },
 ];
@@ -25,6 +26,10 @@ const AGENT_SAVINGS_PROFILES = [
 const AGENT_ALIASES = {
   claude: "claude-code",
   "claude-code": "claude-code",
+  opus: "claude-code",
+  "claude-opus": "claude-code",
+  sonnet: "claude-code",
+  "claude-sonnet": "claude-code",
   codex: "codex",
   sage: "sage",
   opencode: "opencode",
@@ -1405,6 +1410,8 @@ async function handleTelemetry(env, request) {
         platform,
         caller: textValue(body.caller, 80),
         agent_client: textValue(body.agent_client, 80),
+        model: textValue(body.model || body.model_name || metrics.model || metrics.model_name, 120),
+        model_provider: textValue(body.model_provider || body.provider || metrics.model_provider || metrics.provider, 80),
       })
     ),
     env.DB.prepare(
@@ -1471,6 +1478,16 @@ async function getAggregateRunTotals(env) {
      FROM telemetry_events
      WHERE prediction_score IS NOT NULL`
   ).first();
+  const activity = await env.DB.prepare(
+    `SELECT
+      COUNT(*) AS telemetry_events,
+      COALESCE(SUM(agent_count), 0) AS agent_count_sum,
+      COUNT(DISTINCT COALESCE(NULLIF(json_extract(payload_json, '$.agent_client'), ''), NULLIF(command_family, ''), NULLIF(command_kind, ''), 'unknown')) AS total_agents,
+      COUNT(DISTINCT command_family) AS command_families,
+      COUNT(DISTINCT command_kind) AS command_kinds,
+      COUNT(CASE WHEN prediction_score IS NOT NULL THEN 1 END) AS prediction_rows
+     FROM telemetry_events`
+  ).first();
   const agentUsageRows = await env.DB.prepare(
     `SELECT
       COALESCE(NULLIF(json_extract(payload_json, '$.agent_client'), ''), command_family, command_kind, '') AS agent_client,
@@ -1490,6 +1507,11 @@ async function getAggregateRunTotals(env) {
   const original = Number(row?.original_tokens || 0);
   const compressed = Number(row?.compressed_tokens || 0);
   const saved = Number(row?.saved_tokens || 0);
+  const telemetryEvents = Number(activity?.telemetry_events || 0);
+  const agentCountSum = Number(activity?.agent_count_sum || 0);
+  const commandFamilies = Number(activity?.command_families || 0);
+  const commandKinds = Number(activity?.command_kinds || 0);
+  const predictionRows = Number(activity?.prediction_rows || 0);
   const savingsByModel = buildSavingsByModel(saved);
   const savingsByAgent = buildSavingsByAgent(agentUsage);
   return {
@@ -1511,6 +1533,10 @@ async function getAggregateRunTotals(env) {
           ? null
           : Number(Number(prediction.avg_prediction_score).toFixed(4)),
     },
+    total_agents: Number(activity?.total_agents || 0),
+    agent_runs_completed: telemetryEvents + agentCountSum,
+    ml_training_examples: telemetryEvents,
+    agent_quality_metrics: commandFamilies + commandKinds + (predictionRows > 0 ? 1 : 0),
   };
 }
 
@@ -1541,6 +1567,9 @@ function mergeSnapshotWithAggregateTotals(snapshotTotals = {}, aggregateTotals =
   const aggregatePrediction = aggregateTotals.failure_prediction_stats || {};
   if (Number(aggregatePrediction.events_with_prediction || 0) > Number(snapshotPrediction.events_with_prediction || 0)) {
     merged.failure_prediction_stats = aggregatePrediction;
+  }
+  for (const field of ["total_agents", "agent_runs_completed", "ml_training_examples", "agent_quality_metrics"]) {
+    if (Number(aggregateTotals[field] || 0) > 0) merged[field] = aggregateTotals[field];
   }
   return merged;
 }

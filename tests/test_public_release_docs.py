@@ -70,6 +70,10 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "agent_runs_completed" in worker
     assert "ml_training_examples" in worker
     assert "agent_quality_metrics" in worker
+    assert "agent_count_sum" in worker
+    assert "telemetry_events" in worker
+    assert "model_provider" in worker
+    assert "Claude Opus" in worker
     assert "sanitizeSavingsByAgent" in worker
     assert "mergeSavingsByAgent" in worker
     assert "json_extract(payload_json, '$.agent_client')" in worker

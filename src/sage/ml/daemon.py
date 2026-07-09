@@ -19,6 +19,7 @@ DAEMON_PORT = 19472
 _DATA_DIR = Path(os.environ.get("SAGE_DATA_DIR", "")) if os.environ.get("SAGE_DATA_DIR") else Path.home() / ".sage"
 PID_FILE = _DATA_DIR / "ml-daemon.pid"
 MAX_REQUEST_SIZE = 8192
+IDLE_TIMEOUT = 10  # seconds before daemon sleeps
 
 
 class MLDaemon:
@@ -29,6 +30,9 @@ class MLDaemon:
         self._running = False
         self._predictor = None
         self._ready = threading.Event()
+        self._last_activity = time.time()
+        self._sleeping = False
+        self._sleep_lock = threading.Lock()
 
     def start(self):
         """Start the daemon — blocks until shutdown."""
@@ -39,6 +43,10 @@ class MLDaemon:
         # Warm the model in a thread so we can accept connections immediately
         warm_thread = threading.Thread(target=self._warm_model, daemon=True)
         warm_thread.start()
+
+        # Idle watchdog — puts daemon to sleep after IDLE_TIMEOUT
+        idle_thread = threading.Thread(target=self._idle_watchdog, daemon=True)
+        idle_thread.start()
 
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -90,8 +98,40 @@ class MLDaemon:
             self._predictor._v2_failed = True
             logger.info(f"V2 warmup failed ({e}), staying in heuristics mode")
 
+    def _idle_watchdog(self):
+        """Monitor activity and sleep the daemon after IDLE_TIMEOUT of inactivity."""
+        while self._running:
+            time.sleep(1)
+            if self._sleeping:
+                continue
+            elapsed = time.time() - self._last_activity
+            if elapsed >= IDLE_TIMEOUT:
+                self._sleep()
+
+    def _sleep(self):
+        """Unload the model and enter sleep state."""
+        with self._sleep_lock:
+            if self._sleeping:
+                return
+            self._sleeping = True
+            self._ready.clear()
+            self._predictor = None
+            logger.info("ML daemon sleeping (idle timeout)")
+
+    def _wake(self):
+        """Reload the model and resume serving predictions."""
+        with self._sleep_lock:
+            if not self._sleeping:
+                return
+            self._sleeping = False
+            logger.info("ML daemon waking up")
+        self._warm_model()
+
     def _handle_client(self, conn: socket.socket):
         """Handle a single prediction request."""
+        self._last_activity = time.time()
+        if self._sleeping:
+            self._wake()
         conn.settimeout(5.0)
         try:
             data = conn.recv(MAX_REQUEST_SIZE)
@@ -101,7 +141,7 @@ class MLDaemon:
             command = request.get("command", "")
 
             if request.get("action") == "health":
-                response = {"ok": True, "ready": self._ready.is_set(), "pid": os.getpid()}
+                response = {"ok": True, "ready": self._ready.is_set(), "pid": os.getpid(), "sleeping": self._sleeping}
             elif request.get("action") == "shutdown":
                 self._running = False
                 response = {"ok": True, "action": "shutdown"}
@@ -187,14 +227,18 @@ def is_daemon_running() -> bool:
 
 def _check_socket() -> bool:
     """Quick check if daemon port is responding."""
+    return _check_socket_status().get("ok", False)
+
+
+def _check_socket_status() -> dict:
+    """Health check returning the full status dict."""
     try:
         with socket.create_connection((DAEMON_HOST, DAEMON_PORT), timeout=0.5) as s:
             s.sendall(json.dumps({"action": "health"}).encode("utf-8"))
             data = s.recv(1024)
-            result = json.loads(data.decode("utf-8"))
-            return result.get("ok", False)
+            return json.loads(data.decode("utf-8"))
     except (OSError, json.JSONDecodeError):
-        return False
+        return {}
 
 
 def start_daemon_background() -> bool:

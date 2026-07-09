@@ -1664,9 +1664,11 @@ def serve_command(args) -> int:
 
     if action == "status":
         if is_daemon_running():
-            from .ml.daemon import PID_FILE
+            from .ml.daemon import PID_FILE, _check_socket_status
             pid = PID_FILE.read_text().strip() if PID_FILE.exists() else "?"
-            print(f"[sage-ml] daemon running (pid {pid})")
+            status = _check_socket_status()
+            state = "sleeping" if status.get("sleeping") else "active"
+            print(f"[sage-ml] daemon running (pid {pid}, {state})")
         else:
             print("[sage-ml] daemon is not running.")
         return 0

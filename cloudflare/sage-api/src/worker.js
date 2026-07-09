@@ -260,7 +260,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     }
     function renderModelSavings(rows) {
       const body = document.getElementById("model-savings-rows");
-      const safeRows = Array.isArray(rows) ? rows : [];
+      const safeRows = (Array.isArray(rows) ? rows : []).filter((row) => Number(row.estimated_savings_usd || 0) >= 0.005);
       if (!safeRows.length) {
         body.innerHTML = '<tr><td colspan="3">No aggregate savings yet.</td></tr>';
         return;

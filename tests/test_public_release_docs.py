@@ -56,6 +56,7 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
     assert "Money Saved by each AI Agent" not in worker
     assert "agent-savings" not in worker
     assert "renderAgentSavings" not in worker
+    assert "Number(row.estimated_savings_usd || 0) >= 0.005" in worker
     assert "compressionSavingsRows" in worker
     assert "Codex" in worker
     assert "SAGE" in worker

@@ -223,7 +223,7 @@ wrangler tail
 
 1. ✅ Test connection: `sage connect`
 2. ✅ Test command: `sage run -- pytest`
-3. ✅ Check dashboard: `https://sage.api.marketingstudios.in/dashboard`
+3. ✅ Check dashboard: `https://sage.api.marketingstudios.in/`
 4. ✅ Monitor anomalies: Check Cloudflare D1 console
 
 ---

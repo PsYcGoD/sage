@@ -94,6 +94,14 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     }
     .badge.green { color: #bbf7d0; background: rgba(22,163,74,.16); border-color: rgba(74,222,128,.35); }
     .owner { margin-top: 18px; color: #c4b5fd; font-weight: 800; }
+    .proof-link {
+      color: #bbf7d0;
+      font-weight: 900;
+      text-decoration: underline;
+      text-decoration-color: rgba(74,222,128,.7);
+      text-underline-offset: 3px;
+    }
+    .proof-link:focus-visible { outline: 2px solid #86efac; outline-offset: 4px; border-radius: 8px; }
     .hero-stats {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -158,6 +166,58 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       margin-bottom: 12px;
     }
     .error { padding: 18px; border-radius: 14px; background: rgba(127,29,29,.35); border: 1px solid rgba(248,113,113,.45); }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(2,6,23,.78);
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      width: min(980px, 100%);
+      max-height: min(86vh, 920px);
+      overflow: auto;
+      border: 1px solid rgba(148,163,184,.28);
+      border-radius: 16px;
+      background: #0f172a;
+      box-shadow: 0 30px 90px rgba(0,0,0,.48);
+    }
+    .modal-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 22px;
+      border-bottom: 1px solid rgba(148,163,184,.18);
+      background: rgba(15,23,42,.98);
+    }
+    .modal-title { font-size: 1.4rem; font-weight: 900; }
+    .modal-body { padding: 22px; }
+    .proof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+    .proof-stat { padding: 16px; border: 1px solid rgba(148,163,184,.18); border-radius: 12px; background: rgba(2,6,23,.38); }
+    .proof-stat strong { display: block; margin-top: 8px; color: #a7f3d0; font-size: 1.55rem; }
+    .proof-code {
+      margin-top: 14px;
+      padding: 16px;
+      overflow-x: auto;
+      white-space: pre;
+      color: #dbeafe;
+      border-radius: 12px;
+      background: rgba(2,6,23,.64);
+      border: 1px solid rgba(148,163,184,.18);
+      font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+      font-size: .88rem;
+      line-height: 1.45;
+    }
+    .status-ok { color: #86efac; font-weight: 900; }
+    .status-pending { color: #fde68a; font-weight: 900; }
     footer { text-align: center; color: #94a3b8; line-height: 1.7; padding: 22px 0; }
     footer a { color: #a5b4fc; text-decoration: none; font-weight: 800; }
     @media (max-width: 1180px) { .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -175,7 +235,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         <span class="badge">Verified Aggregate Proof</span>
         <a class="badge" href="https://github.com/PsYcGoD/sage">GitHub Repository</a>
       </div>
-      <div class="owner">Built by PsYc+GoD AI &amp; ML</div>
+      <div class="owner">Built by PsYc+GoD AI &amp; ML - <a class="proof-link" href="#ab-proof" id="ab-proof-link"><strong>Actual A/B test ran and got 99.86% reduction by the Provider</strong></a></div>
     </header>
 
     <main id="dashboard-content" style="display:none">
@@ -244,6 +304,69 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
 
     <div id="loading-state" class="panel">Loading live SAGE proof data...</div>
     <div id="error-state" style="display:none"></div>
+    <div class="modal-backdrop" id="ab-proof-modal" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ab-proof-title">
+        <div class="modal-head">
+          <div>
+            <div class="label">Provider-Confirmed A/B Proof</div>
+            <div class="modal-title" id="ab-proof-title">Actual model input tokens before and after SAGE</div>
+          </div>
+          <button type="button" id="ab-proof-close" aria-label="Close A/B proof">Close</button>
+        </div>
+        <div class="modal-body">
+          <p class="description">
+            This test sent the same synthetic terminal output twice: once raw, once after SAGE compression.
+            The provider returned actual input-token usage for both calls.
+          </p>
+          <div class="proof-grid">
+            <div class="proof-stat"><span class="label">Raw Provider Input</span><strong>64,833 tokens</strong></div>
+            <div class="proof-stat"><span class="label">With SAGE Input</span><strong>91 tokens</strong></div>
+            <div class="proof-stat"><span class="label">Provider Tokens Saved</span><strong>64,742</strong></div>
+            <div class="proof-stat"><span class="label">Reduction</span><strong>99.86%</strong></div>
+          </div>
+          <p class="description">
+            <span class="status-ok">Confirmed:</span> Provider A/B proof saved 64,742 input tokens on one synthetic terminal-output test.
+            At $15.00 per 1M input tokens, that single test equals $0.97113 in input-token value.
+          </p>
+          <pre class="proof-code">Provider A/B output
+{
+  "provider": "aws-bedrock",
+  "region": "us-east-1",
+  "model_id": "us.anthropic.claude-opus-4-6-v1",
+  "price_per_million_input_usd": 15.0,
+  "sage_local_raw_tokens": 48610,
+  "sage_local_compressed_tokens": 55,
+  "sage_local_saved_tokens": 48555,
+  "raw_provider": {
+    "label": "without_sage_raw_output",
+    "input_tokens": 64833,
+    "output_tokens": 4,
+    "total_tokens": 64837,
+    "response_text": "OK",
+    "request_id": "6e247fe4-1748-4f84-8da1-21780d02a2b4"
+  },
+  "with_sage_provider": {
+    "label": "with_sage_compressed_output",
+    "input_tokens": 91,
+    "output_tokens": 4,
+    "total_tokens": 95,
+    "response_text": "OK",
+    "request_id": "02279807-e86a-4b4e-97f5-863568b9e163"
+  },
+  "provider_input_tokens_saved": 64742,
+  "provider_input_reduction_percent": 99.86,
+  "estimated_input_savings_usd": 0.97113
+}</pre>
+          <pre class="proof-code">Provider A/B code used
+raw_text = synthetic_terminal_output()
+compression = ContextCompressor().compress_with_result(raw_text)
+raw = call_provider("without_sage_raw_output", raw_text)
+with_sage = call_provider("with_sage_compressed_output", compression.compressed_text)
+saved = raw["input_tokens"] - with_sage["input_tokens"]
+saved_usd = saved / 1_000_000 * 15.0</pre>
+        </div>
+      </div>
+    </div>
     <footer>
       <strong>S.A.G.E V2.0</strong> - Smart Agent Guidance Engine<br>
       Privacy-first token compression, ML prediction, and active AI agent orchestration by PsYc+GoD AI &amp; ML<br>
@@ -338,7 +461,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         document.getElementById("ml-examples").textContent = Number(totals.ml_training_examples || 0).toLocaleString();
         document.getElementById("quality-metrics").textContent = Number(totals.agent_quality_metrics || 0).toLocaleString();
         
-        document.getElementById("last-updated").textContent = new Date(data.generated_at).toLocaleString();
+        document.getElementById("last-updated").textContent = new Date(data.data_updated_at || data.generated_at).toLocaleString();
         loading.style.display = "none";
         content.style.display = "block";
       } catch (exc) {
@@ -378,6 +501,36 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         keepalive: true,
       }).catch(() => {});
     }
+    function openAbProof(event) {
+      if (event) event.preventDefault();
+      const modal = document.getElementById("ab-proof-modal");
+      if (!modal) return;
+      modal.classList.add("open");
+      modal.setAttribute("aria-hidden", "false");
+      const close = document.getElementById("ab-proof-close");
+      if (close) close.focus();
+    }
+    function closeAbProof() {
+      const modal = document.getElementById("ab-proof-modal");
+      if (!modal) return;
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden", "true");
+      const trigger = document.getElementById("ab-proof-link");
+      if (trigger) trigger.focus();
+    }
+    const proofLink = document.getElementById("ab-proof-link");
+    const proofClose = document.getElementById("ab-proof-close");
+    const proofModal = document.getElementById("ab-proof-modal");
+    if (proofLink) proofLink.addEventListener("click", openAbProof);
+    if (proofClose) proofClose.addEventListener("click", closeAbProof);
+    if (proofModal) {
+      proofModal.addEventListener("click", (event) => {
+        if (event.target === proofModal) closeAbProof();
+      });
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeAbProof();
+    });
     document.addEventListener("click", trackDashboardClick, { passive: true });
     loadProofData();
     setInterval(loadProofData, 10000);
@@ -392,6 +545,9 @@ function json(payload, status = 200, origin = null) {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
       ...corsHeaders,
     },
   });
@@ -403,6 +559,27 @@ function error(message, status = 500, detail = "") {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function maxIso(...values) {
+  let latest = "";
+  let latestMs = 0;
+  for (const value of values) {
+    if (!value) continue;
+    const ms = new Date(value).getTime();
+    if (Number.isFinite(ms) && ms > latestMs) {
+      latestMs = ms;
+      latest = value;
+    }
+  }
+  return latest;
+}
+
+async function getLatestTelemetryAt(env) {
+  const row = await env.DB.prepare(
+    `SELECT MAX(received_at) AS latest_telemetry_at FROM telemetry_events`
+  ).first();
+  return row?.latest_telemetry_at || "";
 }
 
 function randomHex(bytes = 16) {
@@ -1598,13 +1775,19 @@ function mergeSnapshotWithPreviousTotals(incoming, previous) {
 
 async function handleProof(env) {
   const snapshot = await env.DB.prepare(
-    `SELECT payload_json FROM public_proof_snapshots ORDER BY created_at DESC LIMIT 1`
+    `SELECT created_at, payload_json FROM public_proof_snapshots ORDER BY created_at DESC LIMIT 1`
   ).first();
   if (snapshot?.payload_json) {
     try {
       const parsed = normalizeProofPayload(JSON.parse(snapshot.payload_json));
-      parsed.generated_at = nowIso();
-      const liveNow = nowIso();
+      const responseGeneratedAt = nowIso();
+      const latestTelemetryAt = await getLatestTelemetryAt(env);
+      const snapshotGeneratedAt = parsed.generated_at || snapshot.created_at || "";
+      parsed.generated_at = responseGeneratedAt;
+      parsed.response_generated_at = responseGeneratedAt;
+      parsed.snapshot_generated_at = snapshotGeneratedAt;
+      parsed.data_updated_at = maxIso(latestTelemetryAt, snapshot.created_at, snapshotGeneratedAt) || responseGeneratedAt;
+      const liveNow = responseGeneratedAt;
       const liveCounts = await env.DB.prepare(
         `SELECT
           COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
@@ -1643,6 +1826,7 @@ async function handleProof(env) {
      WHERE prediction_score IS NOT NULL`
   ).first();
   const now = nowIso();
+  const latestTelemetryAt = await getLatestTelemetryAt(env);
   const userCounts = await env.DB.prepare(
     `SELECT
       COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
@@ -1674,7 +1858,9 @@ async function handleProof(env) {
   const savingsByAgent = buildSavingsByAgent();
   return json({
     ok: true,
-    generated_at: nowIso(),
+    generated_at: now,
+    response_generated_at: now,
+    data_updated_at: latestTelemetryAt || now,
     public_fields: [
       "total_runs",
       "successful_runs",
@@ -1833,7 +2019,7 @@ async function handleProofSnapshot(env, request) {
      VALUES ('latest', ?, ?)
      ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, payload_json = excluded.payload_json`
   ).bind(snapshot.generated_at, JSON.stringify(snapshot)).run();
-  return json({ ok: true, snapshot: snapshot.totals, generated_at: snapshot.generated_at });
+  return json({ ok: true, snapshot: snapshot.totals, generated_at: snapshot.generated_at, data_updated_at: snapshot.generated_at });
 }
 
 async function route(request, env) {
@@ -1849,7 +2035,9 @@ async function route(request, env) {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
         ...corsHeaders,
       },
     });

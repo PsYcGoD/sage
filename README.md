@@ -1,4 +1,4 @@
-# SAGE — Stop AI Coding Agents From Burning Tokens
+# SAGE - Stop AI Coding Agents From Burning Tokens
 
 [![CI](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml/badge.svg)](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/PsYcGoD/sage/blob/main/pyproject.toml)
@@ -13,12 +13,12 @@ SAGE routes terminal commands through `sage run --`, compresses noisy output bef
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 6,288 |
-| Tokens processed | 16.7M |
-| Tokens saved | 15.3M |
-| Compression rate | 91.47% |
-| Estimated savings | $45.94 |
-| Success rate | 99.5% |
+| Commands processed | 10,574 |
+| Tokens processed | 264.5M |
+| Tokens saved | 256.1M |
+| Compression rate | 96.8% |
+| Estimated savings | $2,753.34 |
+| Success rate | 94.6% |
 
 Live dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
 
@@ -27,21 +27,26 @@ Live dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios
 ```bash
 pip install psycgod-sage
 sage --version
-sage install
 ```
 
 Package name: `psycgod-sage` | CLI command: `sage`
 
-Run `sage install` once per machine to install mandatory SAGE instructions, MCP registration, and Claude Code hook settings for supported local AI agents. Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
+`pip install psycgod-sage` installs the SAGE Python package and the `sage` command.
+
+`sage install` is a separate one-time machine setup step. It installs mandatory SAGE instructions, MCP registration, and Claude Code hook settings for supported local AI agents. Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
+
+```bash
+sage install
+sage init
+```
 
 ### First Run
 
 On first use, SAGE walks you through setup:
 
 ```
-1. Install ML V2 dependencies? [y/N]     ← neural predictions (optional, ~2 GB)
-2. Local AI-agent enforcement             ← `sage install` / `sage init`
-3. Hardware auth / GitHub OAuth           ← optional public proof sync
+1. Install ML V2 dependencies? [y/N]     - neural predictions (optional, ~2 GB)
+2. Local AI-agent enforcement            - `sage install` / `sage init`
 ```
 
 - Type `y` for ML V2: torch + sentence-transformers + faiss (76% prediction accuracy)
@@ -137,7 +142,7 @@ sage dashboard start              # Local proof dashboard
 | `sage mcp install` | ![mcp install](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-mcp-install.svg) |
 | Dashboard | ![dashboard](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-live-dashboard.png) |
 
-## ML — Learns From Your Usage
+## ML - Learns From Your Usage
 
 SAGE ML trains on your local command history. More commands = better predictions.
 
@@ -145,7 +150,7 @@ SAGE ML trains on your local command history. More commands = better predictions
 
 Scikit-learn based failure prediction. Trains with `sage ml train`. Improves as your command history grows. Lightweight, no GPU needed.
 
-### ML V2 — Neural Command Center (optional)
+### ML V2 - Neural Command Center (optional)
 
 > Install: `pip install psycgod-sage[ml]` or `sage ml setup`
 

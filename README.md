@@ -24,7 +24,7 @@ Live dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios
 
 ### Proof at Full Context
 
-SAGE is built for the moment when an AI agent is already near the edge of its context window. In a real Codex desktop session, SAGE was still routing commands while the agent showed a full `200.0k / 200.0k (100%)` context window.
+SAGE is built for the moment when an AI agent is already near the edge of its context window. In a real Claude Desktop session, SAGE was still routing commands while the agent showed a full `200.0k / 200.0k (100%)` context window.
 
 ![SAGE running at a full 200k context window](docs/assets/sage-200k-context-proof.png)
 
@@ -32,8 +32,8 @@ Provider-confirmed A/B tests show why this matters:
 
 | Proof run | Raw input | SAGE input | Tokens saved | Reduction |
 |---|---:|---:|---:|---:|
-| AWS Bedrock provider A/B | 64,833 | 91 | 64,742 | 99.86% |
-| Codex CLI provider A/B | 65,204 | 14,850 | 50,354 | 77.23% |
+| Claude provider A/B | 64,833 | 91 | 64,742 | 99.86% |
+| Codex provider A/B | 65,204 | 14,850 | 50,354 | 77.23% |
 
 Even when context is already maxed out, SAGE keeps raw logs local and sends the agent a smaller, useful version instead of flooding the conversation with full terminal noise.
 

@@ -298,7 +298,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       </section>
 
       <div class="refresh">
-        <div>Auto-refreshes every 10 seconds. Last updated: <strong id="last-updated">-</strong></div>
+        <div>Checks for new SAGE sync data every 10 seconds. Data updated: <strong id="last-updated">-</strong></div>
       </div>
     </main>
 

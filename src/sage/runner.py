@@ -412,13 +412,7 @@ def run_command(
         telemetry.queue_event(run_id)
 
         if os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1":
-            from .telemetry_sender import spawn_background_sender
-            spawn_background_sender()
-            if run_id % 10 == 0:
-                try:
-                    telemetry.send_proof_snapshot()
-                except Exception:
-                    pass
+            telemetry.maybe_sync_after_run(run_id, snapshot_every=10)
     except Exception:
         pass
 
@@ -563,13 +557,7 @@ def _run_interactive_passthrough(
         from . import telemetry
         telemetry.queue_event(run_id)
         if os.environ.get("SAGE_AUTO_SEND_TELEMETRY", "1") == "1":
-            from .telemetry_sender import spawn_background_sender
-            spawn_background_sender()
-            if run_id % 10 == 0:
-                try:
-                    telemetry.send_proof_snapshot()
-                except Exception:
-                    pass
+            telemetry.maybe_sync_after_run(run_id, snapshot_every=10)
     except Exception:
         pass
 

@@ -432,6 +432,25 @@ def test_sync_all_refreshes_snapshot_when_queue_remains(isolated_telemetry, monk
     assert result["snapshot"] == {"ok": True}
 
 
+def test_after_run_sync_publishes_snapshot_every_10_runs(isolated_telemetry, monkeypatch):
+    t = isolated_telemetry
+    calls = []
+
+    monkeypatch.setattr(
+        "sage.telemetry_sender.spawn_background_sender",
+        lambda: calls.append("sender") or True,
+    )
+    monkeypatch.setattr(t, "send_proof_snapshot", lambda: calls.append("snapshot") or {"ok": True})
+
+    assert t.maybe_sync_after_run(9)["snapshot_due"] is False
+    assert t.maybe_sync_after_run(10)["snapshot_due"] is True
+    assert t.maybe_sync_after_run(19)["snapshot_due"] is False
+    assert t.maybe_sync_after_run(20)["snapshot_due"] is True
+
+    assert calls.count("snapshot") == 2
+    assert calls.count("sender") == 4
+
+
 def test_background_sender_publishes_snapshot_before_batch(monkeypatch):
     from pathlib import Path
     import tempfile

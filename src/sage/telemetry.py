@@ -742,6 +742,72 @@ def queue_event(run_id: int) -> dict[str, Any] | None:
     return payload
 
 
+def _sync_state_path() -> Path:
+    return data_dir() / "telemetry_sync_state.json"
+
+
+def _read_sync_state() -> dict[str, Any]:
+    try:
+        return json.loads(_sync_state_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_sync_state(state: dict[str, Any]) -> None:
+    path = _sync_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def maybe_sync_after_run(run_id: int, *, snapshot_every: int = 10) -> dict[str, Any]:
+    """Best-effort API sync after a local run.
+
+    Every run is queued before this is called. The background sender drains queued
+    telemetry without blocking the command, and every N local runs SAGE publishes
+    a proof snapshot so the public dashboard has fresh aggregate totals.
+    """
+    result: dict[str, Any] = {
+        "background_sender_spawned": False,
+        "snapshot_due": False,
+        "snapshot": None,
+    }
+    try:
+        from .telemetry_sender import spawn_background_sender
+
+        result["background_sender_spawned"] = bool(spawn_background_sender())
+    except Exception as exc:
+        result["background_sender_error"] = str(exc)
+
+    snapshot_every = max(1, int(snapshot_every or 10))
+    state = _read_sync_state()
+    last_snapshot_run_id = int(state.get("last_snapshot_run_id") or 0)
+    due = run_id >= snapshot_every and run_id - last_snapshot_run_id >= snapshot_every
+    result["snapshot_due"] = due
+    if not due:
+        return result
+
+    now = _now()
+    state["last_snapshot_attempt_run_id"] = int(run_id)
+    state["last_snapshot_attempt_at"] = now
+    try:
+        snapshot = send_proof_snapshot()
+        result["snapshot"] = snapshot
+        if snapshot.get("ok"):
+            state["last_snapshot_run_id"] = int(run_id)
+            state["last_snapshot_at"] = now
+            state["last_snapshot_error"] = ""
+        else:
+            state["last_snapshot_error"] = str(snapshot)
+    except Exception as exc:
+        result["snapshot"] = {"ok": False, "error": str(exc)}
+        state["last_snapshot_error"] = str(exc)
+    try:
+        _write_sync_state(state)
+    except Exception:
+        pass
+    return result
+
+
 def queue_all_runs(*, limit: int | None = None) -> dict[str, int]:
     """Queue telemetry payloads for existing runs without duplicating sent rows."""
     if effective_level() <= 0:
@@ -1109,11 +1175,17 @@ def send_proof_snapshot() -> dict[str, Any]:
         },
         method="POST",
     )
-    with urllib_request.urlopen(request, timeout=15) as response:
-        raw = response.read().decode("utf-8")
-        if response.status < 200 or response.status >= 300:
-            raise OSError(f"SAGE API snapshot failed: HTTP {response.status} {raw}")
-        return json.loads(raw)
+    for attempt in range(2):
+        try:
+            with urllib_request.urlopen(request, timeout=30) as response:
+                raw = response.read().decode("utf-8")
+                if response.status < 200 or response.status >= 300:
+                    raise OSError(f"SAGE API snapshot failed: HTTP {response.status} {raw}")
+                return json.loads(raw)
+        except (OSError, TimeoutError) as e:
+            if attempt == 0:
+                continue
+            raise
 
 
 def get_visitor_stats() -> dict[str, Any]:

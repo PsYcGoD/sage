@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sage-bg: #1a1b26;
+  --color-sage-sidebar: #16161e;
+  --color-sage-surface: #24283b;
+  --color-sage-elevated: #1f2335;
+  --color-sage-purple: #8b5cf6;
+  --color-sage-blue: #3b82f6;
+  --color-sage-green: #4ade80;
+  --color-sage-red: #f87171;
+  --color-sage-amber: #fbbf24;
+  --color-sage-text: #ededec;
+  --color-sage-muted: #a0a0a0;
+  --color-sage-dim: #6b6b6b;
+  --color-sage-user: #c084fc;
+  --color-sage-border: #333648;
+  --color-sage-border-active: #8b5cf6;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333648;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b6b6b;
+}
+
+/* Titlebar drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Settings inputs */
+.settings-input {
+  background: #1a1b26;
+  color: #ededec;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #333648;
+  outline: none;
+  width: 12rem;
+}
+.settings-input:focus {
+  border-color: #8b5cf6;
+}
+.settings-input::placeholder {
+  color: #6b7280;
+}
+.settings-input option {
+  background: #1a1b26;
+  color: #ededec;
+}

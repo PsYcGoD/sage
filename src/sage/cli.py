@@ -373,6 +373,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("stats", help="Show SAGE token, ML, and agent statistics.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
     sub.add_parser("gui", help="Show GUI availability status.")
+    sub.add_parser("tui", help="Start the SAGE interactive TUI.")
+    sub.add_parser("psycgod_gui", help="Launch the SAGE PsYcGoD GUI desktop app.")
 
     return parser
 
@@ -385,10 +387,39 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--endpoint", default="", help="SAGE API base URL. Defaults to sage.api.marketingstudios.in.")
     parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
 
+def _ensure_system_enforcement(command_name: str | None) -> bool:
+    """Auto-install mandatory local AI-agent instructions on first SAGE use."""
+    if command_name == "install" or os.environ.get("SAGE_SKIP_AUTO_INSTALL") == "1":
+        return True
+    if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SAGE_TEST_AUTO_INSTALL") != "1":
+        return True
+    try:
+        from .install import install_sage_system_wide, is_sage_installed_system_wide
+
+        if is_sage_installed_system_wide():
+            return True
+        print("[sage] first use: installing mandatory AI-agent enforcement...", file=sys.stderr)
+        install_sage_system_wide(verbose=False)
+        if is_sage_installed_system_wide():
+            print(
+                "[sage] SAGE enforcement installed. Restart open AI-agent sessions so they reload instructions.",
+                file=sys.stderr,
+            )
+            return True
+        print("[sage] warning: SAGE enforcement could not be fully verified.", file=sys.stderr)
+        return False
+    except Exception as exc:
+        print(f"[sage] warning: automatic SAGE enforcement install failed: {exc}", file=sys.stderr)
+        return False
+
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if not _ensure_system_enforcement(args.command_name):
+        print("Run `sage install` to repair local AI-agent enforcement, then retry.", file=sys.stderr)
+        return 1
 
     # First-time setup: ML prompt first, then connect.
     # Only triggers when user runs bare `sage` (no subcommand) for the first time.
@@ -560,6 +591,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "gui":
         return gui_command()
+
+    if args.command_name == "tui":
+        return tui_command()
+
+    if args.command_name == "psycgod_gui":
+        return electron_command()
 
     parser.print_help()
     return 2
@@ -3017,12 +3054,49 @@ def install_command() -> int:
     return 0
 
 def gui_command() -> int:
-    """Show GUI availability status."""
-    print("SAGE GUI is in development and is not included in the public CLI repo yet.")
-    print("It will be released later with AI agents and ML workflows.")
-    print("\nFor now use:")
-    print("   sage connect")
-    print("   sage init")
-    print("   sage run -- <command>")
-    print("   sage context stats")
-    return 0
+    """Launch the SAGE Desktop GUI."""
+    try:
+        from sage.gui.app import SAGEApp
+        app = SAGEApp()
+        app.mainloop()
+        return 0
+    except ImportError as e:
+        print(f"[sage] GUI requires extra dependencies: pip install psycgod-sage[gui]")
+        print(f"       Error: {e}")
+        return 1
+
+def tui_command() -> int:
+    """Launch the SAGE interactive TUI."""
+    try:
+        from sage.tui.app import SAGETUIApp
+        app = SAGETUIApp()
+        app.run()
+        return 0
+    except ImportError as e:
+        print(f"[sage] TUI requires extra dependencies: pip install psycgod-sage[tui]")
+        print(f"       Error: {e}")
+        return 1
+
+
+def electron_command() -> int:
+    """Launch the SAGE Electron desktop app."""
+    import subprocess
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    electron_dir = repo_root / "electron"
+
+    if not electron_dir.exists():
+        print("[sage] Electron app directory not found.")
+        print(f"       Expected: {electron_dir}")
+        return 1
+
+    node_modules = electron_dir / "node_modules"
+    if not node_modules.exists():
+        print("[sage] Installing Electron dependencies...")
+        result = subprocess.run(["npm", "install"], cwd=str(electron_dir), shell=True)
+        if result.returncode != 0:
+            print("[sage] npm install failed.")
+            return 1
+
+    print("[sage] Launching SAGE Desktop...")
+    result = subprocess.run(["npm", "run", "start"], cwd=str(electron_dir), shell=True)
+    return result.returncode

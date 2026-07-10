@@ -1,0 +1,36 @@
+{
+  "name": "sage-desktop",
+  "version": "1.0.0",
+  "description": "SAGE Desktop — Smart Agent Guidance Engine",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "npm run electron:build-main && concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "start": "npm run electron:build-all && electron .",
+    "build": "npm run electron:build-all && electron-builder",
+    "electron:build-main": "esbuild main.ts --bundle --platform=node --outfile=dist-electron/main.js --external:electron && esbuild preload.ts --bundle --platform=node --outfile=dist-electron/preload.js --external:electron",
+    "electron:build-all": "npm run electron:build-main && vite build"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^9.0.1",
+    "rehype-highlight": "^7.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "wait-on": "^8.0.1"
+  }
+}

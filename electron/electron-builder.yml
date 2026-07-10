@@ -1,0 +1,22 @@
+appId: com.sage.desktop
+productName: SAGE Desktop
+directories:
+  buildResources: build
+  output: release
+files:
+  - dist
+  - dist-electron
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: src/assets/sage-icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: SAGE Desktop

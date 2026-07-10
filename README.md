@@ -155,6 +155,23 @@ sage dashboard start              # Local proof dashboard
 | `sage mcp install` | ![mcp install](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-mcp-install.svg) |
 | Dashboard | ![dashboard](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-live-dashboard.png) |
 
+## Team View Preview - Enterprise Only
+
+Team View is an Enterprise-only SAGE workspace dashboard for organizations that need shared proof, safety monitoring, and team-level AI savings visibility.
+
+![SAGE Team View Preview](docs/assets/team-dashboard-preview.png)
+
+Planned Enterprise Team View features:
+
+- Workspace-level tokens saved, compression rate, and estimated AI savings
+- Team command success rate and failure trends
+- Agent and ML activity across connected machines
+- Safety events, blocked risky commands, and protected secret signals
+- Per-machine and per-user aggregate usage without exposing raw command text
+- Privacy-safe proof only: no source code, `.env` values, raw logs, private paths, or model output
+
+Team View is not part of the free public CLI package. It is reserved for Enterprise access.
+
 ## ML - Learns From Your Usage
 
 SAGE ML trains on your local command history. More commands = better predictions.

@@ -440,7 +440,8 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
         document.getElementById("total-runs").textContent = Number(totals.total_runs || 0).toLocaleString();
         document.getElementById("tokens-saved").textContent = formatNumber(totals.tokens_saved);
         document.getElementById("estimated-savings").textContent = formatCurrency(totals.estimated_savings_usd);
-        document.getElementById("tokens-processed-label").textContent = formatNumber(totals.tokens_processed) + " processed";
+        document.getElementById("tokens-processed-label").textContent =
+          Number(totals.tokens_saved || 0).toLocaleString() + " saved / " + formatNumber(totals.tokens_processed) + " processed";
         document.getElementById("compression-rate").textContent = Number(totals.compression_percent || 0).toFixed(1) + "%";
         document.getElementById("success-rate").textContent = Number(totals.success_rate || 0).toFixed(1) + "%";
         document.getElementById("success-label").textContent = Number(totals.successful_runs || 0).toLocaleString() + "/" + Number(totals.total_runs || 0).toLocaleString() + " successful";

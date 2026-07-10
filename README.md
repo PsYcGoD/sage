@@ -22,6 +22,21 @@ SAGE routes terminal commands through `sage run --`, compresses noisy output bef
 
 Live dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
 
+### Proof at Full Context
+
+SAGE is built for the moment when an AI agent is already near the edge of its context window. In a real Codex desktop session, SAGE was still routing commands while the agent showed a full `200.0k / 200.0k (100%)` context window.
+
+![SAGE running at a full 200k context window](docs/assets/sage-200k-context-proof.png)
+
+Provider-confirmed A/B tests show why this matters:
+
+| Proof run | Raw input | SAGE input | Tokens saved | Reduction |
+|---|---:|---:|---:|---:|
+| AWS Bedrock provider A/B | 64,833 | 91 | 64,742 | 99.86% |
+| Codex CLI provider A/B | 65,204 | 14,850 | 50,354 | 77.23% |
+
+Even when context is already maxed out, SAGE keeps raw logs local and sends the agent a smaller, useful version instead of flooding the conversation with full terminal noise.
+
 ## Install
 
 ```bash
@@ -31,12 +46,11 @@ sage --version
 
 Package name: `psycgod-sage` | CLI command: `sage`
 
-`pip install psycgod-sage` installs the SAGE Python package and the `sage` command.
+`pip install psycgod-sage` installs the SAGE Python package and the `sage` command. On first `sage` use, SAGE automatically installs mandatory local AI-agent instructions, MCP registration, and Claude Code hook settings for supported agents. No second install command is required.
 
-`sage install` is a separate one-time machine setup step. It installs mandatory SAGE instructions, MCP registration, and Claude Code hook settings for supported local AI agents. Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
+Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 
 ```bash
-sage install
 sage init
 ```
 
@@ -46,7 +60,7 @@ On first use, SAGE walks you through setup:
 
 ```
 1. Install ML V2 dependencies? [y/N]     - neural predictions (optional, ~2 GB)
-2. Local AI-agent enforcement            - `sage install` / `sage init`
+2. Local AI-agent enforcement            - automatic on first `sage` use / `sage init`
 ```
 
 - Type `y` for ML V2: torch + sentence-transformers + faiss (76% prediction accuracy)
@@ -59,7 +73,6 @@ On first use, SAGE walks you through setup:
 sage run -- python -m pytest
 sage run -- npm test
 sage run -- git status
-sage install
 sage init
 sage context report
 ```
@@ -127,7 +140,7 @@ sage firewall status              # Safety policy status
 sage firewall rules list          # View blocked patterns
 sage ml setup                     # Install ML V2 (optional)
 sage ml train                     # Retrain on your history
-sage install                      # System-wide AI agent enforcement
+sage install                      # Repair/re-apply system-wide AI agent enforcement
 sage init                         # Per-project AGENTS.md/CLAUDE.md/hooks
 sage mcp install                  # MCP server for AI agents
 sage dashboard start              # Local proof dashboard

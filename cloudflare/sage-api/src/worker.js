@@ -220,6 +220,8 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     .status-pending { color: #fde68a; font-weight: 900; }
     footer { text-align: center; color: #94a3b8; line-height: 1.7; padding: 22px 0; }
     footer a { color: #a5b4fc; text-decoration: none; font-weight: 800; }
+    .launch-badges { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 0 0 14px; flex-wrap: wrap; }
+    .launch-badges img { display: block; width: 250px; height: 54px; }
     @media (max-width: 1180px) { .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 980px) { .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 620px) { body { padding: 14px; } .hero-stats, .prediction-grid { grid-template-columns: 1fr; } }
@@ -369,6 +371,9 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
       </div>
     </div>
     <footer>
+      <div class="launch-badges" aria-label="Launch badges">
+        <a href="https://www.producthunt.com/products/sage-cli?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-sage-cli" target="_blank" rel="noopener noreferrer"><img alt="SAGE - CLI - 85-98% token compression and save your money | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1191424&amp;theme=light&amp;t=1783674409890"></a>
+      </div>
       <strong>S.A.G.E V2.0</strong> - Smart Agent Guidance Engine<br>
       Privacy-first token compression, ML prediction, and active AI agent orchestration by PsYc+GoD AI &amp; ML<br>
       <a href="https://github.com/PsYcGoD/sage">GitHub Repository</a>

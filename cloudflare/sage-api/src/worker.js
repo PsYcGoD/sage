@@ -443,7 +443,7 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
         document.getElementById("estimated-savings").textContent = formatCurrency(totals.estimated_savings_usd);
         document.getElementById("tokens-processed-label").textContent =
           Number(totals.tokens_saved || 0).toLocaleString() + " saved / " + formatNumber(totals.tokens_processed) + " processed";
-        document.getElementById("compression-rate").textContent = Number(totals.compression_percent || 0).toFixed(1) + "%";
+        document.getElementById("compression-rate").textContent = Number(totals.compression_percent || 0).toFixed(2) + "%";
         document.getElementById("success-rate").textContent = Number(totals.success_rate || 0).toFixed(1) + "%";
         document.getElementById("success-label").textContent = Number(totals.successful_runs || 0).toLocaleString() + "/" + Number(totals.total_runs || 0).toLocaleString() + " successful";
         document.getElementById("original-tokens").textContent = formatNumber(totals.tokens_processed);
@@ -452,7 +452,7 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
         const bar = document.getElementById("compression-bar");
         const pct = Math.max(0, Math.min(100, Number(totals.compression_percent || 0)));
         bar.style.width = pct + "%";
-        bar.textContent = pct.toFixed(1) + "%";
+        bar.textContent = pct.toFixed(2) + "%";
         const pred = totals.failure_prediction_stats || {};
         document.getElementById("events-predicted").textContent = Number(pred.events_with_prediction || 0).toLocaleString();
         document.getElementById("avg-prediction").textContent = (Number(pred.avg_prediction_score || 0) * 100).toFixed(1) + "%";

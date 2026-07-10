@@ -774,16 +774,21 @@ const SAGE_FEATURES_HTML = `<!DOCTYPE html>
           <a class="button" href="#features">Feature Map</a>
         </div>
       </div>
-      <div class="terminal" aria-label="SAGE install commands">
+      <div class="terminal" aria-label="SAGE command running example">
         <div class="dots"><span></span><span></span><span></span></div>
         <pre>pip install psycgod-sage
 sage --version
-sage install
 
-# Run commands through SAGE
-sage run -- python app.py
+# What it looks like while running
 sage run -- npm test
-sage run -- git status</pre>
+
+[sage] running: npm test
+[sage] prediction: likely to pass
+[sage] agents: Code, Test, Security
+[sage] context: compressing terminal output
+PASS tests/runner.test.js
+[sage] saved run #1248 exit=0 time=3.2s
+[sage] context: saved 2,418 tokens</pre>
       </div>
     </section>
 
@@ -800,11 +805,11 @@ sage run -- git status</pre>
       <div class="section-head">
         <div class="eyebrow">Install and enforce</div>
         <h2>Built to become the default command path.</h2>
-        <p>SAGE installs project instructions, MCP registration, and supported agent guardrails so shell work is routed through SAGE instead of raw terminal calls.</p>
+        <p>The Python package installs the SAGE CLI. Use project setup only when you want repo-local instructions, MCP registration, and supported agent guardrails.</p>
       </div>
       <div class="steps">
         <div class="step"><div class="step-number">1</div><h3>Install package</h3><p class="lead">Install the Python package and get the <strong>sage</strong> CLI on the machine.</p></div>
-        <div class="step"><div class="step-number">2</div><h3>Enable local agent rules</h3><p class="lead">Add mandatory SAGE instructions and MCP settings for supported local agents.</p></div>
+        <div class="step"><div class="step-number">2</div><h3>Initialize a project</h3><p class="lead">Run <strong>sage init</strong> inside a repo when you want project-local agent instructions and MCP settings.</p></div>
         <div class="step"><div class="step-number">3</div><h3>Run through SAGE</h3><p class="lead">Commands go through <strong>sage run --</strong>, creating local history, compression, and proof metrics.</p></div>
       </div>
     </section>
@@ -844,7 +849,7 @@ sage run -- git status</pre>
       <div class="wide">
         <div class="section-head">
           <div class="eyebrow">Supported workflows</div>
-          <h2>Made for real AI coding sessions.</h2>
+          <h2>Made for real Savings using AI.</h2>
           <p>SAGE is designed for local AI agents that use shell commands, file search, project instructions, and MCP tooling.</p>
         </div>
         <div class="list">

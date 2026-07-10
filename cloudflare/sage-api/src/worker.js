@@ -233,6 +233,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="badges">
         <span class="badge green">&#9679; Live Data</span>
         <span class="badge">Verified Aggregate Proof</span>
+        <a class="badge green" href="/features">Explore SAGE Features</a>
         <a class="badge" href="https://github.com/PsYcGoD/sage">GitHub Repository</a>
       </div>
       <div class="owner">Built by PsYc+GoD AI &amp; ML - <a class="proof-link" href="#ab-proof" id="ab-proof-link"><strong>Actual A/B test ran and got 99.86% reduction by the Provider</strong></a></div>
@@ -536,6 +537,332 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
     loadProofData();
     setInterval(loadProofData, 10000);
   </script>
+</body>
+</html>`;
+
+const SAGE_FEATURES_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAGE Features - Smart Agent Guidance Engine</title>
+  <meta name="description" content="Explore SAGE features: mandatory AI-agent command routing, terminal compression, ML prediction, MCP tools, proof metrics, and privacy-first telemetry.">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b1120;
+      --panel: rgba(15,23,42,.74);
+      --line: rgba(148,163,184,.2);
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --soft: #94a3b8;
+      --green: #86efac;
+      --green-strong: #10b981;
+      --blue: #60a5fa;
+      --violet: #a78bfa;
+      --ease-out: cubic-bezier(.23,1,.32,1);
+    }
+    body {
+      min-height: 100vh;
+      padding: 24px;
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(16,185,129,.2), transparent 28%),
+        radial-gradient(circle at 88% 4%, rgba(96,165,250,.18), transparent 30%),
+        linear-gradient(135deg, #0f172a 0%, #101827 48%, #08111f 100%);
+    }
+    a { color: inherit; }
+    .shell { max-width: 1180px; margin: 0 auto; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .brand { font-weight: 900; letter-spacing: .08em; color: var(--green); }
+    .nav { display: flex; flex-wrap: wrap; gap: 10px; }
+    .pill, .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #dbeafe;
+      background: rgba(15,23,42,.64);
+      text-decoration: none;
+      font-weight: 800;
+      transition: transform 160ms var(--ease-out), border-color 160ms var(--ease-out), background 160ms var(--ease-out);
+    }
+    .pill:hover, .button:hover { border-color: rgba(134,239,172,.5); background: rgba(16,185,129,.12); }
+    .pill:active, .button:active { transform: scale(.97); }
+    .button.primary {
+      color: #052e1b;
+      border-color: rgba(134,239,172,.7);
+      background: linear-gradient(135deg, #86efac, #22c55e);
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+      gap: 22px;
+      align-items: stretch;
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 24px 80px rgba(2,6,23,.35);
+    }
+    h1 { font-size: clamp(2.35rem, 6vw, 5.1rem); line-height: .95; letter-spacing: 0; }
+    .lead { margin-top: 18px; max-width: 720px; color: var(--muted); font-size: 1.12rem; line-height: 1.7; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+    .terminal {
+      min-height: 100%;
+      padding: 18px;
+      border: 1px solid rgba(134,239,172,.22);
+      border-radius: 14px;
+      background: rgba(2,6,23,.64);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .dots { display: flex; gap: 7px; margin-bottom: 16px; }
+    .dots span { width: 10px; height: 10px; border-radius: 999px; background: #22c55e; }
+    .dots span:nth-child(2) { background: #60a5fa; }
+    .dots span:nth-child(3) { background: #a78bfa; }
+    pre {
+      overflow-x: auto;
+      white-space: pre;
+      color: #dbeafe;
+      font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+      font-size: .9rem;
+      line-height: 1.65;
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      margin: 22px 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(15,23,42,.56);
+    }
+    .tab {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 10px;
+      color: var(--muted);
+      background: rgba(2,6,23,.25);
+      font-size: .88rem;
+      font-weight: 800;
+    }
+    .tab.active { color: #052e1b; background: linear-gradient(135deg, #86efac, #22c55e); }
+    .section { margin-top: 24px; }
+    .section-head { margin-bottom: 14px; }
+    .eyebrow { color: var(--green); text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; font-weight: 900; }
+    h2 { margin-top: 6px; font-size: clamp(1.6rem, 3vw, 2.45rem); }
+    .section-head p { margin-top: 10px; max-width: 760px; color: var(--muted); line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      min-height: 178px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(15,23,42,.66);
+      box-shadow: 0 18px 50px rgba(2,6,23,.18);
+    }
+    .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    .card p { color: var(--muted); line-height: 1.62; }
+    .chip {
+      display: inline-flex;
+      margin-bottom: 12px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(16,185,129,.12);
+      border: 1px solid rgba(134,239,172,.2);
+      font-size: .72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .step {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(2,6,23,.36);
+    }
+    .step-number {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      color: #052e1b;
+      background: var(--green);
+      font-weight: 900;
+    }
+    .proof-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .metric {
+      padding: 18px;
+      border: 1px solid rgba(134,239,172,.22);
+      border-radius: 14px;
+      background: rgba(16,185,129,.08);
+    }
+    .metric strong { display: block; color: var(--green); font-size: clamp(1.55rem, 4vw, 2.4rem); line-height: 1; }
+    .metric span { display: block; margin-top: 8px; color: var(--muted); }
+    .wide {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(15,23,42,.68);
+    }
+    .list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .list div { padding: 12px; border-radius: 10px; color: var(--muted); background: rgba(2,6,23,.32); border: 1px solid rgba(148,163,184,.14); }
+    footer { padding: 30px 0 10px; color: var(--soft); text-align: center; line-height: 1.7; }
+    @media (max-width: 980px) {
+      body { padding: 16px; }
+      .hero { grid-template-columns: 1fr; padding: 22px; }
+      .grid, .steps, .proof-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .grid, .steps, .proof-strip, .list, .tabs { grid-template-columns: 1fr; }
+      h1 { font-size: 2.45rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div class="brand">S.A.G.E</div>
+      <nav class="nav" aria-label="SAGE pages">
+        <a class="pill" href="/dashboard">Live Dashboard</a>
+        <a class="pill" href="https://github.com/PsYcGoD/sage">GitHub</a>
+      </nav>
+    </div>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Smart Agent Guidance Engine</div>
+        <h1>One local layer for safer, cheaper AI-agent work.</h1>
+        <p class="lead">
+          SAGE routes AI-agent commands through a local wrapper, compresses noisy terminal output,
+          records proof metrics, and coordinates 10+ specialist agents so every supported local AI workflow gets cleaner context.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="/dashboard">View Live Proof</a>
+          <a class="button" href="#install">Install Flow</a>
+          <a class="button" href="#features">Feature Map</a>
+        </div>
+      </div>
+      <div class="terminal" aria-label="SAGE install commands">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <pre>pip install psycgod-sage
+sage --version
+sage install
+
+# Run commands through SAGE
+sage run -- python app.py
+sage run -- npm test
+sage run -- git status</pre>
+      </div>
+    </section>
+
+    <div class="tabs" aria-label="Supported SAGE surfaces">
+      <div class="tab active">CLI</div>
+      <div class="tab">Claude</div>
+      <div class="tab">Codex</div>
+      <div class="tab">Cursor</div>
+      <div class="tab">MCP</div>
+      <div class="tab">Local ML</div>
+    </div>
+
+    <section class="section" id="install">
+      <div class="section-head">
+        <div class="eyebrow">Install and enforce</div>
+        <h2>Built to become the default command path.</h2>
+        <p>SAGE installs project instructions, MCP registration, and supported agent guardrails so shell work is routed through SAGE instead of raw terminal calls.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><div class="step-number">1</div><h3>Install package</h3><p class="lead">Install the Python package and get the <strong>sage</strong> CLI on the machine.</p></div>
+        <div class="step"><div class="step-number">2</div><h3>Enable local agent rules</h3><p class="lead">Add mandatory SAGE instructions and MCP settings for supported local agents.</p></div>
+        <div class="step"><div class="step-number">3</div><h3>Run through SAGE</h3><p class="lead">Commands go through <strong>sage run --</strong>, creating local history, compression, and proof metrics.</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="section-head">
+        <div class="eyebrow">What SAGE includes</div>
+        <h2>Everything people should know before they try it.</h2>
+      </div>
+      <div class="grid">
+        <article class="card"><span class="chip">Compression</span><h3>Terminal-context savings</h3><p>Compresses long command output into focused context, preserving what matters while reducing token load.</p></article>
+        <article class="card"><span class="chip">Agents</span><h3>10+ specialist agents</h3><p>Security, code, debug, test, dependency, research, frontend, performance, workflow, and red-team signals analyze runs.</p></article>
+        <article class="card"><span class="chip">Prediction</span><h3>ML failure signals</h3><p>Builds local ML signals from command outcomes to warn when similar commands are likely to fail.</p></article>
+        <article class="card"><span class="chip">MCP</span><h3>Agent tools</h3><p>Exposes read, grep, glob, workflow, spawn-agent, history, and safe command tools through SAGE MCP.</p></article>
+        <article class="card"><span class="chip">Proof</span><h3>Live public metrics</h3><p>Publishes safe aggregate proof: runs, compression rate, success rate, model savings, and A/B provider proof.</p></article>
+        <article class="card"><span class="chip">Privacy</span><h3>Local-first by default</h3><p>Raw command text, private paths, file contents, and model output stay out of the public dashboard.</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wide">
+        <div class="section-head">
+          <div class="eyebrow">Proof signals</div>
+          <h2>Measured with live data and provider A/B testing.</h2>
+          <p>The public dashboard tracks aggregate savings and includes an actual provider-token A/B proof comparing raw output against SAGE-compressed output.</p>
+        </div>
+        <div class="proof-strip">
+          <div class="metric"><strong>99.86%</strong><span>Provider A/B input-token reduction</span></div>
+          <div class="metric"><strong>10+</strong><span>Specialized agent families</span></div>
+          <div class="metric"><strong>Live</strong><span>Dashboard sync and proof snapshots</span></div>
+          <div class="metric"><strong>Local</strong><span>Private raw command history</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wide">
+        <div class="section-head">
+          <div class="eyebrow">Supported workflows</div>
+          <h2>Made for real AI coding sessions.</h2>
+          <p>SAGE is designed for local AI agents that use shell commands, file search, project instructions, and MCP tooling.</p>
+        </div>
+        <div class="list">
+          <div>Claude Code and Claude Desktop style command routing</div>
+          <div>Codex CLI and local repository workflows</div>
+          <div>Cursor, OpenCode, Aider, Windsurf, and Copilot-style agent tracking</div>
+          <div>Ollama/local-model usage without price attribution</div>
+          <div>Project AGENTS.md, CLAUDE.md, SAGE.md, and hook files</div>
+          <div>Public proof dashboard with safe aggregate telemetry</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <strong>S.A.G.E</strong> - Smart Agent Guidance Engine by PsYc+GoD AI &amp; ML<br>
+      <a href="/dashboard">Live Dashboard</a> · <a href="https://github.com/PsYcGoD/sage">GitHub Repository</a>
+    </footer>
+  </div>
 </body>
 </html>`;
 
@@ -2033,6 +2360,20 @@ async function route(request, env) {
   if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/dashboard")) {
     await trackDashboardVisit(env, request);
     return new Response(PUBLIC_PROOF_DASHBOARD_HTML, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        ...corsHeaders,
+      },
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/features") {
+    await trackDashboardVisit(env, request);
+    return new Response(SAGE_FEATURES_HTML, {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",

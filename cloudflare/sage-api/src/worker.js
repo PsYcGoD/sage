@@ -250,14 +250,14 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       <section class="panel">
         <h2>🤖 Agent & ML Activity</h2>
         <div class="hero-stats" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 0;">
-          <div class="card" style="min-height: 130px;"><div class="label">Total Agents</div><div class="value" id="total-agents" style="font-size: 2.5rem;">-</div><div class="sub">Active agent types</div></div>
-          <div class="card" style="min-height: 130px;"><div class="label">Agent Runs</div><div class="value" id="agent-runs" style="font-size: 2.5rem;">-</div><div class="sub">Total completions</div></div>
-          <div class="card" style="min-height: 130px;"><div class="label">ML Examples</div><div class="value" id="ml-examples" style="font-size: 2.5rem;">-</div><div class="sub">Training dataset</div></div>
-          <div class="card" style="min-height: 130px;"><div class="label">Quality Metrics</div><div class="value" id="quality-metrics" style="font-size: 2.5rem;">-</div><div class="sub">Tracked signals</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">Agent Types</div><div class="value" id="total-agents" style="font-size: 2.5rem;">-</div><div class="sub">Distinct sources</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">Agent Events</div><div class="value" id="agent-runs" style="font-size: 2.5rem;">-</div><div class="sub">Synced completions</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">Telemetry Events</div><div class="value" id="ml-examples" style="font-size: 2.5rem;">-</div><div class="sub">ML training rows</div></div>
+          <div class="card" style="min-height: 130px;"><div class="label">Signal Types</div><div class="value" id="quality-metrics" style="font-size: 2.5rem;">-</div><div class="sub">Distinct signals</div></div>
         </div>
         <p class="description" style="margin-top: 20px; font-size: 0.95rem;">
           SAGE uses <strong>10+ specialized AI agents</strong> (Security, Code, Debug, Test, Dependency, Research, Frontend, Performance, Workflow, Red Team) 
-          that analyze every command in real-time. The ML system continuously learns from your command patterns to optimize compression strategies and predict failures.
+          that analyze every command in real-time. Event counters update as telemetry syncs; type and signal counters change only when SAGE sees a new source or signal.
         </p>
       </section>
 

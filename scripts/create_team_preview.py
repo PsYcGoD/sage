@@ -23,7 +23,7 @@ def main() -> int:
 
     draw.rectangle((0, 0, width, 72), fill="#111827")
     draw.text((36, 24), "SAGE Team View Preview", fill="#f8fafc", font=_font(30))
-    draw.text((880, 28), "Invite-only after 100 users", fill="#a7f3d0", font=_font(18))
+    draw.text((880, 28), "Enterprise-only access", fill="#a7f3d0", font=_font(18))
 
     cards = [
         ("Workspaces", "12"),
@@ -57,7 +57,7 @@ def main() -> int:
 
     draw.text(
         (64, 716),
-        "Preview only: Team Dashboard invites will open after SAGE reaches 100 users.",
+        "Preview only: Team View is available for Enterprise customers.",
         fill="#cbd5e1",
         font=_font(18),
     )

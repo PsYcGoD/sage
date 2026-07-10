@@ -34,6 +34,9 @@ def test_readme_public_positioning():
     assert "Raw logs" in readme or "raw logs" in readme.lower()
     assert "## Known Limitations" in readme
     assert "raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-run.svg" in readme
+    assert "## Team View Preview - Enterprise Only" in readme
+    assert "docs/assets/team-dashboard-preview.png" in readme
+    assert "Team View is not part of the free public CLI package" in readme
     hidden_team_endpoint = "/api/v1/" + "team"
     assert hidden_team_endpoint not in readme
     removed_command = "sage " + "pric" + "ing"

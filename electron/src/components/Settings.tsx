@@ -18,8 +18,6 @@ const NAV_SECTIONS = [
     items: [
       { id: 'general' as SettingsPage, label: 'General', icon: '⚙' },
       { id: 'profile' as SettingsPage, label: 'Profile', icon: '👤' },
-      { id: 'appearance' as SettingsPage, label: 'Appearance', icon: '🎨' },
-      { id: 'voice' as SettingsPage, label: 'Voice', icon: '🎙' },
       { id: 'personalization' as SettingsPage, label: 'Personalization', icon: '🧠' },
       { id: 'configuration' as SettingsPage, label: 'Configuration', icon: '⚡' },
       { id: 'pets' as SettingsPage, label: 'Pets', icon: '🐾' },
@@ -99,9 +97,9 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="max-w-2xl">
+      {/* Content — centered with generous padding */}
+      <div className="flex-1 overflow-y-auto px-12 py-10 relative">
+        <div className="max-w-2xl mx-auto pb-20">
           {page === 'general' && <GeneralPage />}
           {page === 'profile' && <ProfilePage />}
           {page === 'appearance' && <AppearancePage />}
@@ -122,6 +120,23 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
           {page === 'environment' && <EnvironmentPage />}
           {page === 'worktrees' && <WorktreesPage />}
           {page === 'archived' && <ArchivedChatsPage />}
+        </div>
+
+        {/* Sticky save bar */}
+        <div className="sticky bottom-0 left-0 right-0 bg-[#1a1b26]/90 backdrop-blur border-t border-[#333648] px-8 py-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-[#9ca3af] hover:text-white rounded-lg border border-[#333648] hover:bg-[#24283b] transition-colors"
+          >Cancel</button>
+          <button
+            onClick={() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'settings.save', payload: {} }));
+              }
+              onClose();
+            }}
+            className="px-5 py-2 text-sm text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-lg font-medium transition-colors"
+          >Save Changes</button>
         </div>
       </div>
     </div>
@@ -933,5 +948,14 @@ function ToggleRow({ label, desc, defaultOn }: { label: string; desc?: string; d
         <div className={`w-4 h-4 bg-white rounded-full absolute top-[3px] transition-all ${on ? 'left-[21px]' : 'left-[3px]'}`} />
       </button>
     </div>
+  );
+}
+
+function ToggleSwitch({ defaultOn }: { defaultOn: boolean }) {
+  const [on, setOn] = useState(defaultOn);
+  return (
+    <button onClick={() => setOn(!on)} className={`w-10 h-[22px] rounded-full transition-colors relative flex-shrink-0 ${on ? 'bg-[#8b5cf6]' : 'bg-[#4b5563]'}`}>
+      <div className={`w-4 h-4 bg-white rounded-full absolute top-[3px] transition-all ${on ? 'left-[21px]' : 'left-[3px]'}`} />
+    </button>
   );
 }

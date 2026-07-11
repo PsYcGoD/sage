@@ -1,0 +1,5 @@
+Reply with exactly OK. Do not run tools. Terminal output follows:
+Tests: passed=0 failed=1 skipped=0
+Summary: E AssertionError: expected status 200 got 500 | request_id=req_1799 | stack frame app/payments.py:149
+Failed:
+  - pytest tests/test_payments.py::test_checkout_flow FAILED

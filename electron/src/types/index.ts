@@ -17,6 +17,7 @@ export interface Message {
   thinking?: string;
   tool_calls?: ToolCall[];
   agent_analysis?: AgentAnalysis;
+  provider?: string;
 }
 
 export interface ToolCall {

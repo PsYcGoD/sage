@@ -25,6 +25,35 @@ class SAGEWebSocketServer:
         self.clients: set = set()
         self.running = False
         self._active_processes: dict = {}
+        self._ensure_chat_tables()
+
+    def _ensure_chat_tables(self):
+        """Create chat tables if they don't exist yet."""
+        try:
+            db = connect()
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    agent TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+                )
+            """)
+            db.commit()
+        except Exception:
+            pass
 
     async def handler(self, websocket):
         self.clients.add(websocket)
@@ -146,7 +175,7 @@ class SAGEWebSocketServer:
         if not content:
             return {"status": "error", "message": "Empty message"}
 
-        # Save user message to DB
+        # Save user message to DB and auto-title the chat
         try:
             db = connect()
             msg_id = str(uuid.uuid4())
@@ -155,12 +184,58 @@ class SAGEWebSocketServer:
                 "VALUES (?, ?, 'user', ?, datetime('now'))",
                 (msg_id, session_id, content)
             )
+            # Auto-title: if session is still "New Chat", use first message as title
+            row = db.execute(
+                "SELECT title FROM chat_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            if row and (row[0] or "").strip() in ("New Chat", ""):
+                title = content.strip()[:50]
+                if len(content.strip()) > 50:
+                    title += "..."
+                db.execute(
+                    "UPDATE chat_sessions SET title = ?, updated_at = datetime('now') WHERE id = ?",
+                    (title, session_id)
+                )
             db.commit()
         except Exception:
             pass
 
-        asyncio.create_task(self._stream_llm_response(session_id, content))
+        # Build contextual prompt with conversation history
+        context_prompt = self._build_context_prompt(session_id, content)
+        asyncio.create_task(self._stream_llm_response(session_id, context_prompt))
         return {"status": "streaming"}
+
+    def _build_context_prompt(self, session_id: str, current_msg: str) -> str:
+        """Include recent conversation history so the AI remembers prior turns."""
+        try:
+            db = connect()
+            rows = db.execute(
+                "SELECT role, content FROM chat_messages "
+                "WHERE session_id = ? ORDER BY created_at DESC LIMIT 20",
+                (session_id,)
+            ).fetchall()
+            if not rows or len(rows) <= 1:
+                return current_msg
+
+            # Reverse to chronological order, exclude the just-inserted user msg
+            turns = list(reversed(rows[1:]))
+            if not turns:
+                return current_msg
+
+            # Build context block
+            lines = ["[Conversation history in this session:]"]
+            for turn in turns[-12:]:
+                role = str(turn["role"]).capitalize()
+                text = str(turn["content"] or "").strip()
+                if len(text) > 800:
+                    text = text[:400] + "..." + text[-400:]
+                lines.append(f"{role}: {text}")
+            lines.append("")
+            lines.append("[Current message:]")
+            lines.append(current_msg)
+            return "\n".join(lines)
+        except Exception:
+            return current_msg
 
     async def _stream_llm_response(self, session_id: str, prompt: str):
         """Stream LLM response via Claude CLI with full thinking/tool events."""
@@ -272,8 +347,15 @@ class SAGEWebSocketServer:
 
             await self.broadcast({
                 "type": "chat.stream.done",
-                "payload": {"session_id": session_id, "id": str(uuid.uuid4())}
+                "payload": {"session_id": session_id, "id": str(uuid.uuid4()), "provider": "API Travel"}
             })
+
+            # Push fresh metrics so cards update immediately
+            try:
+                metrics = await self._handle_metrics_get({})
+                await self.broadcast({"type": "metrics.get.response", "payload": metrics})
+            except Exception:
+                pass
 
         except Exception as e:
             self._active_processes.pop(session_id, None)
@@ -340,11 +422,36 @@ class SAGEWebSocketServer:
     async def _handle_metrics_get(self, payload: dict) -> dict:
         try:
             db = connect()
-            row = db.execute("SELECT COUNT(*), SUM(original_tokens), SUM(compressed_tokens) FROM runs").fetchone()
-            total_runs = row[0] or 0
-            total_tokens = row[1] or 0
-            compressed_tokens = row[2] or 0
-            saved = total_tokens - compressed_tokens if total_tokens else 0
+            # CLI runs
+            run_row = db.execute("SELECT COUNT(*) FROM runs").fetchone()
+            cli_runs = run_row[0] or 0
+
+            # GUI chat interactions (each assistant response = 1 run)
+            chat_runs = 0
+            try:
+                cr = db.execute("SELECT COUNT(*) FROM chat_messages WHERE role='assistant'").fetchone()
+                chat_runs = cr[0] or 0
+            except Exception:
+                pass
+
+            total_runs = cli_runs + chat_runs
+
+            # Token data lives in token_usage table
+            token_row = db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='token_usage'"
+            ).fetchone()
+            if token_row:
+                t = db.execute(
+                    "SELECT COALESCE(SUM(estimated_tokens),0), COALESCE(SUM(compressed_tokens),0), COALESCE(SUM(savings),0) FROM token_usage"
+                ).fetchone()
+                total_tokens = t[0] or 0
+                compressed_tokens = t[1] or 0
+                saved = t[2] or 0
+            else:
+                total_tokens = 0
+                compressed_tokens = 0
+                saved = 0
+
             pct = (saved / total_tokens * 100) if total_tokens > 0 else 0
             return {
                 "total_runs": total_runs,

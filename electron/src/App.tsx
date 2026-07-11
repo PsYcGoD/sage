@@ -104,7 +104,7 @@ export default function App() {
         break;
       case 'chat.stream.done':
         setStreaming(false);
-        setMessages(prev => prev.map(m => m.id === '__streaming__' ? { ...m, id: payload.id || Date.now().toString() } : m));
+        setMessages(prev => prev.map(m => m.id === '__streaming__' ? { ...m, id: payload.id || Date.now().toString(), provider: payload.provider || 'Claude' } : m));
         streamBufferRef.current = '';
         break;
       case 'chat.stream.error':

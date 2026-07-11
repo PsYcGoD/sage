@@ -11,6 +11,7 @@ from pathlib import Path
 def _connected_env(tmp_path):
     env = os.environ.copy()
     env["LOCALAPPDATA"] = str(tmp_path)
+    env["SAGE_SKIP_AUTO_INSTALL"] = "1"
     sage_dir = tmp_path / "SAGE"
     sage_dir.mkdir(parents=True, exist_ok=True)
     (sage_dir / "telemetry.json").write_text(
@@ -97,6 +98,7 @@ class TestSageRun:
         """A fresh install can wrap commands without GitHub OAuth."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
+        env["SAGE_SKIP_AUTO_INSTALL"] = "1"
         result = subprocess.run(
             [sys.executable, "-m", "sage", "run", "--", "echo", "local-only"],
             capture_output=True,
@@ -112,6 +114,7 @@ class TestSageRun:
         """A fresh install can inspect local context stats without GitHub OAuth."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
+        env["SAGE_SKIP_AUTO_INSTALL"] = "1"
         result = subprocess.run(
             [sys.executable, "-m", "sage", "context", "report"],
             capture_output=True,
@@ -126,6 +129,7 @@ class TestSageRun:
         """The GUI command should not import removed GUI code in the public CLI repo."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
+        env["SAGE_SKIP_AUTO_INSTALL"] = "1"
         result = subprocess.run(
             [sys.executable, "-m", "sage", "gui"],
             capture_output=True,
@@ -141,6 +145,7 @@ class TestSageRun:
         """Users need account/status commands before the first OAuth connection."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
+        env["SAGE_SKIP_AUTO_INSTALL"] = "1"
         result = subprocess.run(
             [sys.executable, "-m", "sage", "api", "status"],
             capture_output=True,
@@ -178,6 +183,25 @@ class TestAgentInstall:
 
         content = codex_agents.read_text(encoding="utf-8")
         assert "SAGE MANAGED BLOCK START" in content
+
+    def test_cli_first_use_auto_installs_global_agent_enforcement(self, tmp_path, monkeypatch):
+        from sage import cli, install
+
+        monkeypatch.delenv("SAGE_SKIP_AUTO_INSTALL", raising=False)
+        monkeypatch.setenv("SAGE_TEST_AUTO_INSTALL", "1")
+        monkeypatch.setattr(install.Path, "home", staticmethod(lambda: tmp_path))
+
+        assert cli._ensure_system_enforcement("doctor") is True
+        codex_agents = tmp_path / ".codex" / "AGENTS.md"
+        claude_md = tmp_path / ".claude" / "CLAUDE.md"
+        claude_settings = tmp_path / ".claude" / "settings.json"
+        claude_hook = tmp_path / ".claude" / "hooks" / "enforce_sage.py"
+
+        assert codex_agents.exists()
+        assert claude_md.exists()
+        assert claude_settings.exists()
+        assert claude_hook.exists()
+        content = codex_agents.read_text(encoding="utf-8")
         assert "sage run -- <command>" in content
         assert "mcp__sage__sage_read_file" in content
         assert "ð" not in content

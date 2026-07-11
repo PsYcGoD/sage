@@ -136,7 +136,7 @@ class ContextCompressor:
         if strategy == "logs":
             return self._compress_logs(text)
         if strategy == "code":
-            return compress_file_content(text, max_lines=100)
+            return compress_file_content(text, max_lines=50)
         if strategy == "stacktrace":
             return extract_stacktrace(text)
         if strategy == "package_manager":
@@ -170,7 +170,7 @@ class ContextCompressor:
         if not missing:
             return compressed
         protected = ["Preserved correctness anchors:"]
-        protected.extend(f"- {line}" for line in missing[:12])
+        protected.extend(f"- {line}" for line in missing[:8])
         return "\n".join([compressed.strip(), "", *protected]).strip()
 
     def _compress_test_output(self, text: str) -> str:
@@ -185,9 +185,9 @@ class ContextCompressor:
             result.append(f"Summary: {summary}")
         if failed_lines:
             result.append("Failed:")
-            result.extend(f"  - {line}" for line in failed_lines[:12])
-            if len(failed_lines) > 12:
-                result.append(f"  ... +{len(failed_lines) - 12} more")
+            result.extend(f"  - {line}" for line in failed_lines[:8])
+            if len(failed_lines) > 8:
+                result.append(f"  ... +{len(failed_lines) - 8} more")
         return "\n".join(result)
 
     def _compress_logs(self, text: str) -> str:
@@ -197,10 +197,10 @@ class ContextCompressor:
         result = [f"Log lines: {len(lines)}"]
         if errors:
             result.append(f"Errors ({len(errors)}):")
-            result.extend(f"  - {_strip_log_prefix(line)}" for line in errors[:6])
+            result.extend(f"  - {_strip_log_prefix(line)}" for line in errors[:4])
         if warnings:
             result.append(f"Warnings ({len(warnings)}):")
-            result.extend(f"  - {_strip_log_prefix(line)}" for line in warnings[:4])
+            result.extend(f"  - {_strip_log_prefix(line)}" for line in warnings[:3])
         if len(result) == 1:
             result.append("No error/warning lines detected.")
         return "\n".join(result)
@@ -217,7 +217,7 @@ class ContextCompressor:
         result = [f"Package manager log: managers={','.join(managers) or 'unknown'} lines={len(lines)} installs={installs}"]
         if important:
             result.append("Important package lines:")
-            result.extend(f"  - {line[:240]}" for line in _dedupe(important)[:12])
+            result.extend(f"  - {line[:180]}" for line in _dedupe(important)[:8])
         return "\n".join(result)
 
     def _compress_build_log(self, text: str) -> str:
@@ -229,7 +229,7 @@ class ContextCompressor:
             if any(token in line.lower() for token in ["error", "failed", "warning", "built", "compiled", "exception", "cannot"])
         ]
         result = [f"Build log: tools={','.join(tools) or 'unknown'} lines={len(lines)}"]
-        result.extend(f"  - {line[:240]}" for line in _dedupe(important)[:14])
+        result.extend(f"  - {line[:180]}" for line in _dedupe(important)[:10])
         return "\n".join(result)
 
     def _compress_progress(self, text: str) -> str:
@@ -239,7 +239,7 @@ class ContextCompressor:
         result = [f"Progress output: lines={len(lines)} updates={len(percentages)}"]
         if percentages:
             result.append(f"Progress range: {percentages[0]}% -> {percentages[-1]}%")
-        result.extend(f"  - {line[:240]}" for line in _dedupe(important)[:8])
+        result.extend(f"  - {line[:180]}" for line in _dedupe(important)[:5])
         return "\n".join(result)
 
     def _compress_diff(self, text: str) -> str:
@@ -251,18 +251,18 @@ class ContextCompressor:
                 result.append(line[:240])
             elif line.startswith("@@"):
                 kept_hunks += 1
-                if kept_hunks <= 12:
-                    result.append(line[:240])
-            elif kept_hunks <= 12 and line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
-                clean = line[:240]
+                if kept_hunks <= 8:
+                    result.append(line[:180])
+            elif kept_hunks <= 8 and line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
+                clean = line[:180]
                 if any(token in clean.lower() for token in ["error", "test", "def ", "class ", "import ", "return", "todo"]):
                     result.append(clean)
         if not result:
-            return compress_output(text, max_lines=50)
+            return compress_output(text, max_lines=30)
         return "\n".join(_dedupe(result))
 
 
-def compress_output(output: str, max_lines: int = 50) -> str:
+def compress_output(output: str, max_lines: int = 30) -> str:
     """Generic command-output compression with correctness preservation."""
     if not output:
         return ""
@@ -277,7 +277,7 @@ def compress_output(output: str, max_lines: int = 50) -> str:
             unique_lines.append(line)
 
     if len(unique_lines) > max_lines:
-        keep = max(1, max_lines // 2)
+        keep = max(1, max_lines // 3)
         compressed = unique_lines[:keep]
         compressed.append(f"... [{len(unique_lines) - max_lines} lines hidden] ...")
         compressed.extend(unique_lines[-keep:])
@@ -324,7 +324,7 @@ def extract_stacktrace(output: str) -> str:
     return "\n".join(lines[start:end])
 
 
-def compress_file_content(content: str, max_lines: int = 100) -> str:
+def compress_file_content(content: str, max_lines: int = 50) -> str:
     lines = content.splitlines()
     if len(lines) <= max_lines:
         return content
@@ -341,7 +341,7 @@ def compress_file_content(content: str, max_lines: int = 100) -> str:
 
     budget = max(10, max_lines - len(imports))
     if len(code) > budget:
-        keep = max(1, budget // 2)
+        keep = max(1, budget // 3)
         code = code[:keep] + [f"... [{len(code) - (keep * 2)} lines hidden] ..."] + code[-keep:]
     return "\n".join(imports + code)
 

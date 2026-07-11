@@ -20,6 +20,8 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
   const [historyIdx, setHistoryIdx] = useState(-1);
   const [streamStartTime, setStreamStartTime] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -109,14 +111,14 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
       <AgentStrip connected={connected} streaming={streaming} />
       {expandBtn}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="max-w-3xl mx-auto">
+      {/* Messages — with spacing from agent strip and input */}
+      <div className="flex-1 overflow-y-auto px-6 pt-8 pb-8">
+        <div className="max-w-3xl mx-auto space-y-10">
           {messages.length === 0 && (
             <div className="text-center text-[#6b7280] text-sm mt-16">Start typing to chat with your AI agent.</div>
           )}
           {messages.map((msg) => (
-            <div key={msg.id} className="mb-6">
+            <div key={msg.id}>
               <MessageBubble message={msg} streaming={streaming && msg.id === '__streaming__'} elapsed={elapsed} fmtTime={fmtTime} />
             </div>
           ))}
@@ -132,7 +134,7 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
 
       {/* Steer bar (shows last sent message while streaming) */}
       {streaming && lastUserMsg && (
-        <div className="border-t border-[#333648] px-4 py-2">
+        <div className="px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center justify-between bg-[#24283b] rounded-lg px-3 py-2 border border-[#333648]">
             <div className="flex items-center gap-2 text-[#9ca3af] text-sm truncate flex-1">
               <span className="text-[#6b7280]">⊙</span>
@@ -147,8 +149,8 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
         </div>
       )}
 
-      {/* Input area */}
-      <div className="border-t border-[#333648] px-4 pt-3 pb-2">
+      {/* Input area — clear gap from messages/steer */}
+      <div className="border-t border-[#333648] px-4 pt-5 pb-4">
         <div className="max-w-3xl mx-auto">
           <div className="relative bg-[#24283b] rounded-xl border border-[#333648] focus-within:border-[#8b5cf6] transition-colors">
             <textarea
@@ -162,11 +164,41 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
             />
             {/* Bottom row inside input */}
             <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button className="text-[#9ca3af] hover:text-white text-lg transition-colors" title="Attach file">+</button>
-                <span className="text-[#fb923c] text-xs font-medium flex items-center gap-1">
-                  <span>⚠</span> Full access
-                </span>
+              <div className="relative flex items-center gap-3" ref={plusMenuRef}>
+                <button
+                  onClick={() => setShowPlusMenu(!showPlusMenu)}
+                  className="text-[#9ca3af] hover:text-white text-lg transition-colors"
+                  title="Add"
+                >+</button>
+                {showPlusMenu && (
+                  <div className="absolute bottom-8 left-0 bg-[#1f2335] border border-[#333648] rounded-lg shadow-xl py-1.5 z-50 w-56">
+                    <button
+                      onClick={() => { setShowPlusMenu(false); (window as any).electronAPI?.dialog?.pickFolder?.(); }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] flex items-center gap-2"
+                    >📎 Add files or photos <span className="ml-auto text-[#6b7280] text-xs">Ctrl+U</span></button>
+                    <button
+                      onClick={() => { setShowPlusMenu(false); (window as any).electronAPI?.dialog?.pickFolder?.(); }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] flex items-center gap-2"
+                    >📁 Add folder</button>
+                    <button
+                      onClick={() => { setShowPlusMenu(false); setInput('/'); textareaRef.current?.focus(); }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] flex items-center gap-2"
+                    >⌘ Slash commands</button>
+                    <button
+                      onClick={() => { setShowPlusMenu(false); }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] flex items-center gap-2"
+                    >🔗 Add connectors</button>
+                    <button
+                      onClick={() => { setShowPlusMenu(false); }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] flex items-center gap-2"
+                    >🧩 Add plugins...</button>
+                  </div>
+                )}
+                <select className="bg-transparent text-[#fb923c] text-xs font-medium border-none outline-none cursor-pointer appearance-none">
+                  <option value="ask">🛡️ Ask approval</option>
+                  <option value="auto">⚡ Auto-approve</option>
+                  <option value="full" selected>⚠ Full access</option>
+                </select>
               </div>
               <div className="flex items-center gap-3">
                 <select className="bg-transparent text-[#9ca3af] text-xs border-none outline-none cursor-pointer appearance-none pr-3">
@@ -209,43 +241,48 @@ function MessageBubble({ message, streaming, elapsed, fmtTime }: { message: Mess
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="bg-[#24283b] border border-[#333648] rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[75%]">
-          <p className="text-[#ededec] text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className="bg-[#24283b] border border-[#333648] rounded-2xl rounded-br-sm px-4 py-3 max-w-[75%]">
+          <p className="text-[#ededec] text-[15px] whitespace-pre-wrap">{message.content}</p>
         </div>
       </div>
     );
   }
 
   const parts = parseContent(message.content);
+  const isLive = streaming && message.id === '__streaming__';
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] w-full">
-        {/* Working timer */}
-        {streaming && fmtTime && elapsed !== undefined && (
-          <div className="text-[#6b7280] text-xs mb-2">Working for {fmtTime(elapsed)}</div>
-        )}
+      <div className="max-w-[85%] w-full space-y-3">
+        {/* AI label — shows which provider replied */}
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-[#8b5cf6]/20 flex items-center justify-center">
+            <span className="text-[#a78bfa] text-[9px] font-bold">AI</span>
+          </div>
+          <span className="text-[#a78bfa] text-xs font-medium">
+            {isLive ? '⟳ Responding...' : `SAGE · ${message.provider || 'Claude'}`}
+          </span>
+          {isLive && fmtTime && elapsed !== undefined && (
+            <span className="text-[#6b7280] text-[10px]">{fmtTime(elapsed)}</span>
+          )}
+        </div>
 
         {parts.map((part, i) => {
-          if (part.type === 'thinking') return <ThinkingBlock key={i} content={part.content} />;
+          if (part.type === 'thinking') return <ThinkingBlock key={i} content={part.content} isStreaming={isLive} />;
           if (part.type === 'code') return <CodeBlock key={i} content={part.content} lang={part.lang} />;
           if (part.type === 'tool') return <ToolChip key={i} content={part.content} />;
-          return <div key={i} className="text-[#ededec] text-sm whitespace-pre-wrap leading-relaxed mb-2">{part.content}</div>;
+          return <div key={i} className="text-[#ededec] text-[15px] whitespace-pre-wrap leading-relaxed">{part.content}</div>;
         })}
 
-        {/* Agent Analysis */}
+        {/* Subtle footer — only after complete */}
         {!streaming && message.role === 'assistant' && message.id !== '__streaming__' && (
-          <div className="mt-3">
-            <button onClick={() => setShowAnalysis(!showAnalysis)} className="text-[#6b7280] hover:text-[#9ca3af] text-xs flex items-center gap-1 transition-colors">
-              <span>{showAnalysis ? '[-]' : '[+]'}</span> SAGE Agent Analysis
+          <div className="mt-3 pt-2 border-t border-[#333648]/30">
+            <button onClick={() => setShowAnalysis(!showAnalysis)} className="text-[#4b5563] hover:text-[#9ca3af] text-[10px] flex items-center gap-1 transition-colors">
+              <span>{showAnalysis ? '▾' : '▸'}</span> SAGE Agent Analysis
             </button>
             {showAnalysis && (
-              <div className="mt-1.5 pl-4 border-l-2 border-[#333648] text-xs text-[#9ca3af] space-y-1 py-1">
-                <p>Agent: Claude Code (opus-4.6)</p>
-                <p>Compression: active — ~85% context saved</p>
-                <p>Tokens: ~{Math.round(message.content.length / 4)} used, ~{Math.round(message.content.length / 4 * 5.6)} saved</p>
-                <p>Est. cost saved: ${(message.content.length / 4 * 5.6 * 0.000003).toFixed(4)}</p>
-                <p>ML Prediction: no risk detected</p>
+              <div className="mt-1 pl-3 text-[10px] text-[#6b7280] space-y-0.5">
+                <p>via API Travel · ~{Math.round(message.content.length / 4)} tokens</p>
               </div>
             )}
           </div>
@@ -255,14 +292,14 @@ function MessageBubble({ message, streaming, elapsed, fmtTime }: { message: Mess
   );
 }
 
-function ThinkingBlock({ content }: { content: string }) {
-  const [expanded, setExpanded] = useState(false);
+function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  const [expanded, setExpanded] = useState(true);
   return (
-    <div className="my-2 border border-[#8b5cf6]/30 rounded-lg overflow-hidden">
+    <div className="my-3 border border-[#8b5cf6]/30 rounded-lg overflow-hidden">
       <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-2 px-3 py-2 bg-[#8b5cf6]/10 text-[#a78bfa] text-xs hover:bg-[#8b5cf6]/15 transition-colors">
-        <span>{expanded ? '▾' : '▸'}</span> Reasoning
+        <span>{expanded ? '▾' : '▸'}</span> {isStreaming ? '⟳ Reasoning...' : 'Reasoning'}
       </button>
-      {expanded && <div className="px-3 py-2 text-[#9ca3af] text-xs whitespace-pre-wrap bg-[#1a1b26]/50 leading-relaxed">{content}</div>}
+      {expanded && <div className="px-3 py-2 text-[#9ca3af] text-xs whitespace-pre-wrap bg-[#1a1b26]/50 leading-relaxed max-h-60 overflow-y-auto">{content}</div>}
     </div>
   );
 }
@@ -270,23 +307,23 @@ function ThinkingBlock({ content }: { content: string }) {
 function CodeBlock({ content, lang }: { content: string; lang?: string }) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <div className="my-2 border border-[#4ade80]/30 rounded-lg overflow-hidden">
+    <div className="my-3 border border-[#4ade80]/30 rounded-lg overflow-hidden">
       <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-2 px-3 py-2 bg-[#4ade80]/10 text-[#4ade80] text-xs hover:bg-[#4ade80]/15 transition-colors">
-        <span>{expanded ? '▾' : '▸'}</span> Coding{lang ? ` (${lang})` : ''}
+        <span>{expanded ? '▾' : '▸'}</span> Code{lang ? ` (${lang})` : ''}
       </button>
-      {expanded && <pre className="px-3 py-2 text-[#ededec] text-xs overflow-x-auto bg-[#16161e] font-mono leading-relaxed">{content}</pre>}
+      {expanded && <pre className="px-3 py-2 text-[#ededec] text-xs overflow-x-auto bg-[#16161e] font-mono leading-relaxed max-h-80 overflow-y-auto">{content}</pre>}
     </div>
   );
 }
 
 function ToolChip({ content }: { content: string }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   return (
-    <div className="my-1.5">
+    <div className="my-2">
       <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1.5 text-[#3b82f6] text-xs hover:text-[#60a5fa] transition-colors">
-        <span>⊙</span> Ran commands <span className="text-[#6b7280]">›</span>
+        <span>⊙</span> {content.slice(0, 60)}{content.length > 60 ? '...' : ''} <span className="text-[#6b7280]">{expanded ? '▾' : '▸'}</span>
       </button>
-      {expanded && <div className="mt-1 pl-4 text-[#9ca3af] text-xs font-mono bg-[#1a1b26] rounded px-3 py-2 border border-[#333648]">{content}</div>}
+      {expanded && content.length > 60 && <div className="mt-1 pl-4 text-[#9ca3af] text-xs font-mono bg-[#1a1b26] rounded px-3 py-2 border border-[#333648]">{content}</div>}
     </div>
   );
 }

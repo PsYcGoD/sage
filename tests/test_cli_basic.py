@@ -125,23 +125,6 @@ class TestSageRun:
         assert result.returncode == 0
         assert "SAGE context compression report" in result.stdout
 
-    @pytest.mark.skip(reason="GUI requires optional PIL dependency not in CI")
-    def test_sage_gui_shows_public_roadmap_placeholder(self, tmp_path):
-        """The GUI command should not import removed GUI code in the public CLI repo."""
-        env = os.environ.copy()
-        env["LOCALAPPDATA"] = str(tmp_path)
-        env["SAGE_SKIP_AUTO_INSTALL"] = "1"
-        result = subprocess.run(
-            [sys.executable, "-m", "sage", "gui"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            env=env,
-        )
-        assert result.returncode == 0
-        assert "GUI is in development" in result.stdout
-        assert "sage run -- <command>" in result.stdout
-
     def test_api_status_allowed_before_connect(self, tmp_path):
         """Users need account/status commands before the first OAuth connection."""
         env = os.environ.copy()

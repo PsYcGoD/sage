@@ -1,4 +1,4 @@
-__version__ = "2.4.7"
+__version__ = "2.4.8"
 
 # Auto-install on first import
 def _auto_install():

@@ -25,6 +25,7 @@ class SAGEWebSocketServer:
         self.clients: set = set()
         self.running = False
         self._active_processes: dict = {}
+        self._settings_path = Path.home() / ".sage" / "gui_settings.json"
         self._ensure_chat_tables()
 
     def _ensure_chat_tables(self):
@@ -413,11 +414,48 @@ class SAGEWebSocketServer:
     async def _handle_provider_status(self, payload: dict) -> dict:
         return {"provider": payload.get("id", ""), "status": "connected"}
 
+    def _read_gui_settings(self) -> dict:
+        defaults = {
+            "permission_mode": "On request",
+            "sandbox_mode": "Read & write",
+            "speed": "Standard",
+            "send_shortcut": "Enter to send",
+            "completion_notifications": True,
+            "permission_notifications": True,
+            "question_notifications": True,
+            "reasoning_effort": "High",
+            "api_travel": False,
+            "auth_mode": "direct",
+            "api_endpoint": "sage.api.marketingstudios.in",
+            "ml_enabled": True,
+            "compression_enabled": True,
+            "agents_enabled": True,
+            "telemetry_enabled": True,
+            "theme": "dark",
+        }
+        try:
+            if self._settings_path.exists():
+                data = json.loads(self._settings_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return {**defaults, **data}
+        except Exception:
+            pass
+        return defaults
+
+    def _write_gui_settings(self, settings: dict) -> dict:
+        merged = {**self._read_gui_settings(), **settings}
+        self._settings_path.parent.mkdir(parents=True, exist_ok=True)
+        self._settings_path.write_text(json.dumps(merged, indent=2, sort_keys=True), encoding="utf-8")
+        return merged
+
     async def _handle_settings_get(self, payload: dict) -> dict:
-        return {"settings": {"permission_mode": "ask", "ml_enabled": True, "compression_enabled": True}}
+        return {"settings": self._read_gui_settings()}
 
     async def _handle_settings_set(self, payload: dict) -> dict:
-        return {"success": True}
+        settings = payload.get("settings", payload)
+        if not isinstance(settings, dict):
+            return {"success": False, "error": "settings payload must be an object"}
+        return {"success": True, "settings": self._write_gui_settings(settings)}
 
     async def _handle_metrics_get(self, payload: dict) -> dict:
         try:

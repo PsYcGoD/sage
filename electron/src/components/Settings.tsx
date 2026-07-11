@@ -9,8 +9,36 @@ interface SettingsProps {
 type SettingsPage =
   | 'general' | 'profile' | 'appearance' | 'voice' | 'personalization'
   | 'configuration' | 'pets' | 'keyboard' | 'usage'
-  | 'plugins' | 'providers' | 'api-travel' | 'mcp-servers' | 'skills'
+  | 'plugins' | 'providers' | 'mcp-servers' | 'skills'
   | 'hooks' | 'connections' | 'git' | 'environment' | 'worktrees' | 'archived';
+
+interface GuiSettings {
+  permission_mode: string;
+  sandbox_mode: string;
+  speed: string;
+  send_shortcut: string;
+  completion_notifications: boolean;
+  permission_notifications: boolean;
+  question_notifications: boolean;
+  reasoning_effort: string;
+  api_travel: boolean;
+  auth_mode: string;
+  api_endpoint: string;
+}
+
+const DEFAULT_GUI_SETTINGS: GuiSettings = {
+  permission_mode: 'On request',
+  sandbox_mode: 'Read & write',
+  speed: 'Standard',
+  send_shortcut: 'Enter to send',
+  completion_notifications: true,
+  permission_notifications: true,
+  question_notifications: true,
+  reasoning_effort: 'High',
+  api_travel: false,
+  auth_mode: 'direct',
+  api_endpoint: 'sage.api.marketingstudios.in',
+};
 
 const NAV_SECTIONS = [
   {
@@ -30,7 +58,6 @@ const NAV_SECTIONS = [
     items: [
       { id: 'plugins' as SettingsPage, label: 'Plugins', icon: '🧩' },
       { id: 'providers' as SettingsPage, label: 'AI Providers', icon: '🤖' },
-      { id: 'api-travel' as SettingsPage, label: 'API & Travel', icon: '🌐' },
       { id: 'mcp-servers' as SettingsPage, label: 'MCP Servers', icon: '🔌' },
       { id: 'skills' as SettingsPage, label: 'Skills', icon: '✨' },
     ],
@@ -51,6 +78,44 @@ const NAV_SECTIONS = [
 export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
   const [page, setPage] = useState<SettingsPage>('general');
   const [search, setSearch] = useState('');
+  const [settings, setSettings] = useState<GuiSettings>(() => {
+    try {
+      const saved = localStorage.getItem('sage-gui-settings');
+      return saved ? { ...DEFAULT_GUI_SETTINGS, ...JSON.parse(saved) } : DEFAULT_GUI_SETTINGS;
+    } catch {
+      return DEFAULT_GUI_SETTINGS;
+    }
+  });
+  const activeItem = NAV_SECTIONS.flatMap(section => section.items).find(item => item.id === page);
+
+  useEffect(() => {
+    if (!connected || !wsRef.current) return;
+    function handleMsg(event: MessageEvent) {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'settings.get.response') {
+          const next = { ...DEFAULT_GUI_SETTINGS, ...(msg.payload.settings || {}) };
+          setSettings(next);
+          localStorage.setItem('sage-gui-settings', JSON.stringify(next));
+        }
+      } catch {}
+    }
+    wsRef.current.addEventListener('message', handleMsg);
+    wsRef.current.send(JSON.stringify({ type: 'settings.get', payload: {} }));
+    return () => { wsRef.current?.removeEventListener('message', handleMsg); };
+  }, [connected, wsRef]);
+
+  function updateSettings(patch: Partial<GuiSettings>) {
+    setSettings(prev => ({ ...prev, ...patch }));
+  }
+
+  function saveSettings() {
+    localStorage.setItem('sage-gui-settings', JSON.stringify(settings));
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'settings.set', payload: { settings } }));
+    }
+    onClose();
+  }
 
   const filteredSections = NAV_SECTIONS.map(section => ({
     ...section,
@@ -60,47 +125,57 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
   })).filter(s => s.items.length > 0);
 
   return (
-    <div className="h-full w-full flex bg-[#1a1b26]">
+    <div className="h-full w-full flex bg-[#151622]">
       {/* Left nav */}
-      <div className="w-60 bg-[#16161e] border-r border-[#333648] flex flex-col overflow-y-auto">
-        <button onClick={onClose} className="flex items-center gap-2 px-4 py-3 text-[#9ca3af] hover:text-white text-sm transition-colors border-b border-[#333648]">
+      <div className="w-72 bg-[#11131d] border-r border-[#2a2d3d] flex flex-col">
+        <button onClick={onClose} className="flex items-center gap-2 px-5 py-4 text-[#9ca3af] hover:text-white text-sm transition-colors border-b border-[#2a2d3d] active:scale-[0.99]">
           <svg width="14" height="14" viewBox="0 0 14 14"><path d="M9 3L5 7l4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Back to app
         </button>
-        <div className="px-3 py-2">
+        <div className="px-4 py-4 border-b border-[#2a2d3d]">
+          <div className="text-white text-lg font-semibold mb-1">Settings</div>
+          <div className="text-[#7d8498] text-xs mb-3">Find and tune SAGE behavior.</div>
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search settings..."
-            className="w-full bg-[#24283b] text-[#ededec] text-xs px-3 py-1.5 rounded-md border border-[#333648] focus:border-[#8b5cf6] focus:outline-none placeholder:text-[#6b7280]"
+            className="w-full bg-[#1b1e2d] text-[#ededec] text-sm px-3 py-2 rounded-md border border-[#303449] focus:border-[#8b5cf6] focus:outline-none placeholder:text-[#6b7280]"
           />
         </div>
-        <div className="flex-1 px-2 py-1">
+        <div className="flex-1 overflow-y-auto px-3 py-4">
           {filteredSections.map(section => (
-            <div key={section.title} className="mb-3">
-              <div className="text-[#6b7280] text-[10px] font-semibold uppercase tracking-wider px-2 py-1">{section.title}</div>
+            <div key={section.title} className="mb-5">
+              <div className="text-[#727891] text-[11px] font-semibold uppercase tracking-wider px-2 mb-2">{section.title}</div>
               {section.items.map(item => (
                 <button
                   key={item.id}
                   onClick={() => setPage(item.id)}
-                  className={`w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors ${
-                    page === item.id ? 'bg-[#24283b] text-white' : 'text-[#9ca3af] hover:text-white hover:bg-[#24283b]/50'
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between transition-colors active:scale-[0.99] ${
+                    page === item.id ? 'bg-[#24283b] text-white shadow-[inset_3px_0_0_#8b5cf6]' : 'text-[#a6adbd] hover:text-white hover:bg-[#1b1e2d]'
                   }`}
                 >
-                  <span className="text-xs w-5 text-center">{item.icon}</span>
-                  {item.label}
+                  <span>{item.label}</span>
                 </button>
               ))}
             </div>
           ))}
+          {filteredSections.length === 0 && (
+            <div className="px-3 py-6 text-center text-[#7d8498] text-sm">
+              No settings match "{search}".
+            </div>
+          )}
         </div>
       </div>
 
       {/* Content — centered with generous padding */}
-      <div className="flex-1 overflow-y-auto px-12 py-10 relative">
-        <div className="max-w-2xl mx-auto pb-20">
-          {page === 'general' && <GeneralPage />}
+      <div className="flex-1 overflow-y-auto relative">
+        <div className="max-w-5xl mx-auto px-6 xl:px-10 py-8 pb-24">
+          <div className="mb-8 border-b border-[#2a2d3d] pb-5">
+            <div className="text-[#7d8498] text-xs uppercase tracking-wider mb-2">SAGE Preferences</div>
+            <h1 className="text-white text-2xl font-semibold">{activeItem?.label || 'Settings'}</h1>
+          </div>
+          {page === 'general' && <GeneralPage settings={settings} onChange={updateSettings} />}
           {page === 'profile' && <ProfilePage />}
           {page === 'appearance' && <AppearancePage />}
           {page === 'voice' && <VoicePage />}
@@ -110,8 +185,7 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
           {page === 'keyboard' && <KeyboardPage />}
           {page === 'usage' && <UsagePage />}
           {page === 'plugins' && <PluginsPage />}
-          {page === 'providers' && <ProvidersPage wsRef={wsRef} connected={connected} />}
-          {page === 'api-travel' && <APITravelPage />}
+          {page === 'providers' && <ProvidersPage wsRef={wsRef} connected={connected} settings={settings} onChange={updateSettings} />}
           {page === 'mcp-servers' && <MCPPage />}
           {page === 'skills' && <SkillsPage />}
           {page === 'hooks' && <HooksPage />}
@@ -123,19 +197,14 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
         </div>
 
         {/* Sticky save bar */}
-        <div className="sticky bottom-0 left-0 right-0 bg-[#1a1b26]/90 backdrop-blur border-t border-[#333648] px-8 py-4 flex justify-end gap-3">
+        <div className="sticky bottom-0 left-0 right-0 bg-[#151622]/92 backdrop-blur border-t border-[#2a2d3d] px-10 py-4 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-[#9ca3af] hover:text-white rounded-lg border border-[#333648] hover:bg-[#24283b] transition-colors"
+            className="px-4 py-2 text-sm text-[#9ca3af] hover:text-white rounded-md border border-[#333648] hover:bg-[#24283b] transition-colors active:scale-[0.97]"
           >Cancel</button>
           <button
-            onClick={() => {
-              if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ type: 'settings.save', payload: {} }));
-              }
-              onClose();
-            }}
-            className="px-5 py-2 text-sm text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-lg font-medium transition-colors"
+            onClick={saveSettings}
+            className="px-5 py-2 text-sm text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-md font-medium transition-colors active:scale-[0.97]"
           >Save Changes</button>
         </div>
       </div>
@@ -145,37 +214,42 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
 
 // ─── PAGE COMPONENTS ─────────────────────────────────────────────────
 
-function GeneralPage() {
+function GeneralPage({ settings, onChange }: { settings: GuiSettings; onChange: (patch: Partial<GuiSettings>) => void }) {
   return (
     <div>
       <PageTitle title="General" />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-8">
+        <SummaryCard label="Safety" value={settings.permission_mode} desc="Approvals before risky actions" />
+        <SummaryCard label="Sandbox" value={settings.sandbox_mode} desc="Project edits allowed" />
+        <SummaryCard label="Model" value={`${settings.reasoning_effort} reasoning`} desc="Default for complex tasks" />
+      </div>
       <Section title="Permissions">
         <p className="text-[#6b7280] text-xs mb-3">Configure approval policy and sandbox settings</p>
         <Card>
-          <RowSelect label="Approval policy" desc="Choose when SAGE asks for approval" options={['On request', 'Auto-approve', 'Full access']} defaultVal="On request" />
-          <RowSelect label="Sandbox settings" desc="Choose how much SAGE can do when running commands" options={['Read only', 'Read & write', 'Full access']} defaultVal="Read & write" />
+          <RowSelect label="Approval policy" desc="Choose when SAGE asks for approval" options={['On request', 'Auto-approve', 'Full access']} value={settings.permission_mode} onChange={permission_mode => onChange({ permission_mode })} />
+          <RowSelect label="Sandbox settings" desc="Choose how much SAGE can do when running commands" options={['Read only', 'Read & write', 'Full access']} value={settings.sandbox_mode} onChange={sandbox_mode => onChange({ sandbox_mode })} />
         </Card>
       </Section>
       <Section title="Speed">
         <Card>
-          <RowSelect label="Default speed" desc="How quickly SAGE runs across tasks and agents" options={['Standard', 'Fast', 'Turbo']} defaultVal="Standard" />
+          <RowSelect label="Default speed" desc="How quickly SAGE runs across tasks and agents" options={['Standard', 'Fast', 'Turbo']} value={settings.speed} onChange={speed => onChange({ speed })} />
         </Card>
       </Section>
       <Section title="Send shortcut">
         <Card>
-          <RowSelect label="Send message" desc="Choose when Enter sends a prompt" options={['Enter to send', 'Ctrl+Enter to send']} defaultVal="Enter to send" />
+          <RowSelect label="Send message" desc="Choose when Enter sends a prompt" options={['Enter to send', 'Ctrl+Enter to send']} value={settings.send_shortcut} onChange={send_shortcut => onChange({ send_shortcut })} />
         </Card>
       </Section>
       <Section title="Notifications">
         <Card>
-          <ToggleRow label="Completion notifications" desc="Alert when SAGE finishes a task" defaultOn={true} />
-          <ToggleRow label="Permission notifications" desc="Show alerts when permissions are required" defaultOn={true} />
-          <ToggleRow label="Question notifications" desc="Show alerts when input is needed" defaultOn={true} />
+          <ToggleRow label="Completion notifications" desc="Alert when SAGE finishes a task" checked={settings.completion_notifications} onChange={completion_notifications => onChange({ completion_notifications })} />
+          <ToggleRow label="Permission notifications" desc="Show alerts when permissions are required" checked={settings.permission_notifications} onChange={permission_notifications => onChange({ permission_notifications })} />
+          <ToggleRow label="Question notifications" desc="Show alerts when input is needed" checked={settings.question_notifications} onChange={question_notifications => onChange({ question_notifications })} />
         </Card>
       </Section>
       <Section title="Model features">
         <Card>
-          <RowSelect label="Reasoning effort" desc="Choose default reasoning level" options={['Low', 'Medium', 'High', 'Max']} defaultVal="High" />
+          <RowSelect label="Reasoning effort" desc="Choose default reasoning level" options={['Low', 'Medium', 'High', 'Max']} value={settings.reasoning_effort} onChange={reasoning_effort => onChange({ reasoning_effort })} />
         </Card>
       </Section>
     </div>
@@ -467,7 +541,7 @@ function UsagePage() {
   );
 }
 
-function ProvidersPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean }) {
+function ProvidersPage({ wsRef, connected, settings, onChange }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean; settings: GuiSettings; onChange: (patch: Partial<GuiSettings>) => void }) {
   const [providers, setProviders] = useState<any[]>([]);
 
   useEffect(() => {
@@ -486,7 +560,7 @@ function ProvidersPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket 
   return (
     <div>
       <PageTitle title="AI Providers" />
-      <p className="text-[#9ca3af] text-sm mb-6">Auto-detected AI coding agents on this system.</p>
+      <p className="text-[#9ca3af] text-sm mb-6">Auto-detected agents, manual fallback credentials, and API routing in one place.</p>
       <Section title="Detected Agents">
         <Card>
           {providers.length === 0 && <div className="text-[#6b7280] text-sm py-4 text-center">Scanning...</div>}
@@ -499,9 +573,46 @@ function ProvidersPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket 
                   <span className="text-[#6b7280] text-xs ml-2">{p.model}</span>
                 </div>
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded ${p.status === 'connected' ? 'bg-[#4ade80]/10 text-[#4ade80]' : 'bg-[#4b5563]/20 text-[#6b7280]'}`}>{p.status === 'connected' ? '● Connected' : '○ Not found'}</span>
+              <span className={`text-xs px-2 py-0.5 rounded ${p.status === 'connected' ? 'bg-[#4ade80]/10 text-[#4ade80]' : 'bg-[#4b5563]/20 text-[#6b7280]'}`}>{p.status === 'connected' ? 'Connected' : 'Not found'}</span>
             </div>
           ))}
+        </Card>
+      </Section>
+      <Section title="Routing">
+        <Card>
+          <ToggleRow label="Auto-route to cheapest capable agent" desc="When enabled, SAGE can pick the lowest-cost available provider for each message." checked={settings.api_travel} onChange={api_travel => onChange({ api_travel })} />
+        </Card>
+      </Section>
+      <Section title="SAGE API">
+        <Card>
+          <RowInput label="API Key" placeholder="sk-sage-..." type="password" />
+          <RowInput label="Endpoint" placeholder="sage.api.marketingstudios.in" defaultVal={settings.api_endpoint} />
+          <RowDisplay label="Status" value="Connected" valueColor="#4ade80" />
+        </Card>
+      </Section>
+      <Section title="Manual Fallback Credentials">
+        <Card>
+          <RowSelect label="Auth mode" desc="Used only when you bypass CLI agents or no CLI agent is available." options={['direct', 'bedrock', 'gateway']} value={settings.auth_mode} onChange={auth_mode => onChange({ auth_mode })} />
+          {settings.auth_mode === 'direct' && (
+            <div className="pt-1">
+              <RowInput label="API Key" placeholder="sk-ant-..." type="password" fullWidth />
+              <RowInput label="Base URL" placeholder="https://api.anthropic.com" fullWidth />
+            </div>
+          )}
+          {settings.auth_mode === 'bedrock' && (
+            <div className="pt-1">
+              <RowInput label="Access Key" placeholder="AKIA..." fullWidth />
+              <RowInput label="Secret Key" placeholder="..." type="password" fullWidth />
+              <RowInput label="Region" placeholder="us-east-1" fullWidth />
+              <RowInput label="Session Token" placeholder="(optional)" fullWidth />
+            </div>
+          )}
+          {settings.auth_mode === 'gateway' && (
+            <div className="pt-1">
+              <RowInput label="Gateway URL" placeholder="https://gateway.example.com" fullWidth />
+              <RowInput label="API Key" placeholder="..." type="password" fullWidth />
+            </div>
+          )}
         </Card>
       </Section>
       <Section title="Custom Binary Paths">
@@ -888,30 +999,40 @@ function ArchivedChatsPage() {
 // ─── REUSABLE COMPONENTS ─────────────────────────────────────────────
 
 function PageTitle({ title }: { title: string }) {
-  return <h1 className="text-white text-xl font-semibold mb-5">{title}</h1>;
+  return <span className="sr-only">{title}</span>;
+}
+
+function SummaryCard({ label, value, desc }: { label: string; value: string; desc: string }) {
+  return (
+    <div className="bg-[#1d2131] border border-[#303449] rounded-md p-4">
+      <div className="text-[#7d8498] text-xs mb-2">{label}</div>
+      <div className="text-[#ededec] text-sm font-medium mb-1">{value}</div>
+      <div className="text-[#7d8498] text-xs leading-5">{desc}</div>
+    </div>
+  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-8">
-      <h2 className="text-[#ededec] text-sm font-medium mb-3">{title}</h2>
+      <h2 className="text-[#ededec] text-sm font-semibold mb-3">{title}</h2>
       {children}
     </div>
   );
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="bg-[#24283b] rounded-lg px-5 py-2 border border-[#333648]">{children}</div>;
+  return <div className="bg-[#1d2131] rounded-md px-5 py-1 border border-[#303449]">{children}</div>;
 }
 
-function RowSelect({ label, desc, options, defaultVal }: { label: string; desc?: string; options: string[]; defaultVal?: string }) {
+function RowSelect({ label, desc, options, defaultVal, value, onChange }: { label: string; desc?: string; options: string[]; defaultVal?: string; value?: string; onChange?: (value: string) => void }) {
   return (
-    <div className="flex items-center justify-between py-3.5 border-b border-[#333648] last:border-0">
-      <div className="pr-4">
-        <span className="text-[#ededec] text-sm">{label}</span>
-        {desc && <p className="text-[#6b7280] text-xs mt-0.5">{desc}</p>}
+    <div className="grid grid-cols-[minmax(0,1fr)_13rem] gap-6 items-center py-4 border-b border-[#303449] last:border-0">
+      <div>
+        <span className="text-[#ededec] text-sm font-medium">{label}</span>
+        {desc && <p className="text-[#7d8498] text-xs mt-1 leading-5">{desc}</p>}
       </div>
-      <select defaultValue={defaultVal} className="settings-input w-auto">
+      <select value={value} defaultValue={value === undefined ? defaultVal : undefined} onChange={e => onChange?.(e.target.value)} className="settings-input w-auto">
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     </div>
@@ -920,8 +1041,8 @@ function RowSelect({ label, desc, options, defaultVal }: { label: string; desc?:
 
 function RowInput({ label, placeholder, defaultVal, type, fullWidth }: { label: string; placeholder?: string; defaultVal?: string; type?: string; fullWidth?: boolean }) {
   return (
-    <div className={`flex ${fullWidth ? 'flex-col gap-1.5' : 'items-center justify-between'} py-3.5 border-b border-[#333648] last:border-0`}>
-      <span className="text-[#ededec] text-sm">{label}</span>
+    <div className={`${fullWidth ? 'flex flex-col gap-2' : 'grid grid-cols-[minmax(0,1fr)_13rem] gap-6 items-center'} py-4 border-b border-[#303449] last:border-0`}>
+      <span className="text-[#ededec] text-sm font-medium">{label}</span>
       <input type={type || 'text'} placeholder={placeholder} defaultValue={defaultVal} className={`settings-input ${fullWidth ? 'w-full' : ''}`} />
     </div>
   );
@@ -929,22 +1050,28 @@ function RowInput({ label, placeholder, defaultVal, type, fullWidth }: { label: 
 
 function RowDisplay({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-[#333648] last:border-0">
-      <span className="text-[#ededec] text-sm">{label}</span>
+    <div className="grid grid-cols-[minmax(0,1fr)_13rem] gap-6 items-center py-3 border-b border-[#303449] last:border-0">
+      <span className="text-[#ededec] text-sm font-medium">{label}</span>
       <span className="text-sm" style={{ color: valueColor || '#9ca3af' }}>{value}</span>
     </div>
   );
 }
 
-function ToggleRow({ label, desc, defaultOn }: { label: string; desc?: string; defaultOn: boolean }) {
-  const [on, setOn] = useState(defaultOn);
+function ToggleRow({ label, desc, defaultOn, checked, onChange }: { label: string; desc?: string; defaultOn?: boolean; checked?: boolean; onChange?: (checked: boolean) => void }) {
+  const [localOn, setLocalOn] = useState(defaultOn ?? false);
+  const on = checked ?? localOn;
+  function toggle() {
+    const next = !on;
+    if (checked === undefined) setLocalOn(next);
+    onChange?.(next);
+  }
   return (
-    <div className="flex items-center justify-between py-3.5 border-b border-[#333648] last:border-0">
-      <div className="pr-6">
-        <span className="text-[#ededec] text-sm">{label}</span>
-        {desc && <p className="text-[#6b7280] text-xs mt-1">{desc}</p>}
+    <div className="grid grid-cols-[minmax(0,1fr)_3rem] gap-6 items-center py-4 border-b border-[#303449] last:border-0">
+      <div>
+        <span className="text-[#ededec] text-sm font-medium">{label}</span>
+        {desc && <p className="text-[#7d8498] text-xs mt-1 leading-5">{desc}</p>}
       </div>
-      <button onClick={() => setOn(!on)} className={`w-10 h-[22px] rounded-full transition-colors relative flex-shrink-0 ${on ? 'bg-[#8b5cf6]' : 'bg-[#4b5563]'}`}>
+      <button onClick={toggle} className={`w-10 h-[22px] rounded-full transition-colors relative flex-shrink-0 ${on ? 'bg-[#8b5cf6]' : 'bg-[#4b5563]'}`}>
         <div className={`w-4 h-4 bg-white rounded-full absolute top-[3px] transition-all ${on ? 'left-[21px]' : 'left-[3px]'}`} />
       </button>
     </div>

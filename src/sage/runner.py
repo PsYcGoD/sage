@@ -93,15 +93,11 @@ def run_command(
     # Daemon auto-starts on first command if not running.
     if os.environ.get("SAGE_DISABLE_PREDICT") != "1":
         try:
-            from .ml.client import predict_fast, daemon_healthy
+            from .ml.client import predict_fast
 
             result = predict_fast(command_text)
-            if result is None and not daemon_healthy(timeout=0.1):
+            if result is None and os.environ.get("SAGE_ENABLE_LOCAL_HEURISTIC_PREDICT") == "1":
                 # Daemon not running — start it in background for next command
-                from .ml.daemon import start_daemon_background
-                threading.Thread(
-                    target=start_daemon_background, daemon=True, name="sage-ml-start"
-                ).start()
                 # Fall back to fast local heuristics for THIS command
                 from .ml.predictor import FailurePredictor
                 _predictor = FailurePredictor()

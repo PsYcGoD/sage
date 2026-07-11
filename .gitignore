@@ -38,6 +38,10 @@ oauth.env
 # Local Firebase CLI debug output
 firebase-debug.log
 
+opencode_build.md
+sage_electron_gui.md
+TODO_GUI_FIXES.md
+
 # Personal files not for public repo
 .claude/
 REPO_DESCRIPTION.txt

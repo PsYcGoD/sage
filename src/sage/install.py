@@ -327,7 +327,7 @@ def _register_mcp_server() -> bool:
         return False
 
 
-def install_sage_system_wide() -> dict[str, bool]:
+def install_sage_system_wide(*, verbose: bool = True) -> dict[str, bool]:
     """
     Install SAGE prompt instructions for supported local AI tools.
 
@@ -342,7 +342,8 @@ def install_sage_system_wide() -> dict[str, bool]:
     - ~/.aider.conf.yml, only when it already exists
     """
     results: dict[str, bool] = {}
-    print("Installing SAGE agent configs system-wide...")
+    if verbose:
+        print("Installing SAGE agent configs system-wide...")
 
     for target in _targets():
         changed = inject_sage_requirement(
@@ -351,27 +352,31 @@ def install_sage_system_wide() -> dict[str, bool]:
             create_if_missing=target.create_if_missing,
         )
         results[target.name] = changed
-        if changed:
-            print(f"Installed SAGE instruction for {target.name}: {target.path}")
-        elif target.path.exists():
-            print(f"{target.name} already has a SAGE instruction or was unchanged")
-        else:
-            print(f"Skipped {target.name}; config file does not exist")
+        if verbose:
+            if changed:
+                print(f"Installed SAGE instruction for {target.name}: {target.path}")
+            elif target.path.exists():
+                print(f"{target.name} already has a SAGE instruction or was unchanged")
+            else:
+                print(f"Skipped {target.name}; config file does not exist")
 
     claude_results = _install_claude_enforcement(Path.home())
     results.update(claude_results)
-    for name, changed in claude_results.items():
-        print(f"{'Installed' if changed else 'Verified'} {name.replace('_', ' ')}")
+    if verbose:
+        for name, changed in claude_results.items():
+            print(f"{'Installed' if changed else 'Verified'} {name.replace('_', ' ')}")
 
     # Register MCP server for Claude Code
     mcp_registered = _register_mcp_server()
     results["mcp_server"] = mcp_registered
-    if mcp_registered:
-        print("Registered SAGE MCP server in Claude Code")
-    else:
-        print("MCP server already registered or Claude Code not found")
+    if verbose:
+        if mcp_registered:
+            print("Registered SAGE MCP server in Claude Code")
+        else:
+            print("MCP server already registered or Claude Code not found")
 
-    print("\nSAGE prompt integration complete")
+    if verbose:
+        print("\nSAGE prompt integration complete")
     return results
 
 

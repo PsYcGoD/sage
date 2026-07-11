@@ -18,7 +18,7 @@ from .context.tokens import count_tokens
 from .security import command_hash, load_policy, redact_text, retention_expiry
 from .store import save_run
 
-DEFAULT_MAX_TOKENS = 1_500
+DEFAULT_MAX_TOKENS = 1_200
 
 _LANGUAGES = {
     ".py": "python", ".js": "javascript", ".ts": "typescript", ".tsx": "typescript",
@@ -173,7 +173,7 @@ def _compressed_view(all_lines: list[str], result: ReadResult, max_tokens: int) 
     ]
     if result.symbols:
         parts.append("## Outline")
-        parts.extend(result.symbols[:80])
+        parts.extend(result.symbols[:50])
     parts.append("## Head")
     head: list[str] = []
     used = count_tokens("\n".join(parts))

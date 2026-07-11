@@ -41,12 +41,12 @@ Even when context is already maxed out, SAGE keeps raw logs local and sends the 
 
 ```bash
 pip install psycgod-sage
-sage --version
+sage
 ```
 
 Package name: `psycgod-sage` | CLI command: `sage`
 
-`pip install psycgod-sage` installs the SAGE Python package and the `sage` command. On first `sage` use, SAGE automatically installs mandatory local AI-agent instructions, MCP registration, and Claude Code hook settings for supported agents. No second install command is required.
+`pip install psycgod-sage` installs the SAGE Python package and the single `sage` command. Run bare `sage` once for first-time setup. SAGE asks what to call you, explains ML V1 vs ML V2, can connect to the Cloudflare-backed SAGE API for a local API key, and installs mandatory local AI-agent instructions for supported agents. No repeated install commands are required.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 
@@ -59,13 +59,16 @@ sage init
 On first use, SAGE walks you through setup:
 
 ```
-1. Install ML V2 dependencies? [y/N]     - neural predictions (optional, ~2 GB)
-2. Local AI-agent enforcement            - automatic on first `sage` use / `sage init`
+1. What should SAGE call you?
+2. Select ML V1 or ML V2
+3. Connect to SAGE cloud API? [y/N]
+4. Local AI-agent enforcement
 ```
 
-- Type `y` for ML V2: torch + sentence-transformers + faiss (76% prediction accuracy)
-- Type `n` to skip: ML V1 (scikit-learn) is already included and learns from your usage over time
+- ML V1: included, light, local scikit-learn/heuristic prediction, learns from your usage over time
+- ML V2: optional neural embeddings with torch + sentence-transformers + faiss
 - You can install ML V2 later with `pip install psycgod-sage[ml]` or `sage ml setup`
+- Safe telemetry stays queued locally if offline and syncs when the API is reachable; SAGE attempts proof sync every 10th command.
 
 ## Quick Start
 

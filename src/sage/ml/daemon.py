@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import gc
 import os
 import signal
 import socket
@@ -18,6 +19,7 @@ DAEMON_HOST = "127.0.0.1"
 DAEMON_PORT = 19472
 _DATA_DIR = Path(os.environ.get("SAGE_DATA_DIR", "")) if os.environ.get("SAGE_DATA_DIR") else Path.home() / ".sage"
 PID_FILE = _DATA_DIR / "ml-daemon.pid"
+START_LOCK_FILE = _DATA_DIR / "ml-daemon-start.lock"
 MAX_REQUEST_SIZE = 8192
 IDLE_TIMEOUT = 10  # seconds before daemon sleeps
 
@@ -80,22 +82,26 @@ class MLDaemon:
     def _warm_model(self):
         """Load the prediction pipeline — heuristics first (instant), then V2 (slow)."""
         from .predictor import FailurePredictor
-        self._predictor = FailurePredictor()
-        self._predictor._v2_failed = True  # Start with heuristics only
+        predictor = FailurePredictor()
+        predictor._v2_failed = True  # Start with heuristics only
+        self._predictor = predictor
         self._ready.set()  # Accept predictions immediately
         logger.info("ML daemon ready (heuristics mode)")
 
         # Now try loading V2 embeddings in the background
+        if self._sleeping or not self._running:
+            return
         try:
-            self._predictor._v2_failed = False
-            store = self._predictor._get_vector_store()
+            predictor._v2_failed = False
+            store = predictor._get_vector_store()
             if store:
                 logger.info(f"V2 model loaded: {store.size} commands indexed")
             else:
-                self._predictor._v2_failed = True
+                predictor._v2_failed = True
                 logger.info("V2 not available, staying in heuristics mode")
         except Exception as e:
-            self._predictor._v2_failed = True
+            if self._predictor is predictor:
+                predictor._v2_failed = True
             logger.info(f"V2 warmup failed ({e}), staying in heuristics mode")
 
     def _idle_watchdog(self):
@@ -116,6 +122,7 @@ class MLDaemon:
             self._sleeping = True
             self._ready.clear()
             self._predictor = None
+            gc.collect()
             logger.info("ML daemon sleeping (idle timeout)")
 
     def _wake(self):
@@ -129,9 +136,6 @@ class MLDaemon:
 
     def _handle_client(self, conn: socket.socket):
         """Handle a single prediction request."""
-        self._last_activity = time.time()
-        if self._sleeping:
-            self._wake()
         conn.settimeout(5.0)
         try:
             data = conn.recv(MAX_REQUEST_SIZE)
@@ -146,6 +150,9 @@ class MLDaemon:
                 self._running = False
                 response = {"ok": True, "action": "shutdown"}
             elif command:
+                self._last_activity = time.time()
+                if self._sleeping:
+                    self._wake()
                 response = self._predict(command)
             else:
                 response = {"ok": False, "error": "no command"}
@@ -245,37 +252,90 @@ def start_daemon_background() -> bool:
     """Spawn the ML daemon as a detached background process."""
     if is_daemon_running():
         return True
+    lock = _acquire_start_lock()
+    if lock is None:
+        for _ in range(10):
+            time.sleep(0.3)
+            if is_daemon_running():
+                return True
+        return False
 
     import subprocess
 
-    python = sys.executable
-    cmd = [python, "-m", "sage.ml.daemon"]
-
-    if sys.platform == "win32":
-        CREATE_NO_WINDOW = 0x08000000
-        DETACHED_PROCESS = 0x00000008
-        subprocess.Popen(
-            cmd,
-            creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-        )
-    else:
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    # Wait briefly for daemon to bind
-    for _ in range(10):
-        time.sleep(0.3)
-        if _check_socket():
+    try:
+        if is_daemon_running():
             return True
-    return False
+
+        python = sys.executable
+        cmd = [python, "-m", "sage.ml.daemon"]
+
+        if sys.platform == "win32":
+            CREATE_NO_WINDOW = 0x08000000
+            DETACHED_PROCESS = 0x00000008
+            subprocess.Popen(
+                cmd,
+                creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
+        else:
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+
+        # Wait briefly for daemon to bind
+        for _ in range(10):
+            time.sleep(0.3)
+            if _check_socket():
+                return True
+        return False
+    finally:
+        _release_start_lock(lock)
+
+
+def _acquire_start_lock():
+    START_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    handle = START_LOCK_FILE.open("a+b")
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()).encode("ascii", errors="ignore") or b"0")
+        handle.flush()
+        return handle
+    except OSError:
+        handle.close()
+        return None
+
+
+def _release_start_lock(handle) -> None:
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+    finally:
+        handle.close()
 
 
 def stop_daemon() -> bool:

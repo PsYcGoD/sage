@@ -41,6 +41,8 @@ firebase-debug.log
 opencode_build.md
 sage_electron_gui.md
 TODO_GUI_FIXES.md
+.codex-pet-runs/
+awesome-claude-code/
 
 # Personal files not for public repo
 .claude/

@@ -102,8 +102,8 @@ def execute_agents_for_run(
 def _agent_worker_count(agent_count: int) -> int:
     configured = os.environ.get("SAGE_AGENT_WORKERS", "").strip()
     if configured.isdigit():
-        return max(1, min(24, int(configured)))
-    return max(1, min(24, agent_count))
+        return max(1, min(8, int(configured)))
+    return max(1, min(4, agent_count))
 
 
 def enqueue_agent_runs(
@@ -170,20 +170,72 @@ def run_agent_worker_once(
     limit: int = 16,
 ) -> list[dict[str, Any]]:
     """Pull queued/expired agent work from SQLite and execute it with leases."""
-    claimed = _claim_agent_runs(run_id=run_id, limit=limit, lease_seconds=lease_seconds)
-    if not claimed:
+    lock = _acquire_agent_worker_lock()
+    if lock is None:
         return []
+    try:
+        claimed = _claim_agent_runs(run_id=run_id, limit=limit, lease_seconds=lease_seconds)
+        if not claimed:
+            return []
 
-    results: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=max(1, max_workers), thread_name_prefix="sage-agent") as pool:
-        future_map = {pool.submit(_execute_claimed_agent_run, item): item for item in claimed}
-        for future in as_completed(future_map):
-            item = future_map[future]
-            try:
-                results.append(future.result())
-            except Exception as exc:
-                results.append(_fail_agent_run(item, exc))
-    return results
+        results: list[dict[str, Any]] = []
+        with ThreadPoolExecutor(max_workers=max(1, max_workers), thread_name_prefix="sage-agent") as pool:
+            future_map = {pool.submit(_execute_claimed_agent_run, item): item for item in claimed}
+            for future in as_completed(future_map):
+                item = future_map[future]
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    results.append(_fail_agent_run(item, exc))
+        return results
+    finally:
+        _release_agent_worker_lock(lock)
+
+
+def _agent_worker_lock_path() -> Path:
+    return data_dir() / "agent-worker.lock"
+
+
+def _acquire_agent_worker_lock():
+    """Acquire a process-wide worker lock before executing queued agent runs."""
+    path = _agent_worker_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+b")
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()} {socket.gethostname()} {time.time():.3f}\n".encode("utf-8"))
+        handle.flush()
+        return handle
+    except OSError:
+        handle.close()
+        return None
+
+
+def _release_agent_worker_lock(handle) -> None:
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+    finally:
+        handle.close()
 
 
 def cancel_agent_runs(run_id: int | None = None) -> int:

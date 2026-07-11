@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"sage {__version__}")
 
-    sub = parser.add_subparsers(dest="command_name", required=True)
+    sub = parser.add_subparsers(dest="command_name", required=False)
 
     run = sub.add_parser("run", help="Run a command and remember the important output.")
     run.add_argument(
@@ -109,8 +109,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use the normal SAGE data directory instead of an isolated proof database.",
     )
     ml_sub.add_parser("setup", help="Install ML V2 dependencies (torch, sentence-transformers, faiss-cpu).")
+    setup_parser = sub.add_parser("setup", help="Run first-time SAGE onboarding.")
+    setup_parser.add_argument("--force", action="store_true", help="Run onboarding even if it already completed.")
 
-    serve_parser = sub.add_parser("serve", help="ML prediction daemon (auto-starts on first sage run).")
+    serve_parser = sub.add_parser("serve", help="ML prediction daemon (sleeps after 10 seconds idle).")
     serve_sub = serve_parser.add_subparsers(dest="serve_action")
     serve_sub.add_parser("start", help="Start the ML daemon (default if no subcommand).")
     serve_sub.add_parser("stop", help="Stop the ML daemon.")
@@ -369,7 +371,8 @@ def build_parser() -> argparse.ArgumentParser:
     db_restore.add_argument("backup", help="Backup database path to restore.")
     db_restore.add_argument("--yes", action="store_true", help="Confirm restore without an interactive prompt.")
 
-    sub.add_parser("doctor", help="Check local setup.")
+    doctor_parser = sub.add_parser("doctor", help="Check local setup.")
+    doctor_parser.add_argument("--deep", action="store_true", help="Include slower PATH and optional dependency checks.")
     sub.add_parser("stats", help="Show SAGE token, ML, and agent statistics.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
     sub.add_parser("gui", help="Show GUI availability status.")
@@ -389,7 +392,7 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
 
 def _ensure_system_enforcement(command_name: str | None) -> bool:
     """Auto-install mandatory local AI-agent instructions on first SAGE use."""
-    if command_name == "install" or os.environ.get("SAGE_SKIP_AUTO_INSTALL") == "1":
+    if command_name in {"install", "setup"} or os.environ.get("SAGE_SKIP_AUTO_INSTALL") == "1":
         return True
     if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SAGE_TEST_AUTO_INSTALL") != "1":
         return True
@@ -412,38 +415,142 @@ def _ensure_system_enforcement(command_name: str | None) -> bool:
         print(f"[sage] warning: automatic SAGE enforcement install failed: {exc}", file=sys.stderr)
         return False
 
+
+def _setup_state_path() -> Path:
+    from .store import data_dir
+
+    return data_dir() / "setup.json"
+
+
+def _read_setup_state() -> dict:
+    path = _setup_state_path()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _write_setup_state(state: dict) -> None:
+    path = _setup_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _prompt_text(prompt: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    try:
+        value = input(f"{prompt}{suffix}: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    return value or default
+
+
+def setup_command(force: bool = False) -> int:
+    """Interactive one-time onboarding after `pip install psycgod-sage`."""
+    if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SAGE_TEST_SETUP") != "1":
+        return 0
+    if not sys.stdin.isatty():
+        print("SAGE setup is interactive. Run `sage setup` in a terminal when ready.")
+        print("Non-interactive installs can use SAGE immediately with ML V1/local-only defaults.")
+        return 0
+
+    state = _read_setup_state()
+    if state.get("completed") and not force:
+        print("SAGE setup already completed. Run `sage setup --force` to change it.")
+        return 0
+
+    print("SAGE first-time setup")
+    print("One install is enough: `pip install psycgod-sage` gives you the `sage` command.")
+    print()
+
+    display_name = _prompt_text("What should SAGE call you", str(state.get("display_name") or ""))
+    if display_name:
+        try:
+            from . import telemetry
+
+            config = telemetry.load_config()
+            profile = dict(config.get("api_profile") or {})
+            profile["display_name"] = display_name
+            profile.setdefault("username", display_name)
+            config["api_profile"] = profile
+            telemetry.save_config(config)
+        except Exception:
+            pass
+
+    print()
+    print("Choose ML mode:")
+    print("  1) ML V1 - included, light, scikit-learn/local heuristics, no large download.")
+    print("  2) ML V2 - optional neural embeddings, better semantic matching, larger install.")
+    print("You can start V2 later with: `sage ml setup` or `pip install psycgod-sage[ml]`.")
+    ml_choice = _prompt_text("Select ML mode (1 or 2)", str(state.get("ml_mode") or "1"))
+    ml_mode = "v2" if ml_choice.strip() in {"2", "v2", "V2"} else "v1"
+    if ml_mode == "v2":
+        if _check_ml_v2_deps():
+            print("ML V2 dependencies are already installed.")
+        else:
+            rc = _prompt_ml_v2_install()
+            if rc != 0:
+                ml_mode = "v1"
+    else:
+        print("ML V1 active. It is included and learns from your local usage over time.")
+
+    cloud_connected = False
+    print()
+    print("Cloud connection:")
+    print("  SAGE can request an API key from the Cloudflare-backed SAGE API.")
+    print("  Telemetry stays local by default unless a key is connected; safe events queue offline")
+    print("  and SAGE retries in the background, including every 10th command proof sync.")
+    connect_choice = _prompt_text("Connect now? (y/N)", "N").lower()
+    if connect_choice in {"y", "yes"}:
+        try:
+            from . import telemetry
+
+            result = telemetry.api_machine_login(display_name=display_name)
+            cloud_connected = bool(result.get("ok"))
+            print(f"Connected. Key ID: {result.get('key_id', '')}")
+        except Exception as exc:
+            print(f"Cloud connection skipped: {exc}")
+            print("Queued telemetry will send later after you run `sage connect`.")
+
+    if not _ensure_system_enforcement("run"):
+        print("Warning: AI-agent enforcement was not fully installed. Run `sage install` later.")
+
+    state.update(
+        {
+            "completed": True,
+            "display_name": display_name,
+            "ml_mode": ml_mode,
+            "cloud_connected": cloud_connected,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    _write_setup_state(state)
+    print()
+    print("Setup complete.")
+    print("Use commands as: `sage run -- <your command>`")
+    print("ML daemon command, when needed: `sage serve start`; it sleeps after 10 seconds idle.")
+    return 0
+
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.command_name is None:
+        if os.environ.get("SAGE_SKIP_SETUP") != "1":
+            return setup_command(force=False)
+        parser.print_help()
+        return 0
+
+    if args.command_name == "setup":
+        return setup_command(force=bool(getattr(args, "force", False)))
+
     if not _ensure_system_enforcement(args.command_name):
         print("Run `sage install` to repair local AI-agent enforcement, then retry.", file=sys.stderr)
         return 1
-
-    # First-time setup: ML prompt first, then connect.
-    # Only triggers when user runs bare `sage` (no subcommand) for the first time.
-    # All other commands work immediately without setup.
-    if (
-        args.command_name is None
-        and os.environ.get("SAGE_SKIP_SETUP") != "1"
-        and sys.stdin.isatty()
-    ):
-        from . import telemetry
-        status = telemetry.api_status()
-        if not status.get("connected"):
-            print("SAGE is not connected yet. Running first-time setup...\n")
-            # Step 1: Offer ML V2 install
-            if not _check_ml_v2_deps():
-                _prompt_ml_v2_install()
-                print()
-            # Step 2: Connect (hardware auth / GitHub OAuth)
-            rc = connect_command(args)
-            if rc != 0:
-                print("\nConnection failed. You can still use local commands.")
-                print("To retry later: sage connect\n")
-            else:
-                print()
 
     REQUIRES_API = {"github-bot"}
     if args.command_name in REQUIRES_API:
@@ -581,7 +688,7 @@ def main(argv: list[str] | None = None) -> int:
         return logout_command()
 
     if args.command_name == "doctor":
-        return doctor()
+        return doctor(deep=args.deep)
 
     if args.command_name == "stats":
         return stats_command()
@@ -1016,7 +1123,7 @@ def db_command(args) -> int:
         print(f"Database: {path}")
         print(f"Size: {size_mb:.1f} MB")
         with connect() as conn:
-            integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            integrity = conn.execute("PRAGMA quick_check").fetchone()[0]
             print(f"Integrity: {integrity}")
             tables = [
                 row[0]
@@ -1715,7 +1822,7 @@ def serve_command(args) -> int:
         print("[sage-ml] daemon already running.")
         return 0
 
-    print("[sage-ml] starting daemon (loading ML model, this takes ~10s on first run)...")
+    print("[sage-ml] starting daemon (loads on demand and sleeps after 10s idle)...")
     daemon = MLDaemon()
     daemon.start()
     return 0
@@ -2000,20 +2107,26 @@ def ml_command(args) -> int:
 
     return 1
 
-def doctor() -> int:
+def doctor(deep: bool = False) -> int:
     from .security import load_policy, policy_path
 
     print("S.A.G.E doctor")
     print(f"Python: {sys.version.split()[0]}")
-    print(f"Database: {db_path()}")
-    try:
-        with connect() as conn:
-            run_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
-            integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
-        print(f"Database runs: {run_count}")
-        print(f"Database integrity: {integrity}")
-    except Exception as exc:
-        print(f"Database integrity: error - {exc}")
+    database_path = db_path()
+    print(f"Database: {database_path}")
+    if deep:
+        try:
+            import sqlite3
+            with sqlite3.connect(f"file:{database_path}?mode=ro", uri=True, timeout=0.2) as conn:
+                conn.execute("PRAGMA busy_timeout = 200")
+                run_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+                integrity = conn.execute("PRAGMA quick_check").fetchone()[0]
+            print(f"Database runs: {run_count}")
+            print(f"Database integrity: {integrity}")
+        except Exception as exc:
+            print(f"Database integrity: error - {exc}")
+    else:
+        print("Database check: skipped (use 'sage doctor --deep')")
 
     policy = load_policy()
     print(f"Security policy: {policy_path()}")
@@ -2022,16 +2135,15 @@ def doctor() -> int:
     print(f"Retention days: {policy.get('retain_raw_days')}")
     print(f"Encryption at rest: {policy.get('encryption_at_rest')}")
 
-    for name in ["python", "git", "node", "npm", "claude", "codex", "gh"]:
-        found = shutil.which(name)
-        print(f"{name}: {found or 'not found'}")
+    if deep:
+        for name in ["python", "git", "node", "npm", "claude", "codex", "gh"]:
+            found = shutil.which(name)
+            print(f"{name}: {found or 'not found'}")
 
-    try:
-        import tiktoken  # noqa: F401
-
-        print("tiktoken: available")
-    except Exception:
-        print("tiktoken: not found")
+        import importlib.util
+        print(f"tiktoken: {'available' if importlib.util.find_spec('tiktoken') else 'not found'}")
+    else:
+        print("Tool checks: skipped (use 'sage doctor --deep')")
     return 0
 
 def stats_command() -> int:

@@ -66,6 +66,28 @@ AIDER_SAGE_INSTRUCTION = (
     f"{SAGE_BLOCK_END}\n"
 )
 
+CLINE_SAGE_INSTRUCTION = (
+    "# SAGE Integration - MANDATORY\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+    "Examples: sage run -- npm install, sage run -- python script.py\n"
+)
+
+CONTINUE_SAGE_INSTRUCTION = (
+    "# SAGE Integration - MANDATORY\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+    "Examples: sage run -- npm install, sage run -- python script.py\n"
+)
+
+JETBRAINS_SAGE_INSTRUCTION = (
+    "# SAGE Integration - MANDATORY\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+    "Examples: sage run -- npm install, sage run -- python script.py\n"
+)
+
+OPENCODE_SAGE_INSTRUCTION = (
+    "# SAGE Integration - MANDATORY\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+)
 CLAUDE_HOOK_SCRIPT = dedent(
     r'''
     from __future__ import annotations
@@ -198,6 +220,10 @@ def _targets() -> list[AgentConfigTarget]:
         AgentConfigTarget("cline", home / ".cline" / "AGENTS.md", SAGE_MANDATORY_INSTRUCTION),
         AgentConfigTarget("opencode", home / ".config" / "opencode" / "AGENTS.md", SAGE_MANDATORY_INSTRUCTION),
         AgentConfigTarget("aider", home / ".aider.conf.yml", AIDER_SAGE_INSTRUCTION, create_if_missing=False),
+        AgentConfigTarget("cline", home / ".clinerules", CLINE_SAGE_INSTRUCTION),
+        AgentConfigTarget("continue", home / ".continue" / "config.json", CONTINUE_SAGE_INSTRUCTION, create_if_missing=False),
+        AgentConfigTarget("jetbrains", home / ".junie" / "guidelines.md", JETBRAINS_SAGE_INSTRUCTION),
+        AgentConfigTarget("opencode", home / ".opencode" / "AGENTS.md", OPENCODE_SAGE_INSTRUCTION),
     ]
 
 
@@ -207,7 +233,7 @@ def _has_sage_instruction(content: str) -> bool:
 
 def is_sage_installed_system_wide() -> bool:
     """Return True only when the main agent configs already contain SAGE."""
-    required = [target for target in _targets() if target.name in {"claude", "codex", "cursor"}]
+    required = [target for target in _targets() if target.name in {"claude", "codex", "cursor", "cline", "jetbrains", "opencode"}]
     for target in required:
         if not target.path.exists():
             return False

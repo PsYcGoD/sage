@@ -59,6 +59,30 @@ function permissionLabel(value: GuiSettings['permission_mode']): string {
   return 'On request';
 }
 
+function useSettingsResource(wsRef: React.RefObject<WebSocket | null>, connected: boolean, requestType: string, responseType: string) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!connected || !wsRef.current) return;
+    setLoading(true);
+    function handleMsg(event: MessageEvent) {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === responseType) {
+          setData(msg.payload || {});
+          setLoading(false);
+        }
+      } catch {}
+    }
+    wsRef.current.addEventListener('message', handleMsg);
+    wsRef.current.send(JSON.stringify({ type: requestType, payload: {} }));
+    return () => { wsRef.current?.removeEventListener('message', handleMsg); };
+  }, [connected, wsRef, requestType, responseType]);
+
+  return { data, loading };
+}
+
 const NAV_SECTIONS = [
   {
     title: 'Personal',
@@ -202,12 +226,12 @@ export default function Settings({ onClose, wsRef, connected, externalSettings, 
           {page === 'pets' && <PetsPage />}
           {page === 'keyboard' && <KeyboardPage />}
           {page === 'usage' && <UsagePage />}
-          {page === 'plugins' && <PluginsPage />}
+          {page === 'plugins' && <PluginsPage wsRef={wsRef} connected={connected} />}
           {page === 'providers' && <ProvidersPage wsRef={wsRef} connected={connected} settings={settings} onChange={updateSettings} />}
-          {page === 'mcp-servers' && <MCPPage />}
-          {page === 'skills' && <SkillsPage />}
-          {page === 'hooks' && <HooksPage />}
-          {page === 'connections' && <ConnectionsPage />}
+          {page === 'mcp-servers' && <MCPPage wsRef={wsRef} connected={connected} />}
+          {page === 'skills' && <SkillsPage wsRef={wsRef} connected={connected} />}
+          {page === 'hooks' && <HooksPage wsRef={wsRef} connected={connected} />}
+          {page === 'connections' && <ConnectionsPage wsRef={wsRef} connected={connected} />}
           {page === 'git' && <GitPage />}
           {page === 'environment' && <EnvironmentPage />}
           {page === 'worktrees' && <WorktreesPage />}
@@ -711,61 +735,99 @@ function APITravelPage() {
   );
 }
 
-function MCPPage() {
+function MCPPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean }) {
+  const { data, loading } = useSettingsResource(wsRef, connected, 'settings.mcp', 'settings.mcp.response');
+  const servers = data?.servers || [];
+  const configs = data?.configs || [];
+
   return (
     <div>
       <PageTitle title="MCP Servers" />
       <Section title="Connected Servers">
         <Card>
-          <div className="text-[#6b7280] text-sm py-4 text-center">No MCP servers configured</div>
+          {loading && <div className="text-[#6b7280] text-sm py-4 text-center">Scanning MCP configs...</div>}
+          {!loading && servers.length === 0 && <div className="text-[#6b7280] text-sm py-4 text-center">No MCP servers found in scanned config files.</div>}
+          {servers.map((s: any, i: number) => (
+            <div key={`${s.source}-${s.name}`} className={`flex items-center justify-between py-3 ${i < servers.length - 1 ? 'border-b border-[#333648]' : ''}`}>
+              <div>
+                <span className="text-[#ededec] text-sm">{s.name}</span>
+                <p className="text-[#6b7280] text-xs mt-0.5">{s.command || 'configured'} · {s.source}</p>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded bg-[#4ade80]/10 text-[#4ade80]">{s.status}</span>
+            </div>
+          ))}
         </Card>
-        <button className="mt-3 bg-[#8b5cf6]/10 hover:bg-[#8b5cf6]/20 text-[#a78bfa] text-sm px-4 py-2 rounded-lg transition-colors">+ Add MCP Server</button>
+      </Section>
+      <Section title="Scanned Locations">
+        <Card>
+          {configs.map((c: any, i: number) => (
+            <RowDisplay key={c.path} label={c.exists ? c.kind : 'missing'} value={c.path} valueColor={c.exists ? '#4ade80' : '#6b7280'} />
+          ))}
+        </Card>
       </Section>
     </div>
   );
 }
 
-function HooksPage() {
+function HooksPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean }) {
+  const { data, loading } = useSettingsResource(wsRef, connected, 'settings.hooks', 'settings.hooks.response');
+  const hooks = data?.hooks || [];
+  const warnings = data?.warnings || [];
+
   return (
     <div>
       <PageTitle title="Hooks" />
       <p className="text-[#6b7280] text-xs mb-4">Shell commands that execute in response to events (tool calls, submissions, etc.)</p>
       <Section title="Configured Hooks">
         <Card>
-          <div className="py-2.5 border-b border-[#333648]">
-            <div className="flex items-center justify-between">
-              <span className="text-[#ededec] text-sm">PreToolUse: enforce_sage.py</span>
-              <span className="text-[#4ade80] text-xs">active</span>
+          {loading && <div className="text-[#6b7280] text-sm py-4 text-center">Checking hook files...</div>}
+          {!loading && hooks.length === 0 && <div className="text-[#6b7280] text-sm py-4 text-center">No hook files found.</div>}
+          {hooks.map((h: any, i: number) => (
+            <div key={h.path} className={`py-2.5 ${i < hooks.length - 1 ? 'border-b border-[#333648]' : ''}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[#ededec] text-sm truncate">{h.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${h.status === 'warning' ? 'bg-[#f59e0b]/10 text-[#f59e0b]' : 'bg-[#4ade80]/10 text-[#4ade80]'}`}>{h.status}</span>
+              </div>
+              <p className="text-[#6b7280] text-xs mt-0.5 break-all">{h.path}</p>
+              {(h.warnings || []).map((w: string) => <p key={w} className="text-[#f59e0b] text-xs mt-1">⚠ {w}</p>)}
             </div>
-            <p className="text-[#6b7280] text-xs mt-0.5">Enforces SAGE routing for all shell commands</p>
-          </div>
-          <div className="py-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[#ededec] text-sm">PostToolUse: telemetry</span>
-              <span className="text-[#4ade80] text-xs">active</span>
-            </div>
-            <p className="text-[#6b7280] text-xs mt-0.5">Records tool usage metrics</p>
-          </div>
+          ))}
         </Card>
       </Section>
+      {warnings.length > 0 && (
+        <Section title="Fix Needed">
+          <Card>{warnings.map((w: string) => <p key={w} className="text-[#f59e0b] text-xs py-1 break-all">{w}</p>)}</Card>
+        </Section>
+      )}
     </div>
   );
 }
 
-function ConnectionsPage() {
+function ConnectionsPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean }) {
+  const { data, loading } = useSettingsResource(wsRef, connected, 'settings.connections', 'settings.connections.response');
+  const connections = data?.connections || [];
+
   return (
     <div>
       <PageTitle title="Connections" />
-      <Section title="GitHub">
+      <Section title="Local Toolchain">
         <Card>
-          <RowDisplay label="Account" value="PsYcGoD" />
-          <RowInput label="Default remote" placeholder="origin" defaultVal="origin" />
+          {loading && <div className="text-[#6b7280] text-sm py-4 text-center">Checking local commands...</div>}
+          {connections.map((c: any, i: number) => (
+            <div key={c.name} className={`flex items-center justify-between gap-3 py-3 ${i < connections.length - 1 ? 'border-b border-[#333648]' : ''}`}>
+              <div>
+                <span className="text-[#ededec] text-sm">{c.name}</span>
+                <p className="text-[#6b7280] text-xs mt-0.5 break-all">{c.detail || c.path || 'not configured'}</p>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded ${c.status === 'ok' || c.status === 'configured' ? 'bg-[#4ade80]/10 text-[#4ade80]' : c.status === 'found' ? 'bg-[#60a5fa]/10 text-[#60a5fa]' : 'bg-[#f87171]/10 text-[#f87171]'}`}>{c.status}</span>
+            </div>
+          ))}
         </Card>
       </Section>
       <Section title="SAGE Dashboard">
         <Card>
-          <RowDisplay label="Endpoint" value="sage.api.marketingstudios.in" />
-          <RowDisplay label="Status" value="Connected" valueColor="#4ade80" />
+          <RowDisplay label="Source" value="Live scan from gui_server.py" />
+          <RowDisplay label="Note" value="Secrets are not shown in the GUI." valueColor="#a78bfa" />
         </Card>
       </Section>
     </div>
@@ -887,75 +949,74 @@ function PetsPage() {
   );
 }
 
-function PluginsPage() {
-  const plugins = [
-    { name: 'SAGE ML Predictor', version: '2.0.0', status: 'active', desc: 'Predicts command failures before execution' },
-    { name: 'SAGE Compression', version: '2.0.0', status: 'active', desc: 'Context compression for AI interactions' },
-    { name: 'SAGE Telemetry', version: '1.5.0', status: 'active', desc: 'Usage tracking and proof dashboard sync' },
-    { name: 'SAGE Agents', version: '1.2.0', status: 'active', desc: 'Background code analysis agents' },
-  ];
+function PluginsPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean }) {
+  const { data, loading } = useSettingsResource(wsRef, connected, 'settings.plugins', 'settings.plugins.response');
+  const plugins = data?.plugins || [];
+  const roots = data?.roots || [];
 
   return (
     <div>
       <PageTitle title="Plugins" />
-      <p className="text-[#9ca3af] text-sm mb-4">Extend SAGE with plugins that add new capabilities.</p>
+      <p className="text-[#9ca3af] text-sm mb-4">Installed Codex/SAGE plugins discovered on this machine. No fake store data.</p>
       <Section title="Installed Plugins">
         <Card>
-          {plugins.map((p, i) => (
-            <div key={p.name} className={`flex items-center justify-between py-3 ${i < plugins.length - 1 ? 'border-b border-[#333648]' : ''}`}>
+          {loading && <div className="text-[#6b7280] text-sm py-4 text-center">Scanning plugin folders...</div>}
+          {!loading && plugins.length === 0 && <div className="text-[#6b7280] text-sm py-4 text-center">No installed plugins found in scanned folders.</div>}
+          {plugins.map((p: any, i: number) => (
+            <div key={`${p.path}-${p.name}`} className={`flex items-center justify-between gap-3 py-3 ${i < plugins.length - 1 ? 'border-b border-[#333648]' : ''}`}>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[#ededec] text-sm">{p.name}</span>
-                  <span className="text-[#6b7280] text-xs">v{p.version}</span>
+                  {p.version && <span className="text-[#6b7280] text-xs">v{p.version}</span>}
                 </div>
-                <p className="text-[#6b7280] text-xs mt-0.5">{p.desc}</p>
+                <p className="text-[#6b7280] text-xs mt-0.5 break-all">{p.desc} · {p.path}</p>
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded ${p.status === 'active' ? 'bg-[#4ade80]/10 text-[#4ade80]' : 'bg-[#4b5563]/20 text-[#6b7280]'}`}>{p.status}</span>
+              <span className="text-xs px-2 py-0.5 rounded bg-[#4ade80]/10 text-[#4ade80]">{p.status}</span>
             </div>
           ))}
         </Card>
       </Section>
-      <Section title="Plugin Store">
-        <button className="bg-[#8b5cf6]/10 hover:bg-[#8b5cf6]/20 text-[#a78bfa] text-sm px-4 py-2 rounded-lg transition-colors">Browse Plugins ↗</button>
+      <Section title="Scanned Locations">
+        <Card>
+          {roots.map((r: any, i: number) => (
+            <RowDisplay key={r.path} label={r.exists ? r.kind : 'missing'} value={r.path} valueColor={r.exists ? '#4ade80' : '#6b7280'} />
+          ))}
+        </Card>
       </Section>
     </div>
   );
 }
 
-function SkillsPage() {
-  const skills = [
-    { name: 'code-review', desc: 'Review diffs for correctness and simplification', trigger: '/code-review' },
-    { name: 'deep-research', desc: 'Multi-source fact-checked research reports', trigger: '/deep-research' },
-    { name: 'security-review', desc: 'Security audit of pending changes', trigger: '/security-review' },
-    { name: 'simplify', desc: 'Review changed code for reuse and efficiency', trigger: '/simplify' },
-    { name: 'verify', desc: 'End-to-end verification of code changes', trigger: '/verify' },
-    { name: 'init', desc: 'Initialize CLAUDE.md documentation', trigger: '/init' },
-    { name: 'review', desc: 'Review GitHub pull requests', trigger: '/review' },
-    { name: 'run', desc: 'Launch and drive the app', trigger: '/run' },
-  ];
+function SkillsPage({ wsRef, connected }: { wsRef: React.RefObject<WebSocket | null>; connected: boolean }) {
+  const { data, loading } = useSettingsResource(wsRef, connected, 'settings.skills', 'settings.skills.response');
+  const skills = data?.skills || [];
+  const roots = data?.roots || [];
 
   return (
     <div>
       <PageTitle title="Skills" />
-      <p className="text-[#9ca3af] text-sm mb-4">Skills are specialized capabilities invoked with slash commands.</p>
+      <p className="text-[#9ca3af] text-sm mb-4">Skills are specialized workflows discovered from local SKILL.md files.</p>
       <Section title="Available Skills">
         <Card>
-          {skills.map((s, i) => (
-            <div key={s.name} className={`flex items-center justify-between py-2.5 ${i < skills.length - 1 ? 'border-b border-[#333648]' : ''}`}>
+          {loading && <div className="text-[#6b7280] text-sm py-4 text-center">Scanning skill folders...</div>}
+          {!loading && skills.length === 0 && <div className="text-[#6b7280] text-sm py-4 text-center">No skills found in scanned folders.</div>}
+          {skills.map((s: any, i: number) => (
+            <div key={s.path} className={`flex items-center justify-between gap-3 py-2.5 ${i < skills.length - 1 ? 'border-b border-[#333648]' : ''}`}>
               <div>
                 <span className="text-[#ededec] text-sm">{s.name}</span>
-                <p className="text-[#6b7280] text-xs mt-0.5">{s.desc}</p>
+                <p className="text-[#6b7280] text-xs mt-0.5 break-all">{s.desc} · {s.path}</p>
               </div>
-              <kbd className="bg-[#1a1b26] text-[#a78bfa] text-xs px-2 py-0.5 rounded border border-[#333648] font-mono">{s.trigger}</kbd>
+              <span className="text-xs px-2 py-0.5 rounded bg-[#4ade80]/10 text-[#4ade80]">{s.status}</span>
             </div>
           ))}
         </Card>
       </Section>
-      <Section title="Custom Skills">
+      <Section title="Scanned Locations">
         <Card>
-          <div className="text-[#6b7280] text-sm py-3 text-center">No custom skills configured</div>
+          {roots.map((r: any, i: number) => (
+            <RowDisplay key={r.path} label={r.exists ? r.kind : 'missing'} value={r.path} valueColor={r.exists ? '#4ade80' : '#6b7280'} />
+          ))}
         </Card>
-        <button className="mt-3 bg-[#8b5cf6]/10 hover:bg-[#8b5cf6]/20 text-[#a78bfa] text-sm px-4 py-2 rounded-lg transition-colors">+ Create Skill</button>
       </Section>
     </div>
   );

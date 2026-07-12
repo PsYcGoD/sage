@@ -92,6 +92,11 @@ class SAGEWebSocketServer:
             "provider.status": self._handle_provider_status,
             "settings.get": self._handle_settings_get,
             "settings.set": self._handle_settings_set,
+            "settings.plugins": self._handle_settings_plugins,
+            "settings.mcp": self._handle_settings_mcp,
+            "settings.skills": self._handle_settings_skills,
+            "settings.hooks": self._handle_settings_hooks,
+            "settings.connections": self._handle_settings_connections,
             "metrics.get": self._handle_metrics_get,
             "ml.status": self._handle_ml_status,
             "team.get": self._handle_team_get,
@@ -543,6 +548,195 @@ class SAGEWebSocketServer:
         if not isinstance(settings, dict):
             return {"success": False, "error": "settings payload must be an object"}
         return {"success": True, "settings": self._write_gui_settings(settings)}
+
+    def _safe_json(self, path: Path) -> dict:
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+        return {}
+
+    def _path_state(self, path: Path) -> dict:
+        return {
+            "path": str(path),
+            "exists": path.exists(),
+            "kind": "directory" if path.is_dir() else "file" if path.exists() else "missing",
+        }
+
+    async def _handle_settings_plugins(self, payload: dict) -> dict:
+        roots = [
+            Path.home() / ".codex" / "plugins",
+            Path.home() / ".codex" / "plugins" / "cache",
+            Path.home() / ".agents" / "plugins",
+            Path.cwd() / ".codex-plugin",
+        ]
+        plugins = []
+        seen = set()
+        for root in roots:
+            if not root.exists():
+                continue
+            candidates = []
+            if (root / "plugin.json").exists():
+                candidates.append(root / "plugin.json")
+            try:
+                candidates.extend(root.glob("*/plugin.json"))
+                candidates.extend(root.glob("*/.codex-plugin/plugin.json"))
+            except Exception:
+                pass
+            for manifest in candidates:
+                key = str(manifest.resolve())
+                if key in seen:
+                    continue
+                seen.add(key)
+                data = self._safe_json(manifest)
+                plugins.append({
+                    "name": data.get("name") or data.get("id") or manifest.parent.name,
+                    "version": data.get("version", ""),
+                    "status": "installed",
+                    "path": str(manifest.parent),
+                    "desc": data.get("description", "Local Codex/SAGE plugin"),
+                })
+        return {"ok": True, "roots": [self._path_state(p) for p in roots], "plugins": plugins}
+
+    async def _handle_settings_mcp(self, payload: dict) -> dict:
+        config_paths = [
+            Path.cwd() / ".mcp.json",
+            Path.home() / ".claude" / "settings.json",
+            Path.home() / ".claude" / "settings.local.json",
+            Path.home() / ".codex" / "config.json",
+        ]
+        servers = []
+        for path in config_paths:
+            data = self._safe_json(path)
+            mcp = data.get("mcpServers") or data.get("mcp_servers") or {}
+            if isinstance(mcp, dict):
+                for name, cfg in mcp.items():
+                    servers.append({
+                        "name": str(name),
+                        "source": str(path),
+                        "status": "configured",
+                        "command": (cfg or {}).get("command", "") if isinstance(cfg, dict) else "",
+                    })
+        return {"ok": True, "configs": [self._path_state(p) for p in config_paths], "servers": servers}
+
+    async def _handle_settings_skills(self, payload: dict) -> dict:
+        roots = [
+            Path.home() / ".codex" / "skills",
+            Path.home() / ".agents" / "skills",
+            Path.cwd() / "skills",
+        ]
+        skills = []
+        seen = set()
+        for root in roots:
+            if not root.exists():
+                continue
+            try:
+                skill_files = list(root.glob("*/SKILL.md")) + list(root.glob("*/*/SKILL.md"))
+            except Exception:
+                skill_files = []
+            for skill_file in skill_files:
+                skill_dir = skill_file.parent
+                key = str(skill_file.resolve())
+                if key in seen:
+                    continue
+                seen.add(key)
+                desc = ""
+                try:
+                    for line in skill_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+                        text = line.strip("# ").strip()
+                        if text and not text.lower().startswith("name:"):
+                            desc = text[:180]
+                            break
+                except Exception:
+                    pass
+                skills.append({
+                    "name": skill_dir.name,
+                    "source": str(root),
+                    "path": str(skill_dir),
+                    "desc": desc or "Local Codex skill",
+                    "status": "available",
+                })
+        return {"ok": True, "roots": [self._path_state(p) for p in roots], "skills": skills}
+
+    async def _handle_settings_hooks(self, payload: dict) -> dict:
+        hook_paths = [
+            Path.home() / ".claude" / "settings.json",
+            Path.home() / ".claude" / "settings.local.json",
+            Path.home() / ".claude" / "hooks" / "enforce_sage.py",
+            Path.home() / ".codex" / "AGENTS.md",
+            Path.cwd() / "AGENTS.md",
+        ]
+        hooks = []
+        warnings = []
+        for path in hook_paths:
+            if not path.exists():
+                continue
+            item = {"name": path.name, "path": str(path), "status": "present", "warnings": []}
+            if path.suffix.lower() == ".json":
+                data = self._safe_json(path)
+                claude_hooks = data.get("hooks", {})
+                if isinstance(claude_hooks, dict):
+                    for event, entries in claude_hooks.items():
+                        if not isinstance(entries, list):
+                            msg = f"{event} must be a list"
+                            item["warnings"].append(msg)
+                            warnings.append(f"{path}: {msg}")
+                            continue
+                        for idx, entry in enumerate(entries):
+                            if not isinstance(entry, dict):
+                                msg = f"{event}.{idx} must be an object"
+                                item["warnings"].append(msg)
+                                warnings.append(f"{path}: {msg}")
+                                continue
+                            nested = entry.get("hooks", [])
+                            if not isinstance(nested, list) or any(not isinstance(h, dict) for h in nested):
+                                msg = f"{event}.{idx}.hooks must be an array of hook objects"
+                                item["warnings"].append(msg)
+                                warnings.append(f"{path}: {msg}")
+                item["status"] = "warning" if item["warnings"] else "valid"
+            hooks.append(item)
+        return {"ok": True, "hooks": hooks, "warnings": warnings}
+
+    async def _handle_settings_connections(self, payload: dict) -> dict:
+        import shutil
+        import subprocess
+
+        def command_status(name: str, args: list[str] | None = None) -> dict:
+            exe = shutil.which(name)
+            item = {"name": name, "status": "not found", "path": exe or "", "detail": ""}
+            if not exe:
+                return item
+            item["status"] = "found"
+            if args:
+                try:
+                    result = subprocess.run([name, *args], capture_output=True, text=True, timeout=5)
+                    text = (result.stdout or result.stderr or "").strip().splitlines()
+                    item["status"] = "ok" if result.returncode == 0 else "warning"
+                    item["detail"] = text[0][:180] if text else ""
+                except Exception as e:
+                    item["status"] = "warning"
+                    item["detail"] = str(e)
+            return item
+
+        settings = self._read_gui_settings()
+        connections = [
+            command_status("git", ["--version"]),
+            command_status("gh", ["auth", "status"]),
+            command_status("node", ["--version"]),
+            command_status("npm", ["--version"]),
+            command_status("python", ["--version"]),
+            command_status("pip", ["--version"]),
+            command_status("wrangler", ["--version"]),
+            {
+                "name": "SAGE API",
+                "status": "configured" if settings.get("api_endpoint") else "missing",
+                "path": "",
+                "detail": settings.get("api_endpoint", ""),
+            },
+        ]
+        return {"ok": True, "connections": connections}
 
     async def _handle_team_get(self, payload: dict) -> dict:
         """Return local team/installation view for Electron Team page.

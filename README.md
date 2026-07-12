@@ -47,6 +47,12 @@ python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python 
 
 Package name: `psycgod-sage` | CLI command: `sage`
 
+**Also available on npm:**
+
+```bash
+npm install -g psycgod-sage-js
+```
+
 Or use the installer script directly from GitHub:
 
 ```powershell

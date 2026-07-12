@@ -1,37 +1,62 @@
-# SAGE JS - Smart Agent Guidance Engine
+# SAGE npm launcher - Smart Agent Guidance Engine
 [![npm](https://img.shields.io/npm/v/psycgod-sage-js)](https://www.npmjs.com/package/psycgod-sage-js)
-**97% token compression for AI coding agents - JavaScript/Node.js version**
+
+This npm package is a Node-friendly launcher for the canonical Python package `psycgod-sage`.
+It installs/updates the PyPI SAGE core and forwards commands to `python -m sage`, so npm/npx
+and PyPI behavior stay identical. ML V1 is included. ML V2 remains optional.
+
 ## Installation
+
 ```bash
 npm install -g psycgod-sage-js
-Also available in Python (with ML V2):
+```
 
+One-shot npx usage:
+
+```bash
+npx -y psycgod-sage-js run -- npm test
+```
+
+Equivalent Python install:
+
+```bash
 pip install psycgod-sage
-JS vs Python
-FeatureJSPython
-Core compression (97%)YesYes
-MCP ServerYesYes
-ML V1 (pattern-based)YesYes
-ML V2 (neural embeddings)NoYes
-4 AgentsYesYes
-7 AgentsNoYes
-TUI/GUINoYes
-MCP RegistryYesNo
-Startup~50ms~300ms
-Both share the same database.
-
-Usage
 sage run -- npm test
-sage history
-sage explain --failed
-sage suggest --failed
-sage predict rm -rf node_modules
-MCP Tools
-sage_run, sage_read_file, sage_write_file, sage_edit_file, sage_grep, sage_glob, sage_tree, sage_get_history, sage_explain_error, sage_suggest_fix, sage_spawn_agent
+```
 
-Links
-Python: https://pypi.org/project/psycgod-sage/
-Repo: https://github.com/PsYcGoD/sage
-Dashboard: https://sage.api.marketingstudios.in/
-License
-MIT
+## Usage
+
+```bash
+npx -y psycgod-sage-js run -- npm test
+npx -y psycgod-sage-js history
+npx -y psycgod-sage-js explain --failed
+npx -y psycgod-sage-js suggest --failed
+npx -y psycgod-sage-js predict rm -rf node_modules
+npx -y psycgod-sage-js ml setup
+```
+
+If installed from PyPI, AI agents should use:
+
+```bash
+sage run -- <command>
+```
+
+If installed from npm/npx, AI agents should use:
+
+```bash
+npx -y psycgod-sage-js run -- <command>
+```
+
+## Notes
+
+- npm/npx SAGE delegates to PyPI `psycgod-sage`.
+- There is no separate JS database, runner, compressor, or ML implementation in the active CLI path.
+- ML V1 is included through PyPI SAGE.
+- Optional ML V2 can be installed later with `npx -y psycgod-sage-js ml setup`.
+
+Links:
+
+- Python: https://pypi.org/project/psycgod-sage/
+- Repo: https://github.com/PsYcGoD/sage
+- Dashboard: https://sage.api.marketingstudios.in/
+- License: MIT

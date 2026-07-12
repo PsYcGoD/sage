@@ -438,16 +438,6 @@ def _write_setup_state(state: dict) -> None:
     path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _prompt_text(prompt: str, default: str = "") -> str:
-    suffix = f" [{default}]" if default else ""
-    try:
-        value = input(f"{prompt}{suffix}: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return default
-    return value or default
-
-
 def _machine_display_name(current: str = "") -> str:
     import socket
 
@@ -463,29 +453,8 @@ def _machine_display_name(current: str = "") -> str:
     return f"{socket.gethostname()}{suffix}"
 
 
-def _prompt_display_name(current: str = "") -> str:
-    fallback = _machine_display_name(current)
-    while True:
-        value = _prompt_text("What should SAGE call you", fallback).strip()
-        if value:
-            print(f"SAGE will call you: {value}")
-            return value
-        print("Please enter a name, or press Enter to use the shown default.")
-
-
-def _prompt_ml_mode(current: str = "v1") -> str:
-    default = "2" if str(current).lower() == "v2" else "1"
-    while True:
-        choice = _prompt_text("Select ML mode: 1=ML V1, 2=ML V2", default).strip().lower()
-        if choice in {"1", "v1", "ml1", "ml v1"}:
-            return "v1"
-        if choice in {"2", "v2", "ml2", "ml v2"}:
-            return "v2"
-        print("Please type 1 for ML V1 or 2 for ML V2.")
-
-
 def setup_command(force: bool = False) -> int:
-    """Interactive one-time onboarding after `pip install psycgod-sage`."""
+    """Zero-prompt first-run setup after `pip install psycgod-sage`."""
     if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SAGE_TEST_SETUP") != "1":
         return 0
 
@@ -495,15 +464,11 @@ def setup_command(force: bool = False) -> int:
         return 0
 
     print("SAGE first-time setup")
-    print("One install is enough: `pip install psycgod-sage` gives you the `sage` command.")
+    print("Configuring automatically with this machine identity.")
     print()
 
-    interactive = sys.stdin.isatty()
-    if interactive:
-        display_name = _prompt_display_name(str(state.get("display_name") or ""))
-    else:
-        display_name = _machine_display_name(str(state.get("display_name") or ""))
-        print(f"Non-interactive setup: using display name {display_name}")
+    display_name = _machine_display_name(str(state.get("display_name") or ""))
+    print(f"Identity: {display_name}")
     if display_name:
         try:
             from . import telemetry
@@ -517,37 +482,15 @@ def setup_command(force: bool = False) -> int:
         except Exception:
             pass
 
-    print()
-    print("Choose ML mode:")
-    print("  1) ML V1 - included, light, scikit-learn/local heuristics, no large download.")
-    print("  2) ML V2 - optional neural embeddings, better semantic matching, larger install.")
-    print("You can start V2 later with: `sage ml setup` or `pip install psycgod-sage[ml]`.")
-    if interactive:
-        ml_mode = _prompt_ml_mode(str(state.get("ml_mode") or "v1"))
-    else:
-        ml_mode = str(state.get("ml_mode") or "v1").lower()
-        if ml_mode not in {"v1", "v2"}:
-            ml_mode = "v1"
-        print(f"Non-interactive setup: using ML {ml_mode.upper()}")
-    if ml_mode == "v2":
-        if _check_ml_v2_deps():
-            print("ML V2 dependencies are already installed.")
-        else:
-            rc = _prompt_ml_v2_install()
-            if rc != 0:
-                ml_mode = "v1"
-    else:
-        print("ML V1 active. It is included and learns from your local usage over time.")
+    ml_mode = "v1"
+    print("ML V1 active. It is included and learns from local usage over time.")
+    print("Optional ML V2 can be enabled later with: `sage ml setup` or `pip install psycgod-sage[ml]`.")
 
     cloud_connected = False
     print()
-    print("Cloud connection:")
-    print("  SAGE can request an API key from the Cloudflare-backed SAGE API.")
-    print("  Telemetry stays local by default unless a key is connected; safe events queue offline")
-    print("  and SAGE retries in the background, including every 10th command proof sync.")
-    print("Connecting automatically. If cloud is unreachable, SAGE stays local and retries later.")
+    print("Cloud connection: connecting automatically. If cloud is unreachable, SAGE stays local and retries later.")
     try:
-        connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="")
+        connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="", auto_only=True)
         cloud_connected = connect_command(connect_args) == 0
     except Exception as exc:
         print(f"Cloud connection skipped: {exc}")
@@ -1615,14 +1558,9 @@ def connect_command(args) -> int:
     expiry_days = _resolve_expiry_days(args)
     print(f"API key expiration: {expiry_days} days\n")
 
-    # Step 2: Resolve display name. Setup passes this explicitly; direct
-    # `sage connect` still asks when interactive and falls back to machine id.
+    # Step 2: Resolve display name without prompting. Machine identity is enough
+    # for install/setup/connect flows and keeps onboarding non-interactive.
     display_name = str(getattr(args, "display_name", "") or "").strip()
-    if not display_name and sys.stdin.isatty():
-        try:
-            display_name = input("What can SAGE call you? ").strip()
-        except (EOFError, KeyboardInterrupt):
-            display_name = ""
     if not display_name:
         display_name = _machine_display_name("")
     print()
@@ -1671,8 +1609,8 @@ def connect_command(args) -> int:
             print(f"      GitHub CLI unavailable: {gh_exc}")
 
     # Method 3: GitHub OAuth (browser/device flow)
-    if not result and not sys.stdin.isatty():
-        print("[3/3] Skipping browser/device OAuth in non-interactive mode.")
+    if not result and (bool(getattr(args, "auto_only", False)) or not sys.stdin.isatty()):
+        print("[3/3] Skipping browser/device OAuth in automatic mode.")
         print("SAGE remains usable locally. Retry cloud connection later with: sage connect")
         return 1
 

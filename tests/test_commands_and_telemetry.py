@@ -2,6 +2,7 @@
 
 import json
 from types import SimpleNamespace
+import builtins
 
 import pytest
 
@@ -34,6 +35,58 @@ def test_classify_never_raises():
     assert classify_command("").kind == "unknown"
     assert classify_command("   ").kind == "unknown"
     assert classify_command("some-unknown-tool --flag").kind == "run"
+
+
+def test_setup_is_zero_prompt_and_auto_cloud_only(monkeypatch, tmp_path, capsys):
+    from sage import cli
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("SAGE_TEST_SETUP", "1")
+    monkeypatch.setattr(builtins, "input", lambda *args, **kwargs: pytest.fail("setup prompted for input"))
+    monkeypatch.setattr(cli, "_ensure_system_enforcement", lambda command_name: True)
+
+    seen = {}
+
+    def fake_connect(args):
+        seen["display_name"] = args.display_name
+        seen["auto_only"] = args.auto_only
+        return 0
+
+    monkeypatch.setattr(cli, "connect_command", fake_connect)
+
+    assert cli.setup_command(force=True) == 0
+    out = capsys.readouterr().out
+
+    assert seen["display_name"]
+    assert seen["auto_only"] is True
+    assert "Identity:" in out
+    assert "What should SAGE call you" not in out
+    assert "Select ML mode" not in out
+
+
+def test_connect_uses_machine_identity_without_name_prompt(monkeypatch, capsys):
+    from sage import cli, telemetry, install
+
+    monkeypatch.setattr(builtins, "input", lambda *args, **kwargs: pytest.fail("connect prompted for input"))
+    monkeypatch.setattr(telemetry, "api_status", lambda: {"connected": False})
+    monkeypatch.setattr(telemetry, "api_machine_login", lambda *, expiry_days, display_name: {
+        "ok": True,
+        "key_id": "key_test",
+        "username": display_name,
+        "expires_at": "2099-01-01T00:00:00Z",
+        "storage": "file",
+    })
+    monkeypatch.setattr(telemetry, "api_whoami", lambda: {"server_verified": True})
+    monkeypatch.setattr(telemetry, "load_config", lambda: {"api_key_storage": "file"})
+    monkeypatch.setattr(install, "is_sage_installed_system_wide", lambda: True)
+    monkeypatch.setattr(install, "install_sage_system_wide", lambda: None)
+    monkeypatch.setattr(cli, "_detect_ai_agents", lambda: [])
+
+    assert cli.connect_command(SimpleNamespace(expiry_days=30, display_name="", endpoint="", auto_only=True)) == 0
+    out = capsys.readouterr().out
+
+    assert "SAGE CONNECTED" in out
+    assert "What can SAGE call you" not in out
 
 
 def test_workspace_hash_stable_and_salted():

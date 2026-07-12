@@ -1,13 +1,5 @@
-// SAGE JavaScript V1 - Main Entry
-// Smart Agent Guidance Engine
+export { ensurePythonSage, findPython, runPythonSage, setupPythonSage } from './python/bridge.js';
 
-export { compress, CompressionResult } from './compression/index.js';
-export { Database } from './db/index.js';
-export { runCommand } from './runner/index.js';
-export { startMcpServer } from './mcp/server.js';
-export { FailurePredictor } from './ml/index.js';
-export { agents, selectAgents } from './agents/index.js';
-export { setup, isSetupComplete } from './cli/setup.js';
-export { autoConnect } from './api/connect.js';
-
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.9';
+export const PYPI_PACKAGE = 'psycgod-sage';
+export const NPM_RUN_PREFIX = 'npx -y psycgod-sage-js run --';

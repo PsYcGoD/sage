@@ -1,8 +1,8 @@
 // SAGE AI Agent Injection - 30 tools supported
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { AGENT_TARGETS, SAGE_INSTRUCTION } from './targets.js';
+import { AGENT_TARGETS, SAGE_BLOCK_END, SAGE_BLOCK_START } from './targets.js';
 
 export async function injectAllAgentConfigs(): Promise<number> {
   let injected = 0;
@@ -35,7 +35,7 @@ async function injectAgentConfig(target: AgentTarget): Promise<boolean> {
     if (!target.createIfMissing) return false;
     
     // Create parent directory
-    const dir = fullPath.substring(0, fullPath.lastIndexOf(/[/\\]/.test(fullPath) ? fullPath.match(/[/\\]/g)!.pop()! : '/'));
+    const dir = dirname(fullPath);
     mkdirSync(dir, { recursive: true });
     
     // Create new file with instruction
@@ -46,9 +46,26 @@ async function injectAgentConfig(target: AgentTarget): Promise<boolean> {
   // Read existing content
   let content = readFileSync(fullPath, 'utf-8');
 
-  // Check if already has SAGE instruction
-  if (content.includes('SAGE') && content.includes('sage run')) {
-    return false; // Already configured
+  if (content.includes(target.instruction)) {
+    return false;
+  }
+
+  // Replace Python or older npm SAGE managed blocks so the active install path
+  // dictates the exact command agents must use.
+  if (content.includes(SAGE_BLOCK_START) && content.includes(SAGE_BLOCK_END)) {
+    const before = content.split(SAGE_BLOCK_START)[0].trimEnd();
+    const after = content.split(SAGE_BLOCK_END).slice(1).join(SAGE_BLOCK_END).trimStart();
+    content = `${before}${before ? '\n\n' : ''}${target.instruction.trim()}\n${after ? `\n${after}` : ''}`;
+    writeFileSync(fullPath, content, 'utf-8');
+    return true;
+  }
+
+  // Old unmanaged SAGE text exists. Prepend the npm managed block so new agent
+  // sessions see the explicit npx command first.
+  if (content.includes('SAGE') && (content.includes('sage run') || content.includes('psycgod-sage-js'))) {
+    content = target.instruction + '\n\n' + content;
+    writeFileSync(fullPath, content, 'utf-8');
+    return true;
   }
 
   // Inject based on file type
@@ -73,8 +90,10 @@ async function injectAgentConfig(target: AgentTarget): Promise<boolean> {
 }
 
 function expandPath(path: string): string {
-  if (path.startsWith('~')) {
-    return join(homedir(), path.slice(1));
+  if (path.startsWith('~/') || path.startsWith('~\\') || path === '~') {
+    // Remove ~ and any leading separator, then join with homedir
+    const rest = path.slice(1).replace(/^[/\\]/, '');
+    return rest ? join(homedir(), rest) : homedir();
   }
   return path;
 }

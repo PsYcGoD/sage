@@ -39,36 +39,32 @@ Even when context is already maxed out, SAGE keeps raw logs local and sends the 
 
 ## Install
 
-One pasted command installs SAGE, runs setup, connects to the SAGE API, prints the API connection result, and installs AI-agent enforcement:
+Recommended one-command install:
 
-```powershell
-irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
+```bash
+npm install -g psycgod-sage
 ```
 
-Package name: `psycgod-sage` | CLI command: `sage`
+That single npm command installs/updates the canonical PyPI SAGE core, runs setup, connects to the SAGE API, prints `sage api whoami`, and installs AI-agent enforcement.
 
-If you do not want to use the installer script, the raw PowerShell equivalent is:
+Package names:
+
+- npm: `psycgod-sage`
+- PyPI: `psycgod-sage`
+- CLI command after install: `sage`
+
+Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command, but pip does not reliably allow packages to run post-install onboarding code. If you want the same full install+setup+API-status flow from Python directly, use:
 
 ```powershell
 python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python -m sage; python -m sage api whoami }
 ```
 
-### npm/npx launcher
-
-SAGE is also available through npm for people who prefer Node-style installs or `npx`.
-The npm package is not a separate SAGE engine anymore. It installs/updates the canonical
-PyPI package `psycgod-sage` and forwards commands to the same Python SAGE core.
+One-shot `npx` usage without global install:
 
 ```bash
-npm install -g psycgod-sage-js
-```
-
-One-shot `npx` usage:
-
-```bash
-npx -y psycgod-sage-js run -- npm test
-npx -y psycgod-sage-js run -- python -m pytest
-npx -y psycgod-sage-js history
+npx -y psycgod-sage run -- npm test
+npx -y psycgod-sage run -- python -m pytest
+npx -y psycgod-sage history
 ```
 
 AI-agent command rule depends on how SAGE was installed:
@@ -76,7 +72,7 @@ AI-agent command rule depends on how SAGE was installed:
 | Install path | Agents must use |
 |---|---|
 | PyPI / pip | `sage run -- <command>` |
-| npm / npx | `npx -y psycgod-sage-js run -- <command>` |
+| npm / npx | `npx -y psycgod-sage run -- <command>` |
 
 Both paths use the same PyPI SAGE implementation, same DB, same ML V1, same telemetry rules,
 and the same optional ML V2 path. ML V2 can be installed later with:
@@ -84,10 +80,8 @@ and the same optional ML V2 path. ML V2 can be installed later with:
 ```bash
 sage ml setup
 # or, from npm/npx:
-npx -y psycgod-sage-js ml setup
+npx -y psycgod-sage ml setup
 ```
-
-That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, prints `sage api whoami`, and installs mandatory local AI-agent instructions for supported agents.
 
 After install, the first real SAGE command also runs setup automatically if needed. A new user should not have to run `sage login` or `sage connect` just to activate SAGE.
 

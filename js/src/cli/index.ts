@@ -3,7 +3,7 @@
 //
 // The Python package `psycgod-sage` is the canonical SAGE implementation.
 // This npm package exists for Node users who prefer:
-//   npx -y psycgod-sage-js run -- <command>
+//   npx -y psycgod-sage run -- <command>
 //
 // To keep PyPI and npm behavior identical, every CLI invocation is forwarded
 // to `python -m sage` after ensuring the Python core is installed.

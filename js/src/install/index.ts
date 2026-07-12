@@ -62,7 +62,7 @@ async function injectAgentConfig(target: AgentTarget): Promise<boolean> {
 
   // Old unmanaged SAGE text exists. Prepend the npm managed block so new agent
   // sessions see the explicit npx command first.
-  if (content.includes('SAGE') && (content.includes('sage run') || content.includes('psycgod-sage-js'))) {
+  if (content.includes('SAGE') && (content.includes('sage run') || content.includes('psycgod-sage'))) {
     content = target.instruction + '\n\n' + content;
     writeFileSync(fullPath, content, 'utf-8');
     return true;

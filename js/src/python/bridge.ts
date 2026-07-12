@@ -40,7 +40,7 @@ export function ensurePythonSage(): boolean {
   const python = findPython();
   if (!python) {
     console.error('SAGE npm launcher needs Python 3.10+ on PATH.');
-    console.error('Install Python, then retry: npx -y psycgod-sage-js');
+    console.error('Install Python, then retry: npm install -g psycgod-sage');
     return false;
   }
 
@@ -81,5 +81,15 @@ export function setupPythonSage(): boolean {
   }
 
   const result = runCandidate(python, ['-m', 'sage'], 'inherit');
+  return result.status === 0;
+}
+
+export function showPythonSageApiStatus(): boolean {
+  const python = findPython();
+  if (!python || !ensurePythonSage()) {
+    return false;
+  }
+
+  const result = runCandidate(python, ['-m', 'sage', 'api', 'whoami'], 'inherit');
   return result.status === 0;
 }

@@ -58,6 +58,24 @@ Or use the installer script directly from GitHub:
 ```powershell
 irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
 ```
+### JavaScript/npm Version
+
+SAGE is also available as an npm package for MCP Registry compatibility:
+
+```bash
+npm install -g psycgod-sage-js
+
+Feature	Python	JavaScript
+Core compression (97%)	Yes	Yes
+MCP Server	Yes	Yes
+ML V1 (pattern-based)	Yes	Yes
+ML V2 (neural embeddings)	Yes	No
+Agents	7	4
+TUI/GUI	Yes	No
+MCP Registry	No	Yes
+Both versions share the same database. Use Python for full features, JavaScript for MCP Registry.
+
+See js/ folder for JavaScript source.
 
 That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
 

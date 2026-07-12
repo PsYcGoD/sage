@@ -53,7 +53,7 @@ Or use the installer script directly from GitHub:
 irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
 ```
 
-That one command installs the SAGE Python package, launches the `sage` setup flow, asks what SAGE should call you, explains ML V1 vs ML V2, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
+That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 
@@ -63,13 +63,13 @@ sage init
 
 ### First Run
 
-On first use, SAGE walks you through setup:
+On first use, SAGE configures itself without prompts:
 
 ```
-1. What should SAGE call you?
-2. Select ML V1 or ML V2
+1. Use machine identity
+2. Enable ML V1 by default
 3. Connect to SAGE cloud API automatically when reachable
-4. Local AI-agent enforcement
+4. Install local AI-agent enforcement
 ```
 
 - ML V1: included, light, local scikit-learn/heuristic prediction, learns from your usage over time

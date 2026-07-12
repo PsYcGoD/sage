@@ -1233,6 +1233,31 @@ def get_admin_users(raw: bool = False) -> dict[str, Any]:
         return json.loads(raw)
 
 
+def cleanup_admin_users(dry_run: bool = False) -> dict[str, Any]:
+    """Revoke obvious junk/test connected-user keys using the saved admin API key."""
+    config = load_config()
+    base_url = str(config.get("api_base_url") or DEFAULT_API_BASE_URL).strip().rstrip("/")
+    api_key = resolve_api_key(config)
+    if not base_url or not api_key:
+        raise RuntimeError("SAGE API is not connected.")
+    payload = json.dumps({"dry_run": bool(dry_run)}).encode("utf-8")
+    request = urllib_request.Request(
+        f"{base_url}/v1/admin/users/cleanup",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "SAGE-CLI/0.1",
+        },
+        method="POST",
+    )
+    with urllib_request.urlopen(request, timeout=30) as response:
+        raw = response.read().decode("utf-8")
+        if response.status < 200 or response.status >= 300:
+            raise OSError(f"SAGE API users cleanup failed: HTTP {response.status} {raw}")
+        return json.loads(raw)
+
+
 def api_status() -> dict[str, Any]:
     config = load_config()
     endpoint = str(config.get("api_endpoint", "")).strip()

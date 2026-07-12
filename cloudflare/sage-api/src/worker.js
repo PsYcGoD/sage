@@ -1320,6 +1320,14 @@ async function handleVisitorStats(env, request) {
       GROUP BY installation_id
      )`
   ).bind(`${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
+  const telemetryTotals = await env.DB.prepare(
+    `SELECT
+      COUNT(*) AS total_events,
+      COALESCE(SUM(CASE WHEN received_at >= ? THEN 1 ELSE 0 END), 0) AS events_today,
+      COALESCE(SUM(CASE WHEN received_at >= ? THEN 1 ELSE 0 END), 0) AS live_events_15m,
+      COALESCE(SUM(CASE WHEN received_at >= ? THEN 1 ELSE 0 END), 0) AS active_events_24h
+     FROM telemetry_events`
+  ).bind(`${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
   const userTotals = await env.DB.prepare(
     `WITH keyed_users AS (
       SELECT
@@ -1376,6 +1384,12 @@ async function handleVisitorStats(env, request) {
       new_installs_today: Number(installTotals?.new_installs_today || 0),
       live_installs_15m: Number(installTotals?.live_installs_15m || 0),
       active_installs_24h: Number(installTotals?.active_installs_24h || 0),
+    },
+    telemetry: {
+      total_events: Number(telemetryTotals?.total_events || 0),
+      events_today: Number(telemetryTotals?.events_today || 0),
+      live_events_15m: Number(telemetryTotals?.live_events_15m || 0),
+      active_events_24h: Number(telemetryTotals?.active_events_24h || 0),
     },
     users: {
       connected_users: Number(userTotals?.connected_users || 0),
@@ -1499,6 +1513,131 @@ async function handleAdminUsers(env, request) {
         telemetry_install_count: Number(row.telemetry_install_count || 0),
       };
     }),
+  });
+}
+
+function junkAdminIdentityReason(value) {
+  const text = String(value || "").trim();
+  const lower = text.toLowerCase();
+  if (!text) return "blank identity";
+  if (/^\d+$/.test(text)) return "numeric identity";
+  if (text === "[object Object]") return "serialized object identity";
+  if (lower === "enotfound" || lower === "aborterror") return "error name identity";
+  if (lower === "message" || lower === "connect" || lower === "init" || lower === "data" || lower === "request" || lower === "ready" || lower === "event") {
+    return "event field identity";
+  }
+  if (text.includes("$env:") || /^remove-item\b/i.test(text)) return "command text identity";
+  if (/^0{2}:0{2}:0{2}:0{2}:0{2}:0{2}$/i.test(text)) return "empty MAC address identity";
+  return "";
+}
+
+async function handleAdminUsersCleanup(env, request) {
+  const auth = await requireAdminKey(env, request);
+  if (auth.error) return auth.error;
+  let body = {};
+  try {
+    body = await readJson(request);
+  } catch {
+    body = {};
+  }
+  const dryRun = body.dry_run !== false ? true : false;
+  const now = nowIso();
+  const rows = await env.DB.prepare(
+    `WITH keyed_users AS (
+      SELECT
+        COALESCE(
+          NULLIF(k.github_username, ''),
+          NULLIF(k.github_id, ''),
+          NULLIF(k.display_name, ''),
+          NULLIF(k.username, ''),
+          k.key_id
+        ) AS user_identity,
+        k.*
+      FROM api_keys k
+     ),
+     user_summary AS (
+      SELECT
+        user_identity,
+        MAX(display_name) AS display_name,
+        MAX(username) AS username,
+        MAX(github_username) AS github_username,
+        MAX(github_id) AS github_id,
+        COUNT(*) AS key_count,
+        SUM(CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN 1 ELSE 0 END) AS active_key_count
+      FROM keyed_users
+      GROUP BY user_identity
+     ),
+     install_summary AS (
+      SELECT k.user_identity, COUNT(DISTINCT installation_id) AS install_count
+      FROM keyed_users k
+      JOIN installations i ON i.key_id = k.key_id
+      GROUP BY k.user_identity
+     ),
+     run_summary AS (
+      SELECT k.user_identity, COUNT(*) AS run_count
+      FROM keyed_users k
+      JOIN telemetry_events t ON t.key_id = k.key_id
+      GROUP BY k.user_identity
+     )
+     SELECT
+      u.user_identity,
+      MAX(u.display_name) AS display_name,
+      MAX(u.username) AS username,
+      MAX(u.github_username) AS github_username,
+      MAX(u.github_id) AS github_id,
+      MAX(u.key_count) AS key_count,
+      MAX(u.active_key_count) AS active_key_count,
+      COALESCE(SUM(i.install_count), 0) AS install_count,
+      COALESCE(SUM(r.run_count), 0) AS run_count
+     FROM user_summary u
+     LEFT JOIN install_summary i ON i.user_identity = u.user_identity
+     LEFT JOIN run_summary r ON r.user_identity = u.user_identity
+     GROUP BY u.user_identity
+     LIMIT 500`
+  ).bind(now).all();
+
+  const candidates = [];
+  for (const row of rows.results || []) {
+    const label = firstUsefulText(row.github_username, row.display_name, row.username, row.user_identity);
+    const reason = junkAdminIdentityReason(label);
+    const installCount = Number(row.install_count || 0);
+    const runCount = Number(row.run_count || 0);
+    const activeKeyCount = Number(row.active_key_count || 0);
+    if (!reason || activeKeyCount <= 0) continue;
+    if (installCount > 0 || runCount > 0) continue;
+    candidates.push({
+      label,
+      user_identity: row.user_identity,
+      reason,
+      key_count: Number(row.key_count || 0),
+      active_key_count: activeKeyCount,
+      install_count: installCount,
+      run_count: runCount,
+    });
+  }
+
+  let revokedKeyCount = 0;
+  if (!dryRun && candidates.length > 0) {
+    for (const candidate of candidates) {
+      const result = await env.DB.prepare(
+        `UPDATE api_keys
+         SET revoked_at = ?
+         WHERE revoked_at = ''
+           AND COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) = ?`
+      ).bind(now, candidate.user_identity).run();
+      revokedKeyCount += Number(result?.meta?.changes || 0);
+    }
+  } else {
+    revokedKeyCount = candidates.reduce((total, row) => total + Number(row.active_key_count || 0), 0);
+  }
+
+  return json({
+    ok: true,
+    dry_run: dryRun,
+    generated_at: nowIso(),
+    candidate_count: candidates.length,
+    revoked_key_count: revokedKeyCount,
+    candidates,
   });
 }
 
@@ -2407,6 +2546,7 @@ async function route(request, env) {
   if (request.method === "POST" && url.pathname === "/v1/proof-snapshot") return handleProofSnapshot(env, request);
   if (request.method === "GET" && url.pathname === "/v1/admin/visitors") return handleVisitorStats(env, request);
   if (request.method === "GET" && url.pathname === "/v1/admin/users") return handleAdminUsers(env, request);
+  if (request.method === "POST" && url.pathname === "/v1/admin/users/cleanup") return handleAdminUsersCleanup(env, request);
   if (request.method === "GET" && url.pathname === "/v1/proof") return handleProof(env);
   return error("Not found", 404);
 }

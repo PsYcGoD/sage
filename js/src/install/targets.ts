@@ -1,6 +1,6 @@
 // SAGE AI Agent Targets for npm/npx installs.
 
-export const SAGE_RUN_PREFIX = 'npx -y psycgod-sage-js run --';
+export const SAGE_RUN_PREFIX = 'npx -y psycgod-sage run --';
 export const SAGE_BLOCK_START = '# SAGE MANAGED BLOCK START';
 export const SAGE_BLOCK_END = '# SAGE MANAGED BLOCK END';
 
@@ -32,7 +32,7 @@ Examples:
 If \`${SAGE_RUN_PREFIX}\` fails before the target command starts, stop and report the SAGE wrapper failure.
 
 ML V1 is included. Optional ML V2 can be installed later by the user with:
-\`npx -y psycgod-sage-js ml setup\`
+\`npx -y psycgod-sage ml setup\`
 ${SAGE_BLOCK_END}
 `;
 

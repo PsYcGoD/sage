@@ -39,14 +39,21 @@ Even when context is already maxed out, SAGE keeps raw logs local and sends the 
 
 ## Install
 
-```bash
-pip install psycgod-sage
-sage
+One pasted command installs SAGE and immediately starts setup:
+
+```powershell
+python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python -m sage }
 ```
 
 Package name: `psycgod-sage` | CLI command: `sage`
 
-`pip install psycgod-sage` installs the SAGE Python package and the single `sage` command. Run bare `sage` once for first-time setup. SAGE asks what to call you, explains ML V1 vs ML V2, can connect to the Cloudflare-backed SAGE API for a local API key, and installs mandatory local AI-agent instructions for supported agents. No repeated install commands are required.
+Or use the installer script directly from GitHub:
+
+```powershell
+irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
+```
+
+That one command installs the SAGE Python package, launches the `sage` setup flow, asks what SAGE should call you, explains ML V1 vs ML V2, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 
@@ -61,7 +68,7 @@ On first use, SAGE walks you through setup:
 ```
 1. What should SAGE call you?
 2. Select ML V1 or ML V2
-3. Connect to SAGE cloud API? [y/N]
+3. Connect to SAGE cloud API automatically when reachable
 4. Local AI-agent enforcement
 ```
 

@@ -4,6 +4,8 @@ interface SettingsProps {
   onClose: () => void;
   wsRef: React.RefObject<WebSocket | null>;
   connected: boolean;
+  externalSettings?: Partial<GuiSettings>;
+  onExternalChange?: (patch: Partial<GuiSettings>) => void;
 }
 
 type SettingsPage =
@@ -13,7 +15,7 @@ type SettingsPage =
   | 'hooks' | 'connections' | 'git' | 'environment' | 'worktrees' | 'archived';
 
 interface GuiSettings {
-  permission_mode: string;
+  permission_mode: 'ask' | 'approve' | 'full';
   sandbox_mode: string;
   speed: string;
   send_shortcut: string;
@@ -27,7 +29,7 @@ interface GuiSettings {
 }
 
 const DEFAULT_GUI_SETTINGS: GuiSettings = {
-  permission_mode: 'On request',
+  permission_mode: 'ask',
   sandbox_mode: 'Read & write',
   speed: 'Standard',
   send_shortcut: 'Enter to send',
@@ -39,6 +41,23 @@ const DEFAULT_GUI_SETTINGS: GuiSettings = {
   auth_mode: 'direct',
   api_endpoint: 'sage.api.marketingstudios.in',
 };
+
+function normalizeSettings(settings: Partial<GuiSettings>): GuiSettings {
+  const rawPermission = String(settings.permission_mode || DEFAULT_GUI_SETTINGS.permission_mode);
+  const permission_mode =
+    rawPermission === 'Full access' || rawPermission === 'full'
+      ? 'full'
+      : rawPermission === 'Auto-approve' || rawPermission === 'approve'
+        ? 'approve'
+        : 'ask';
+  return { ...DEFAULT_GUI_SETTINGS, ...settings, permission_mode };
+}
+
+function permissionLabel(value: GuiSettings['permission_mode']): string {
+  if (value === 'full') return 'Full access';
+  if (value === 'approve') return 'Auto-approve safe';
+  return 'On request';
+}
 
 const NAV_SECTIONS = [
   {
@@ -75,13 +94,12 @@ const NAV_SECTIONS = [
   },
 ];
 
-export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
+export default function Settings({ onClose, wsRef, connected, externalSettings, onExternalChange }: SettingsProps) {
   const [page, setPage] = useState<SettingsPage>('general');
   const [search, setSearch] = useState('');
   const [settings, setSettings] = useState<GuiSettings>(() => {
     try {
-      const saved = localStorage.getItem('sage-gui-settings');
-      return saved ? { ...DEFAULT_GUI_SETTINGS, ...JSON.parse(saved) } : DEFAULT_GUI_SETTINGS;
+      return { ...DEFAULT_GUI_SETTINGS, ...(externalSettings || {}) };
     } catch {
       return DEFAULT_GUI_SETTINGS;
     }
@@ -94,23 +112,23 @@ export default function Settings({ onClose, wsRef, connected }: SettingsProps) {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'settings.get.response') {
-          const next = { ...DEFAULT_GUI_SETTINGS, ...(msg.payload.settings || {}) };
+          const next = normalizeSettings({ ...DEFAULT_GUI_SETTINGS, ...(msg.payload.settings || {}), ...(externalSettings || {}) });
           setSettings(next);
-          localStorage.setItem('sage-gui-settings', JSON.stringify(next));
         }
       } catch {}
     }
     wsRef.current.addEventListener('message', handleMsg);
     wsRef.current.send(JSON.stringify({ type: 'settings.get', payload: {} }));
     return () => { wsRef.current?.removeEventListener('message', handleMsg); };
-  }, [connected, wsRef]);
+  }, [connected, wsRef, externalSettings]);
 
   function updateSettings(patch: Partial<GuiSettings>) {
-    setSettings(prev => ({ ...prev, ...patch }));
+    const normalized = normalizeSettings({ ...settings, ...patch });
+    setSettings(normalized);
+    onExternalChange?.(patch);
   }
 
   function saveSettings() {
-    localStorage.setItem('sage-gui-settings', JSON.stringify(settings));
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'settings.set', payload: { settings } }));
     }
@@ -219,14 +237,14 @@ function GeneralPage({ settings, onChange }: { settings: GuiSettings; onChange: 
     <div>
       <PageTitle title="General" />
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-8">
-        <SummaryCard label="Safety" value={settings.permission_mode} desc="Approvals before risky actions" />
+        <SummaryCard label="Safety" value={permissionLabel(settings.permission_mode)} desc="Approvals before risky actions" />
         <SummaryCard label="Sandbox" value={settings.sandbox_mode} desc="Project edits allowed" />
         <SummaryCard label="Model" value={`${settings.reasoning_effort} reasoning`} desc="Default for complex tasks" />
       </div>
       <Section title="Permissions">
         <p className="text-[#6b7280] text-xs mb-3">Configure approval policy and sandbox settings</p>
         <Card>
-          <RowSelect label="Approval policy" desc="Choose when SAGE asks for approval" options={['On request', 'Auto-approve', 'Full access']} value={settings.permission_mode} onChange={permission_mode => onChange({ permission_mode })} />
+          <RowSelect label="Approval policy" desc="Choose when SAGE asks for approval" options={['ask', 'approve', 'full']} labels={{ ask: 'On request', approve: 'Auto-approve safe', full: 'Full access' }} value={settings.permission_mode} onChange={permission_mode => onChange({ permission_mode: permission_mode as GuiSettings['permission_mode'] })} />
           <RowSelect label="Sandbox settings" desc="Choose how much SAGE can do when running commands" options={['Read only', 'Read & write', 'Full access']} value={settings.sandbox_mode} onChange={sandbox_mode => onChange({ sandbox_mode })} />
         </Card>
       </Section>
@@ -613,6 +631,14 @@ function ProvidersPage({ wsRef, connected, settings, onChange }: { wsRef: React.
               <RowInput label="API Key" placeholder="..." type="password" fullWidth />
             </div>
           )}
+        </Card>
+      </Section>
+      <Section title="API Travel Providers">
+        <p className="text-[#6b7280] text-xs mb-2">Keys for cloud providers used by API Travel routing (all have permanent free tiers)</p>
+        <Card>
+          <RowInput label="Groq" placeholder="gsk_..." type="password" fullWidth />
+          <RowInput label="Google Gemini" placeholder="AIza..." type="password" fullWidth />
+          <RowInput label="OpenRouter" placeholder="sk-or-..." type="password" fullWidth />
         </Card>
       </Section>
       <Section title="Custom Binary Paths">

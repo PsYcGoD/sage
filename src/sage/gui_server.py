@@ -6,6 +6,8 @@ import argparse
 import signal
 import sys
 import uuid
+import platform
+import socket
 from pathlib import Path
 
 try:
@@ -92,6 +94,7 @@ class SAGEWebSocketServer:
             "settings.set": self._handle_settings_set,
             "metrics.get": self._handle_metrics_get,
             "ml.status": self._handle_ml_status,
+            "team.get": self._handle_team_get,
         }
 
         handler = handlers.get(msg_type)
@@ -239,6 +242,81 @@ class SAGEWebSocketServer:
             return current_msg
 
     async def _stream_llm_response(self, session_id: str, prompt: str):
+        """Stream LLM response — routes via API Travel when enabled."""
+        settings = self._read_gui_settings()
+        use_travel = settings.get("api_travel", False)
+
+        if use_travel:
+            await self._stream_via_api_travel(session_id, prompt)
+        else:
+            await self._stream_via_claude_cli(session_id, prompt)
+
+    async def _stream_via_api_travel(self, session_id: str, prompt: str):
+        """Route through API Travel: pick cheapest capable agent, stream via direct client."""
+        from sage.gui.api_travel import route, detect_available
+        from sage.gui.direct_ai_client import create_direct_client, check_direct_available
+
+        available = detect_available(force=True)
+        agent_name, complexity, label = route(prompt, available=available)
+
+        await self.broadcast({
+            "type": "chat.stream.thinking",
+            "payload": {"session_id": session_id, "text": f"[API Travel] {complexity} → {label}\n"}
+        })
+
+        if not check_direct_available(agent_name) and agent_name not in ("codex",):
+            # Fall back to Claude CLI if direct client isn't available
+            await self._stream_via_claude_cli(session_id, prompt)
+            return
+
+        if agent_name == "codex":
+            await self._stream_via_claude_cli(session_id, prompt)
+            return
+
+        try:
+            client = create_direct_client(agent_name)
+        except (ValueError, Exception) as e:
+            await self._stream_via_claude_cli(session_id, prompt)
+            return
+
+        full_text = ""
+        try:
+            loop = asyncio.get_event_loop()
+            gen = client.stream_response(prompt)
+            for kind, text in gen:
+                if kind == "text":
+                    full_text += text
+                    await self.broadcast({
+                        "type": "chat.stream.token",
+                        "payload": {"session_id": session_id, "token": text}
+                    })
+                elif kind == "error":
+                    await self.broadcast({
+                        "type": "chat.stream.error",
+                        "payload": {"session_id": session_id, "message": text}
+                    })
+                    return
+                elif kind == "complete":
+                    break
+        except Exception as e:
+            await self.broadcast({
+                "type": "chat.stream.error",
+                "payload": {"session_id": session_id, "message": str(e)}
+            })
+            return
+
+        self._save_assistant_message(session_id, full_text)
+        await self.broadcast({
+            "type": "chat.stream.done",
+            "payload": {"session_id": session_id, "id": str(uuid.uuid4()), "provider": label}
+        })
+        try:
+            metrics = await self._handle_metrics_get({})
+            await self.broadcast({"type": "metrics.get.response", "payload": metrics})
+        except Exception:
+            pass
+
+    async def _stream_via_claude_cli(self, session_id: str, prompt: str):
         """Stream LLM response via Claude CLI with full thinking/tool events."""
         import shutil
 
@@ -268,7 +346,6 @@ class SAGEWebSocketServer:
                 line = chunk.decode("utf-8", errors="replace").strip()
                 if not line:
                     continue
-                # Skip non-JSON lines (warnings etc)
                 if not line.startswith("{"):
                     continue
 
@@ -313,7 +390,6 @@ class SAGEWebSocketServer:
                             })
 
                 elif evt_type == "result":
-                    # Final result — extract text if we missed it
                     result_text = event.get("result", "")
                     if result_text and not full_text:
                         full_text = result_text
@@ -325,33 +401,16 @@ class SAGEWebSocketServer:
             await process.wait()
             self._active_processes.pop(session_id, None)
 
-            # Save assistant message to DB
             save_content = full_text.strip()
             if full_thinking:
                 save_content = f"<thinking>{full_thinking}</thinking>\n\n{save_content}"
-            if save_content:
-                try:
-                    db = connect()
-                    msg_id = str(uuid.uuid4())
-                    db.execute(
-                        "INSERT INTO chat_messages (id, session_id, role, content, created_at) "
-                        "VALUES (?, ?, 'assistant', ?, datetime('now'))",
-                        (msg_id, session_id, save_content)
-                    )
-                    db.execute(
-                        "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
-                        (session_id,)
-                    )
-                    db.commit()
-                except Exception:
-                    pass
+            self._save_assistant_message(session_id, save_content)
 
             await self.broadcast({
                 "type": "chat.stream.done",
-                "payload": {"session_id": session_id, "id": str(uuid.uuid4()), "provider": "API Travel"}
+                "payload": {"session_id": session_id, "id": str(uuid.uuid4()), "provider": "Claude"}
             })
 
-            # Push fresh metrics so cards update immediately
             try:
                 metrics = await self._handle_metrics_get({})
                 await self.broadcast({"type": "metrics.get.response", "payload": metrics})
@@ -364,6 +423,26 @@ class SAGEWebSocketServer:
                 "type": "chat.stream.error",
                 "payload": {"session_id": session_id, "message": str(e)}
             })
+
+    def _save_assistant_message(self, session_id: str, content: str):
+        """Persist assistant reply to DB."""
+        if not content or not content.strip():
+            return
+        try:
+            db = connect()
+            msg_id = str(uuid.uuid4())
+            db.execute(
+                "INSERT INTO chat_messages (id, session_id, role, content, created_at) "
+                "VALUES (?, ?, 'assistant', ?, datetime('now'))",
+                (msg_id, session_id, content.strip())
+            )
+            db.execute(
+                "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                (session_id,)
+            )
+            db.commit()
+        except Exception:
+            pass
 
     async def _handle_chat_cancel(self, payload: dict) -> dict:
         session_id = payload.get("session_id", "")
@@ -392,17 +471,25 @@ class SAGEWebSocketServer:
             ("opencode", "OpenCode", "auto"),
             ("aider", "Aider", "auto"),
             ("ollama", "Ollama", "local models"),
+            ("groq", "Groq", "llama-3.3-70b"),
+            ("gemini", "Gemini", "gemini-2.0-flash"),
+            ("openrouter", "OpenRouter", "deepseek-r1"),
             ("windsurf", "Windsurf", "auto"),
             ("cursor", "Cursor", "auto"),
             ("cline", "Cline", "auto"),
             ("continue", "Continue", "auto"),
         ]
 
+        from sage.gui.direct_ai_client import check_direct_available
+
         providers = []
         for bin_name, display_name, model in agents:
-            found = shutil.which(bin_name) is not None
-            if bin_name == "ollama":
+            if bin_name in ("groq", "gemini", "openrouter"):
+                found = check_direct_available(bin_name)
+            elif bin_name == "ollama":
                 found = check_ollama()
+            else:
+                found = shutil.which(bin_name) is not None
             providers.append({
                 "id": bin_name,
                 "name": display_name,
@@ -416,7 +503,7 @@ class SAGEWebSocketServer:
 
     def _read_gui_settings(self) -> dict:
         defaults = {
-            "permission_mode": "On request",
+            "permission_mode": "ask",
             "sandbox_mode": "Read & write",
             "speed": "Standard",
             "send_shortcut": "Enter to send",
@@ -456,6 +543,52 @@ class SAGEWebSocketServer:
         if not isinstance(settings, dict):
             return {"success": False, "error": "settings payload must be an object"}
         return {"success": True, "settings": self._write_gui_settings(settings)}
+
+    async def _handle_team_get(self, payload: dict) -> dict:
+        """Return local team/installation view for Electron Team page.
+
+        Enterprise cloud workspace membership will replace this with server-side
+        grouping later; for now this makes the page real and truthful.
+        """
+        try:
+            db = connect()
+            run_count = int(db.execute("SELECT COUNT(*) FROM runs").fetchone()[0] or 0)
+            saved_row = db.execute(
+                "SELECT COALESCE(SUM(saved_tokens), 0) FROM context_compression"
+            ).fetchone()
+            saved_tokens = int(saved_row[0] or 0)
+            last_row = db.execute("SELECT MAX(created_at) FROM runs").fetchone()
+            last_seen = str(last_row[0] or "")
+            workspace_row = db.execute(
+                "SELECT workspace_hash FROM runs WHERE workspace_hash IS NOT NULL AND workspace_hash != '' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            workspace_hash = str(workspace_row[0] or "local") if workspace_row else "local"
+            estimated = round(saved_tokens / 1000 * 0.003, 4)
+            member = {
+                "installation_id": socket.gethostname(),
+                "hostname": socket.gethostname(),
+                "platform": platform.platform(),
+                "first_seen": "",
+                "last_seen": last_seen,
+                "run_count": run_count,
+                "saved_tokens": saved_tokens,
+                "estimated_savings_usd": estimated,
+            }
+            return {
+                "ok": True,
+                "team": {
+                    "workspace_hash": workspace_hash,
+                    "members": [member],
+                    "aggregate": {
+                        "total_members": 1,
+                        "total_runs": run_count,
+                        "saved_tokens": saved_tokens,
+                        "estimated_savings_usd": estimated,
+                    },
+                },
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     async def _handle_metrics_get(self, payload: dict) -> dict:
         try:

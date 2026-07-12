@@ -6,9 +6,78 @@ import json
 from typing import Generator, Optional
 from pathlib import Path
 
-from sage.gui.model_defaults import bedrock_claude_model, claude_model
+from sage.gui.model_defaults import (
+    bedrock_claude_model,
+    claude_model,
+    gemini_model,
+    groq_model,
+    openrouter_model,
+)
 
 log = logging.getLogger(__name__)
+
+
+def _read_system_prompts(system_prompts: list[str] | None) -> str | None:
+    """Build combined system prompt from files (shared by free-tier clients)."""
+    parts = []
+    for prompt_file in system_prompts or []:
+        prompt_path = Path(prompt_file).expanduser()
+        if prompt_path.exists():
+            try:
+                parts.append(prompt_path.read_text(encoding="utf-8"))
+            except Exception:
+                log.debug("suppressed system prompt read for %s", prompt_file, exc_info=True)
+    return "\n\n".join(parts) if parts else None
+
+
+def _stream_openai_compatible(
+    api_url: str,
+    headers: dict,
+    payload: dict,
+    provider_label: str,
+) -> Generator[tuple[str, str], None, None]:
+    """Stream an OpenAI-compatible /chat/completions SSE endpoint (Groq, OpenRouter)."""
+    import requests
+
+    try:
+        yield ("status", f"[Working...] Connecting to {provider_label}...")
+
+        response = requests.post(api_url, headers=headers, json=payload, stream=True, timeout=120)
+
+        if response.status_code != 200:
+            detail = response.text[:500]
+            yield ("error", f"\n[ERROR] {provider_label} returned {response.status_code}: {detail}\n")
+            return
+
+        yield ("status", f"[Working...] {provider_label} is responding...")
+
+        for raw_line in response.iter_lines():
+            if not raw_line:
+                continue
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                yield ("complete", "\n")
+                break
+            try:
+                event = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            choices = event.get("choices") or []
+            if not choices:
+                continue
+            delta = choices[0].get("delta") or {}
+            text = delta.get("content") or ""
+            if text:
+                yield ("text", text)
+            if choices[0].get("finish_reason"):
+                yield ("complete", "\n")
+                break
+
+    except Exception as e:
+        yield ("error", f"\n[ERROR] {provider_label} error: {e}\n")
 
 class DirectBedrockClient:
     """Direct AWS Bedrock Claude integration"""
@@ -293,6 +362,114 @@ class DirectOllamaClient:
         except Exception as e:
             yield ("error", f"\n[ERROR] {e}\n")
 
+
+class DirectGroqClient:
+    """Free-tier Groq Cloud (OpenAI-compatible, Llama 3.3 70B at ~320 tok/s)."""
+
+    def __init__(self, system_prompts: list[str] | None = None):
+        self.api_key = os.environ.get("GROQ_API_KEY", "")
+        if not self.api_key:
+            raise ValueError("GROQ_API_KEY not set")
+        self.model = groq_model()
+        self.system_prompts = system_prompts
+        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+
+    def stream_response(self, prompt: str) -> Generator[tuple[str, str], None, None]:
+        system_prompt = _read_system_prompts(self.system_prompts)
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        payload = {"model": self.model, "messages": messages, "stream": True}
+        yield from _stream_openai_compatible(self.api_url, headers, payload, "Groq")
+
+
+class DirectGeminiClient:
+    """Free-tier Google Gemini via AI Studio REST (streaming)."""
+
+    def __init__(self, system_prompts: list[str] | None = None):
+        self.api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY not set")
+        self.model = gemini_model()
+        self.system_prompts = system_prompts
+
+    def stream_response(self, prompt: str) -> Generator[tuple[str, str], None, None]:
+        import requests
+
+        system_prompt = _read_system_prompts(self.system_prompts)
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}"
+            f":streamGenerateContent?alt=sse&key={self.api_key}"
+        )
+        contents = [{"role": "user", "parts": [{"text": prompt}]}]
+        body: dict = {"contents": contents}
+        if system_prompt:
+            body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+
+        try:
+            yield ("status", "[Working...] Connecting to Gemini...")
+            response = requests.post(url, json=body, stream=True, timeout=120)
+            if response.status_code != 200:
+                yield ("error", f"\n[ERROR] Gemini returned {response.status_code}: {response.text[:500]}\n")
+                return
+            yield ("status", "[Working...] Gemini is responding...")
+            for raw_line in response.iter_lines():
+                if not raw_line:
+                    continue
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[len("data:"):].strip()
+                if data == "[DONE]":
+                    yield ("complete", "\n")
+                    break
+                try:
+                    event = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                candidates = event.get("candidates") or []
+                for cand in candidates:
+                    parts = (cand.get("content") or {}).get("parts") or []
+                    for part in parts:
+                        text = part.get("text", "")
+                        if text:
+                            yield ("text", text)
+                    if cand.get("finishReason"):
+                        yield ("complete", "\n")
+                        return
+        except Exception as e:
+            yield ("error", f"\n[ERROR] Gemini error: {e}\n")
+
+
+class DirectOpenRouterClient:
+    """Free-tier OpenRouter (OpenAI-compatible, ~30 free models)."""
+
+    def __init__(self, system_prompts: list[str] | None = None):
+        self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not self.api_key:
+            raise ValueError("OPENROUTER_API_KEY not set")
+        self.model = openrouter_model()
+        self.system_prompts = system_prompts
+        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
+
+    def stream_response(self, prompt: str) -> Generator[tuple[str, str], None, None]:
+        system_prompt = _read_system_prompts(self.system_prompts)
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://sage.marketingstudios.in",
+            "X-Title": "SAGE",
+        }
+        payload = {"model": self.model, "messages": messages, "stream": True}
+        yield from _stream_openai_compatible(self.api_url, headers, payload, "OpenRouter")
+
+
 def create_direct_client(ai_name: str, system_prompts: list[str] | None = None):
     """Factory to create direct AI client"""
     ai_name = ai_name.lower()
@@ -303,11 +480,17 @@ def create_direct_client(ai_name: str, system_prompts: list[str] | None = None):
         return DirectBedrockClient(system_prompts)
     elif ai_name == "ollama":
         return DirectOllamaClient(system_prompts=system_prompts)
+    elif ai_name == "groq":
+        return DirectGroqClient(system_prompts)
+    elif ai_name == "gemini":
+        return DirectGeminiClient(system_prompts)
+    elif ai_name == "openrouter":
+        return DirectOpenRouterClient(system_prompts)
     elif ai_name == "codex":
-        # Codex uses subprocess (no direct API available)
         raise ValueError("Codex requires subprocess mode")
     else:
         raise ValueError(f"Direct integration not available for {ai_name}")
+
 
 def check_direct_available(ai_name: str) -> bool:
     """Check if direct integration is available"""
@@ -316,18 +499,21 @@ def check_direct_available(ai_name: str) -> bool:
     if ai_name == "claude":
         return bool(os.environ.get("ANTHROPIC_API_KEY"))
     elif ai_name == "bedrock":
-        # Check AWS credentials
         return bool(os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"))
     elif ai_name == "ollama":
-        # Check if Ollama is running
         import requests
         try:
             response = requests.get("http://localhost:11434/api/tags", timeout=2)
             return response.status_code == 200
-        except:
+        except Exception:
             return False
+    elif ai_name == "groq":
+        return bool(os.environ.get("GROQ_API_KEY"))
+    elif ai_name == "gemini":
+        return bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+    elif ai_name == "openrouter":
+        return bool(os.environ.get("OPENROUTER_API_KEY"))
     elif ai_name == "codex":
-        # Codex always uses subprocess
         return False
     else:
         return False

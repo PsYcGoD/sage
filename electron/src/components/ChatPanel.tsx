@@ -7,6 +7,11 @@ interface ChatPanelProps {
   messages: Message[];
   streaming: boolean;
   connected: boolean;
+  settings: {
+    permission_mode: 'ask' | 'approve' | 'full';
+    api_travel?: boolean;
+  };
+  onSettingsChange: (patch: Partial<{ permission_mode: 'ask' | 'approve' | 'full'; api_travel: boolean }>) => void;
   sidebarCollapsed: boolean;
   onExpandSidebar: () => void;
   onSendMessage: (content: string) => void;
@@ -14,7 +19,7 @@ interface ChatPanelProps {
   onNewChat: () => void;
 }
 
-export default function ChatPanel({ session, messages, streaming, connected, sidebarCollapsed, onExpandSidebar, onSendMessage, onCancelStream, onNewChat }: ChatPanelProps) {
+export default function ChatPanel({ session, messages, streaming, connected, settings, onSettingsChange, sidebarCollapsed, onExpandSidebar, onSendMessage, onCancelStream, onNewChat }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -97,7 +102,7 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
  |____/_/   \\_\\____|_____|`}</pre>
           <h1 className="text-xl font-semibold text-white mb-2">SAGE Desktop</h1>
           <p className="text-[#9ca3af] text-sm mb-6">Smart Agent Guidance Engine</p>
-          <button onClick={() => onNewChat()} className="bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 text-[#a78bfa] px-4 py-2 rounded-lg text-sm font-medium transition-colors">+ Start New Chat</button>
+          <button onClick={() => onNewChat()} className="bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 text-[#a78bfa] px-4 py-2 rounded-lg text-sm font-medium transition-colors active:scale-[0.98]">+ Start New Chat</button>
         </div>
       </div>
     );
@@ -115,7 +120,14 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
       <div className="flex-1 overflow-y-auto px-6 pt-8 pb-8">
         <div className="max-w-3xl mx-auto space-y-10">
           {messages.length === 0 && (
-            <div className="text-center text-[#6b7280] text-sm mt-16">Start typing to chat with your AI agent.</div>
+            <div className="text-center text-[#6b7280] text-sm mt-16">
+              <div>Start typing to chat with your AI agent.</div>
+              {session.project && (
+                <div className="mt-2 text-xs text-[#8b5cf6]" title={session.project}>
+                  Project: {projectLabel(session.project)}
+                </div>
+              )}
+            </div>
           )}
           {messages.map((msg) => (
             <div key={msg.id}>
@@ -194,18 +206,29 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
                     >🧩 Add plugins...</button>
                   </div>
                 )}
-                <select className="bg-transparent text-[#fb923c] text-xs font-medium border-none outline-none cursor-pointer appearance-none">
-                  <option value="ask">🛡️ Ask approval</option>
-                  <option value="auto">⚡ Auto-approve</option>
-                  <option value="full" selected>⚠ Full access</option>
+                <select
+                  value={settings.permission_mode}
+                  onChange={(e) => onSettingsChange({ permission_mode: e.target.value as 'ask' | 'approve' | 'full' })}
+                  className="bg-transparent text-[#fb923c] text-xs font-medium border-none outline-none cursor-pointer appearance-none"
+                >
+                  <option value="ask">🛡️ On request</option>
+                  <option value="approve">⚡ Auto-approve safe</option>
+                  <option value="full">⚠ Full access</option>
                 </select>
               </div>
               <div className="flex items-center gap-3">
                 <select className="bg-transparent text-[#9ca3af] text-xs border-none outline-none cursor-pointer appearance-none pr-3">
+                  <option value="travel">API Traveller</option>
                   <option value="claude">Claude 4.6</option>
                   <option value="codex">Codex</option>
                   <option value="ollama">Ollama</option>
-                  <option value="travel">API Traveller</option>
+                  <option value="groq">Groq</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="opencode">OpenCode</option>
+                  <option value="windsurf">Windsurf</option>
+                  <option value="cursor">Cursor</option>
+                  <option value="cline">Cline</option>
                 </select>
                 <select className="bg-transparent text-[#9ca3af] text-xs border-none outline-none cursor-pointer appearance-none">
                   <option value="high">High</option>
@@ -233,6 +256,11 @@ export default function ChatPanel({ session, messages, streaming, connected, sid
       </div>
     </div>
   );
+}
+
+function projectLabel(project: string): string {
+  const normalized = project.replace(/\\/g, '/').replace(/\/$/, '');
+  return normalized.split('/').pop() || project;
 }
 
 function MessageBubble({ message, streaming, elapsed, fmtTime }: { message: Message; streaming?: boolean; elapsed?: number; fmtTime?: (s: number) => string }) {

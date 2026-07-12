@@ -27,9 +27,12 @@ _TIER = {SIMPLE: 0, MEDIUM: 1, COMPLEX: 2}
 
 # (agent_name, max_complexity_it_handles, friendly_label) — cheapest first
 _PROVIDERS: list[tuple[str, str, str]] = [
-    ("ollama", SIMPLE,  "Ollama (local/free)"),
-    ("codex",  MEDIUM,  "Codex CLI"),
-    ("claude", COMPLEX, "Claude API"),
+    ("ollama",      SIMPLE,  "Ollama (local)"),
+    ("groq",        MEDIUM,  "Groq"),
+    ("gemini",      MEDIUM,  "Gemini"),
+    ("openrouter",  MEDIUM,  "OpenRouter"),
+    ("codex",       MEDIUM,  "Codex CLI"),
+    ("claude",      COMPLEX, "Claude"),
 ]
 
 _COMPLEX_KW = frozenset({
@@ -90,6 +93,18 @@ def _ollama_up() -> bool:
         return False
 
 
+def _groq_up() -> bool:
+    return bool(os.getenv("GROQ_API_KEY"))
+
+
+def _gemini_up() -> bool:
+    return bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+
+
+def _openrouter_up() -> bool:
+    return bool(os.getenv("OPENROUTER_API_KEY"))
+
+
 def _codex_up() -> bool:
     import shutil
     return shutil.which("codex") is not None
@@ -98,14 +113,16 @@ def _codex_up() -> bool:
 def _claude_up() -> bool:
     if os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_BASE_URL"):
         return True
-    # Claude CLI session file
     return (Path.home() / ".claude" / "credentials.json").exists()
 
 
 _CHECKS: dict[str, object] = {
-    "ollama": _ollama_up,
-    "codex":  _codex_up,
-    "claude": _claude_up,
+    "ollama":     _ollama_up,
+    "groq":       _groq_up,
+    "gemini":     _gemini_up,
+    "openrouter": _openrouter_up,
+    "codex":      _codex_up,
+    "claude":     _claude_up,
 }
 
 

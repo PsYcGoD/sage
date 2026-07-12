@@ -4,13 +4,26 @@ import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
 import MetricCards from './components/MetricCards';
 import Settings from './components/Settings';
+import TeamView from './components/TeamView';
 import type { Session, Message } from './types';
+
+type AppSettings = {
+  permission_mode: 'ask' | 'approve' | 'full';
+  api_travel: boolean;
+};
+
+const DEFAULT_SETTINGS: AppSettings = {
+  permission_mode: 'ask',
+  api_travel: false,
+};
 
 export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -25,6 +38,7 @@ export default function App() {
       ws.onopen = () => {
         setConnected(true);
         ws.send(JSON.stringify({ type: 'session.list', payload: {} }));
+        ws.send(JSON.stringify({ type: 'settings.get', payload: {} }));
       };
       ws.onclose = () => {
         setConnected(false);
@@ -55,6 +69,12 @@ export default function App() {
     switch (type) {
       case 'session.list.response':
         setSessions(payload.sessions || []);
+        break;
+      case 'settings.get.response':
+      case 'settings.set.response':
+        if (payload.settings) {
+          setSettings({ ...DEFAULT_SETTINGS, ...payload.settings });
+        }
         break;
       case 'session.create.response':
         if (payload.success) {
@@ -115,8 +135,20 @@ export default function App() {
     }
   }
 
-  function handleNewChat(folder?: string) {
-    send('session.create', { project: folder || '' });
+  async function pickProjectFolder(): Promise<string | undefined> {
+    try {
+      const folder = await window.electronAPI?.dialog?.pickFolder?.();
+      return folder || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function handleNewChat(folder?: string) {
+    const project = folder || await pickProjectFolder();
+    if (!project) return;
+    setShowTeam(false);
+    send('session.create', { project });
   }
 
   function handleSelectSession(session: Session) {
@@ -131,6 +163,12 @@ export default function App() {
     setStreaming(true);
     streamBufferRef.current = '';
     send('chat.send', { session_id: activeSession?.id || 'default', content: content.trim() });
+  }
+
+  function updateSettings(patch: Partial<AppSettings>) {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    send('settings.set', patch);
   }
 
   function handleCancelStream() {
@@ -169,6 +207,7 @@ export default function App() {
               onSelectSession={handleSelectSession}
               onNewChat={handleNewChat}
               onOpenSettings={() => setShowSettings(true)}
+              onOpenTeam={() => setShowTeam(true)}
               onCollapse={() => setSidebarCollapsed(true)}
             />
           </div>
@@ -178,23 +217,35 @@ export default function App() {
           onMouseDown={handleMouseDown}
         />
         <div className="flex-1 overflow-hidden">
-          <ChatPanel
-            session={activeSession}
-            messages={messages}
-            streaming={streaming}
-            connected={connected}
-            sidebarCollapsed={sidebarCollapsed}
-            onExpandSidebar={() => setSidebarCollapsed(false)}
-            onSendMessage={handleSendMessage}
-            onCancelStream={handleCancelStream}
-            onNewChat={handleNewChat}
-          />
+          {showTeam ? (
+            <TeamView wsRef={wsRef} onBack={() => setShowTeam(false)} />
+          ) : (
+            <ChatPanel
+              session={activeSession}
+              messages={messages}
+              streaming={streaming}
+              connected={connected}
+              settings={settings}
+              onSettingsChange={updateSettings}
+              sidebarCollapsed={sidebarCollapsed}
+              onExpandSidebar={() => setSidebarCollapsed(false)}
+              onSendMessage={handleSendMessage}
+              onCancelStream={handleCancelStream}
+              onNewChat={handleNewChat}
+            />
+          )}
         </div>
         <MetricCards connected={connected} wsRef={wsRef} />
       </div>
       {showSettings && (
         <div className="fixed inset-0 z-40 top-9">
-          <Settings onClose={() => setShowSettings(false)} wsRef={wsRef} connected={connected} />
+          <Settings
+            onClose={() => setShowSettings(false)}
+            wsRef={wsRef}
+            connected={connected}
+            externalSettings={settings}
+            onExternalChange={updateSettings}
+          />
         </div>
       )}
     </div>

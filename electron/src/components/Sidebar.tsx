@@ -8,10 +8,11 @@ interface SidebarProps {
   onSelectSession: (session: Session) => void;
   onNewChat: (folder?: string) => void;
   onOpenSettings: () => void;
+  onOpenTeam?: () => void;
   onCollapse: () => void;
 }
 
-export default function Sidebar({ sessions, activeSession, onSelectSession, onNewChat, onOpenSettings, onCollapse }: SidebarProps) {
+export default function Sidebar({ sessions, activeSession, onSelectSession, onNewChat, onOpenSettings, onOpenTeam, onCollapse }: SidebarProps) {
   const [search, setSearch] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -77,6 +78,12 @@ export default function Sidebar({ sessions, activeSession, onSelectSession, onNe
               📊 Usage
             </button>
             <button
+              onClick={() => { setShowProfileMenu(false); onOpenTeam?.(); }}
+              className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] transition-colors flex items-center gap-2"
+            >
+              👥 Team
+            </button>
+            <button
               onClick={() => { setShowProfileMenu(false); onOpenSettings(); }}
               className="w-full text-left px-3 py-2 text-sm text-[#ededec] hover:bg-[#24283b] transition-colors flex items-center gap-2"
             >
@@ -131,7 +138,7 @@ export default function Sidebar({ sessions, activeSession, onSelectSession, onNe
               <svg width="10" height="10" viewBox="0 0 10 10" className={`transition-transform ${expandedGroups.has(group) || expandedGroups.size === 0 ? 'rotate-90' : ''}`}>
                 <path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
-              {group}
+              <span className="truncate" title={group}>{projectLabel(group)}</span>
             </button>
             {(expandedGroups.has(group) || expandedGroups.size === 0) &&
               items.map((session) => (
@@ -154,12 +161,25 @@ export default function Sidebar({ sessions, activeSession, onSelectSession, onNe
           defaultValue="Claude"
         >
           <option value="Claude">Claude</option>
-          <option value="Codex">Codex</option>
-          <option value="Ollama">Ollama</option>
-          <option value="Gemini">Gemini</option>
           <option value="API Travel">API Travel</option>
+          <option value="Codex">Codex</option>
+          <option value="OpenCode">OpenCode</option>
+          <option value="Aider">Aider</option>
+          <option value="Ollama">Ollama</option>
+          <option value="Groq">Groq</option>
+          <option value="Gemini">Gemini</option>
+          <option value="OpenRouter">OpenRouter</option>
+          <option value="Windsurf">Windsurf</option>
+          <option value="Cursor">Cursor</option>
+          <option value="Cline">Cline</option>
         </select>
       </div>
     </div>
   );
+}
+
+function projectLabel(project: string): string {
+  if (project === 'Ungrouped') return project;
+  const normalized = project.replace(/\\/g, '/').replace(/\/$/, '');
+  return normalized.split('/').pop() || project;
 }

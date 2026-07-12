@@ -29,3 +29,25 @@ def bedrock_claude_model() -> str:
 def ollama_model() -> str:
     """Return the local Ollama model for GUI calls."""
     return os.getenv("SAGE_OLLAMA_MODEL") or DEFAULT_OLLAMA_MODEL
+
+
+# --- Free-tier cloud providers ---
+
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
+
+
+def groq_model() -> str:
+    """Return the Groq model for GUI calls."""
+    return os.getenv("SAGE_GROQ_MODEL") or DEFAULT_GROQ_MODEL
+
+
+def gemini_model() -> str:
+    """Return the Gemini model for GUI calls."""
+    return os.getenv("SAGE_GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+
+
+def openrouter_model() -> str:
+    """Return the OpenRouter model for GUI calls."""
+    return os.getenv("SAGE_OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL

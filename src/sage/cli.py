@@ -295,7 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
     privacy_set.add_argument(
         "level",
         choices=["local-only", "anonymous-metrics", "redacted-summaries", "team-diagnostics", "research-full-logs", "0", "1", "2", "3", "4"],
-        help="Privacy level name or number (0=local-only is the default).",
+        help="Privacy level name or number (0=local-only / off).",
     )
     privacy_export = privacy_sub.add_parser("export-audit", help="Export a redacted audit report.")
     privacy_export.add_argument("--output", default="", help="Output JSON path.")
@@ -496,7 +496,7 @@ def setup_command(force: bool = False) -> int:
         cloud_connected = connect_command(connect_args) == 0
     except Exception as exc:
         print(f"Cloud connection skipped: {exc}")
-        print("Queued telemetry will send later after you run `sage connect`.")
+        print("Queued telemetry will send later after automatic setup reconnects.")
 
     if not _ensure_system_enforcement("run"):
         print("Warning: AI-agent enforcement was not fully installed. Run `sage install` later.")
@@ -517,6 +517,22 @@ def setup_command(force: bool = False) -> int:
     print("ML daemon command, when needed: `sage serve start`; it sleeps after 10 seconds idle.")
     return 0
 
+def _ensure_first_run_setup(command_name: str | None) -> int:
+    """Run zero-prompt setup before the first real SAGE command.
+
+    `pip install` cannot reliably run post-install onboarding across modern pip,
+    venv, pipx, CI, and locked-down systems. The product promise is therefore:
+    one install command, then the first `sage`/`sage run -- ...` command
+    automatically connects and installs enforcement without a separate login step.
+    """
+    if os.environ.get("SAGE_SKIP_SETUP") == "1":
+        return 0
+    if command_name in {"setup", "install", "connect", "login", "logout"}:
+        return 0
+    if _read_setup_state().get("completed"):
+        return 0
+    return setup_command(force=False)
+
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
     parser = build_parser()
@@ -531,6 +547,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command_name == "setup":
         return setup_command(force=bool(getattr(args, "force", False)))
 
+    setup_rc = _ensure_first_run_setup(args.command_name)
+    if setup_rc != 0:
+        return setup_rc
+
     if not _ensure_system_enforcement(args.command_name):
         print("Run `sage install` to repair local AI-agent enforcement, then retry.", file=sys.stderr)
         return 1
@@ -541,7 +561,8 @@ def main(argv: list[str] | None = None) -> int:
         status = telemetry.api_status()
         if not status.get("connected"):
             print("This SAGE command requires connected mode.")
-            print("Run: sage connect")
+            print("SAGE normally connects automatically on first use.")
+            print("Repair now with: sage setup --force")
             return 1
 
     if args.command_name == "run":
@@ -1643,7 +1664,7 @@ def connect_command(args) -> int:
     # Method 3: GitHub OAuth (browser/device flow)
     if not result and (bool(getattr(args, "auto_only", False)) or not sys.stdin.isatty()):
         print("[3/3] Skipping browser/device OAuth in automatic mode.")
-        print("SAGE remains usable locally. Retry cloud connection later with: sage connect")
+        print("SAGE remains usable locally. Automatic setup will retry on repair/force setup.")
         return 1
 
     if not result:
@@ -1681,7 +1702,7 @@ def connect_command(args) -> int:
             print("\nTroubleshooting:")
             print("  1. Check internet connection")
             print("  2. Install GitHub CLI: https://cli.github.com")
-            print("  3. Try again: sage connect")
+            print("  3. Repair automatic setup: sage setup --force")
             return 1
 
     # Verify with server

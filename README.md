@@ -89,6 +89,8 @@ irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
 
 That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
 
+After install, the first real SAGE command also runs setup automatically if needed. A new user should not have to run `sage login` or `sage connect` just to activate SAGE.
+
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 
 ```bash
@@ -153,9 +155,11 @@ SAGE sits between your terminal and your AI coding workflow. It keeps full raw l
 | Hard to prove AI-agent savings | Dashboard shows proof metrics |
 | Raw logs may be copied into prompts | Raw logs stay local |
 
-## Local-Only Mode
+## Connection and Local-Only Mode
 
-Local-only mode does not require GitHub OAuth and does not send data.
+SAGE attempts connected proof mode automatically during first setup using a machine identity/hardware login. If the cloud is unreachable, commands still work locally and safe telemetry stays queued for a later retry.
+
+Local-only mode is the opt-out/offline mode. It does not require GitHub OAuth and does not send data.
 
 | Mode | Requires OAuth? | Sends data? | What leaves the machine? |
 |---|---:|---:|---|
@@ -163,9 +167,11 @@ Local-only mode does not require GitHub OAuth and does not send data.
 | Connected proof | Yes | Yes | Aggregate counters only |
 | Debug telemetry | Optional | Opt-in only | Redacted diagnostic summaries only |
 
-Use connected mode for optional public proof/dashboard sync:
+Manual connection commands are for repair, rotation, or advanced users — not required onboarding:
 
 ```bash
+sage setup --force
+# or
 sage connect
 ```
 

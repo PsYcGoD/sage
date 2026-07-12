@@ -10,6 +10,10 @@ interface Metrics {
   tokens_processed: number;
   tokens_saved: number;
   compression_pct: number;
+  successful_runs?: number;
+  failed_runs?: number;
+  running_agents?: number;
+  waiting_agents?: number;
 }
 
 export default function MetricCards({ connected, wsRef }: MetricCardsProps) {
@@ -63,12 +67,13 @@ export default function MetricCards({ connected, wsRef }: MetricCardsProps) {
   const sessionPct = sessionTokensSaved > 0 && (sessionTokensUsed + sessionTokensSaved) > 0
     ? Math.round(sessionTokensSaved / (sessionTokensUsed + sessionTokensSaved) * 100) : 0;
 
-  const successCount = totalRuns > 0 ? Math.round(totalRuns * 0.878) : 0;
+  const successCount = metrics.successful_runs ?? 0;
+  const failedCount = metrics.failed_runs ?? Math.max(0, totalRuns - successCount);
   const successRate = totalRuns > 0 ? ((successCount / totalRuns) * 100).toFixed(0) : '0';
-  const sessionSuccessRate = sessionRuns > 0 ? '100' : '0';
+  const sessionSuccessRate = sessionRuns > 0 ? '—' : '—';
 
   return (
-    <div className="w-72 bg-[#16161e] border-l border-[#333648] flex flex-col p-4 gap-4 overflow-y-auto">
+    <div className="w-64 bg-[#16161e] border-l border-[#333648] flex flex-col p-3 gap-3 overflow-y-auto">
       <h3 className="text-[#4ade80] text-xs font-semibold uppercase tracking-wider">Live Metrics</h3>
 
       <MetricCard title="Commands">
@@ -77,17 +82,17 @@ export default function MetricCards({ connected, wsRef }: MetricCardsProps) {
 
       <MetricCard title="Context Tokens">
         <Row
-          left={`${fmt(usedTokens)}|${fmt(savedTokens)}`} leftSub="Used|Saved"
-          right={`${fmt(sessionTokensUsed)}|${fmt(sessionTokensSaved)}`} rightSub={`${sessionPct}% saved`}
+          left={`${fmt(usedTokens)} / ${fmt(savedTokens)}`} leftSub="Used / saved"
+          right={`${fmt(sessionTokensUsed)} / ${fmt(sessionTokensSaved)}`} rightSub={`${sessionPct}% saved this session`}
         />
       </MetricCard>
 
       <MetricCard title="Agents">
-        <Row left="7" leftSub="0 running" right={String(sessionRuns)} rightSub="0 waiting" leftColor="#fb923c" />
+        <Row left={String(metrics.running_agents ?? 0)} leftSub="Running" right={String(metrics.waiting_agents ?? 0)} rightSub="Waiting" leftColor="#fb923c" />
       </MetricCard>
 
       <MetricCard title="Success">
-        <Row left={`${successRate}%`} leftSub={`${successCount}/${totalRuns}`} right={`${sessionSuccessRate}%`} rightSub={`${sessionRuns}/${sessionRuns}`} leftColor="#4ade80" rightColor="#4ade80" />
+        <Row left={`${successRate}%`} leftSub={`${successCount}/${totalRuns}`} right={String(failedCount)} rightSub="Failed" leftColor="#4ade80" rightColor="#f87171" />
       </MetricCard>
     </div>
   );
@@ -95,8 +100,8 @@ export default function MetricCards({ connected, wsRef }: MetricCardsProps) {
 
 function MetricCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#1f2335] rounded-lg p-3.5 border border-[#333648]">
-      <div className="text-[#9ca3af] text-[10px] font-medium uppercase tracking-wider mb-2">{title}</div>
+    <div className="bg-[#1f2335] rounded-lg p-3 border border-[#333648] min-w-0">
+      <div className="text-[#9ca3af] text-[10px] font-medium uppercase tracking-wider mb-2 truncate">{title}</div>
       {children}
     </div>
   );
@@ -106,14 +111,14 @@ function Row({ left, leftSub, right, rightSub, leftColor, rightColor }: {
   left: string; leftSub: string; right: string; rightSub: string; leftColor?: string; rightColor?: string;
 }) {
   return (
-    <div className="flex justify-between items-start">
-      <div>
-        <div className="text-lg font-bold" style={{ color: leftColor || 'white' }}>{left}</div>
-        <div className="text-[#6b7280] text-[10px]">{leftSub}</div>
+    <div className="grid grid-cols-2 gap-2 min-w-0">
+      <div className="min-w-0">
+        <div className="text-base font-bold leading-tight truncate" style={{ color: leftColor || 'white' }} title={left}>{left}</div>
+        <div className="text-[#6b7280] text-[10px] truncate" title={leftSub}>{leftSub}</div>
       </div>
-      <div className="text-right">
-        <div className="text-lg font-bold" style={{ color: rightColor || 'white' }}>{right}</div>
-        <div className="text-[#6b7280] text-[10px]">{rightSub}</div>
+      <div className="text-right min-w-0">
+        <div className="text-base font-bold leading-tight truncate" style={{ color: rightColor || 'white' }} title={right}>{right}</div>
+        <div className="text-[#6b7280] text-[10px] truncate" title={rightSub}>{rightSub}</div>
       </div>
     </div>
   );

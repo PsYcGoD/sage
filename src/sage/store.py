@@ -366,14 +366,19 @@ def _ensure_migration_table(conn: sqlite3.Connection) -> None:
 def _record_migration(conn: sqlite3.Connection, version: str, description: str) -> None:
     """Record that a schema migration/version has been applied."""
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    conn.execute(
-        """
-        INSERT OR IGNORE INTO schema_migrations (version, description, applied_at)
-        VALUES (?, ?, ?)
-        """,
-        (version, description, now),
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO schema_migrations (version, description, applied_at)
+            VALUES (?, ?, ?)
+            """,
+            (version, description, now),
+        )
+        conn.commit()
+    except sqlite3.OperationalError as exc:
+        if "locked" in str(exc).lower():
+            return
+        raise
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:

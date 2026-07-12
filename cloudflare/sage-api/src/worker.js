@@ -1604,7 +1604,7 @@ async function handleAdminUsersCleanup(env, request) {
     const runCount = Number(row.run_count || 0);
     const activeKeyCount = Number(row.active_key_count || 0);
     if (!reason || activeKeyCount <= 0) continue;
-    if (installCount > 0 || runCount > 0) continue;
+    if (runCount > 0) continue;
     candidates.push({
       label,
       user_identity: row.user_identity,

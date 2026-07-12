@@ -252,6 +252,8 @@ def build_parser() -> argparse.ArgumentParser:
     api_sub.add_parser("visitors", help="Show private public-dashboard visitor stats.")
     api_users = api_sub.add_parser("users", help="Show private connected-user stats.")
     api_users.add_argument("--raw", action="store_true", help="Show raw admin identity fields.")
+    api_users.add_argument("--cleanup", action="store_true", help="Revoke obvious junk/test identity keys before listing users.")
+    api_users.add_argument("--dry-run", action="store_true", help="Preview --cleanup candidates without revoking keys.")
     api_rotate = api_sub.add_parser("rotate", help="Rotate API key (generates new key, revokes old one).")
     _add_login_args(api_rotate)
     api_sub.add_parser("logout", help="Disconnect local SAGE API credentials.")
@@ -1344,15 +1346,20 @@ def api_visitors_command() -> int:
     totals = data.get("totals", {}) or {}
     today = data.get("today_stats", {}) or {}
     installs = data.get("installs", {}) or {}
+    telemetry_stats = data.get("telemetry", {}) or {}
     users = data.get("users", {}) or {}
     clicks = data.get("clicks", {}) or {}
     print("SAGE private dashboard analytics")
     print(f"Generated: {data.get('generated_at')}")
     print("\nSAGE installs and connected GitHub users")
-    print(f"Telemetry installs seen: {installs.get('total_installs', 0)}")
-    print(f"New telemetry installs today: {installs.get('new_installs_today', 0)}")
-    print(f"Live telemetry installs now (15m): {installs.get('live_installs_15m', 0)}")
-    print(f"Active telemetry installs (24h): {installs.get('active_installs_24h', 0)}")
+    print(f"Telemetry command events: {telemetry_stats.get('total_events', 0)}")
+    print(f"Telemetry command events today: {telemetry_stats.get('events_today', 0)}")
+    print(f"Live telemetry command events now (15m): {telemetry_stats.get('live_events_15m', 0)}")
+    print(f"Active telemetry command events (24h): {telemetry_stats.get('active_events_24h', 0)}")
+    print(f"Distinct telemetry installs/machines: {installs.get('total_installs', 0)}")
+    print(f"New telemetry installs/machines today: {installs.get('new_installs_today', 0)}")
+    print(f"Live telemetry installs/machines now (15m): {installs.get('live_installs_15m', 0)}")
+    print(f"Active telemetry installs/machines (24h): {installs.get('active_installs_24h', 0)}")
     print(f"Connected GitHub users: {users.get('connected_users', 0)}")
     print(f"GitHub connect events today: {users.get('new_logins_today', 0)}")
     print(f"Live GitHub users now (15m): {users.get('live_api_users_15m', 0)}")
@@ -1384,6 +1391,31 @@ def api_users_command(args=None) -> int:
     from . import telemetry
 
     raw = bool(getattr(args, "raw", False))
+    cleanup = bool(getattr(args, "cleanup", False))
+    dry_run = bool(getattr(args, "dry_run", False))
+    if cleanup:
+        try:
+            result = telemetry.cleanup_admin_users(dry_run=dry_run)
+        except Exception as exc:
+            print(f"SAGE API users cleanup failed: {exc}")
+            return 1
+        action = "would revoke" if dry_run else "revoked"
+        print("SAGE connected users cleanup")
+        print(f"Generated: {result.get('generated_at')}")
+        print(f"Candidates: {result.get('candidate_count', 0)}")
+        print(f"Keys {action}: {result.get('revoked_key_count', 0)}")
+        candidates = result.get("candidates") or []
+        if candidates:
+            print("Matched junk identities:")
+            for row in candidates[:25]:
+                print(
+                    f"- {row.get('label') or '(blank)'} "
+                    f"keys={row.get('active_key_count', 0)}/{row.get('key_count', 0)} "
+                    f"reason={row.get('reason') or 'junk identity'}"
+                )
+            if len(candidates) > 25:
+                print(f"... {len(candidates) - 25} more hidden")
+        print()
     try:
         data = telemetry.get_admin_users(raw=raw)
     except Exception as exc:

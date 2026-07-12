@@ -305,6 +305,11 @@ def _merge_json_file(path: Path, patch: dict) -> bool:
         return False
 
 
+def _shell_path(path: Path) -> str:
+    """Return a shell-friendly path for hook commands on Windows and POSIX."""
+    return '"' + str(path).replace('"', '\\"') + '"'
+
+
 def _install_claude_enforcement(root: Path) -> dict[str, bool]:
     """Install Claude Code permissions and PreToolUse hook under root."""
     claude_dir = root / ".claude"
@@ -321,8 +326,10 @@ def _install_claude_enforcement(root: Path) -> dict[str, bool]:
     else:
         results["claude_hook"] = False
 
-    results["claude_settings"] = _merge_json_file(settings_path, CLAUDE_SETTINGS)
-    results["claude_local_settings"] = _merge_json_file(local_settings_path, CLAUDE_SETTINGS)
+    settings = json.loads(json.dumps(CLAUDE_SETTINGS))
+    settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = f"python {_shell_path(hook_path)}"
+    results["claude_settings"] = _merge_json_file(settings_path, settings)
+    results["claude_local_settings"] = _merge_json_file(local_settings_path, settings)
     return results
 
 

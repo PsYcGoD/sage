@@ -1,15 +1,8 @@
-"""Machine learning predictor for failure prevention."""
+"""Machine learning predictor for failure prevention.
 
-from .features import FeatureExtractor
-from .history_importer import HistoryImporter, ImportResult
-from .model import SklearnFailureModel, TrainingResult
-from .predictor import FailurePredictor
-from .validation import (
-    command_fingerprint,
-    label_run,
-    validate_temporal,
-    write_validation_report,
-)
+Exports are loaded lazily so lightweight commands do not import sklearn, torch,
+or faiss unless ML functionality is actually used.
+"""
 
 __all__ = [
     "FeatureExtractor",
@@ -32,9 +25,17 @@ __all__ = [
     "NeuralResult",
 ]
 
-# V2 exports are lazy — importing torch/faiss at module level adds ~11s.
-# Access these names via sage.ml.NeuralCommandCenter etc. and they load on demand.
-_V2_NAMES = {
+_LAZY_NAMES = {
+    "FeatureExtractor": (".features", "FeatureExtractor"),
+    "FailurePredictor": (".predictor", "FailurePredictor"),
+    "HistoryImporter": (".history_importer", "HistoryImporter"),
+    "ImportResult": (".history_importer", "ImportResult"),
+    "SklearnFailureModel": (".model", "SklearnFailureModel"),
+    "TrainingResult": (".model", "TrainingResult"),
+    "command_fingerprint": (".validation", "command_fingerprint"),
+    "label_run": (".validation", "label_run"),
+    "validate_temporal": (".validation", "validate_temporal"),
+    "write_validation_report": (".validation", "write_validation_report"),
     "CommandEmbedder": (".embeddings", "CommandEmbedder"),
     "EmbeddingStore": (".embeddings", "EmbeddingStore"),
     "get_embedder": (".embeddings", "get_embedder"),
@@ -47,9 +48,10 @@ _V2_NAMES = {
 
 
 def __getattr__(name):
-    if name in _V2_NAMES:
-        module_path, attr = _V2_NAMES[name]
+    if name in _LAZY_NAMES:
         import importlib
+
+        module_path, attr = _LAZY_NAMES[name]
         mod = importlib.import_module(module_path, __package__)
         value = getattr(mod, attr)
         globals()[name] = value

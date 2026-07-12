@@ -448,13 +448,45 @@ def _prompt_text(prompt: str, default: str = "") -> str:
     return value or default
 
 
+def _machine_display_name(current: str = "") -> str:
+    import socket
+
+    if current.strip():
+        return current.strip()
+    try:
+        from . import telemetry
+
+        install_id = str(telemetry.load_config().get("installation_id") or "")
+    except Exception:
+        install_id = ""
+    suffix = f"-{install_id[:8]}" if install_id else ""
+    return f"{socket.gethostname()}{suffix}"
+
+
+def _prompt_display_name(current: str = "") -> str:
+    fallback = _machine_display_name(current)
+    while True:
+        value = _prompt_text("What should SAGE call you", fallback).strip()
+        if value:
+            print(f"SAGE will call you: {value}")
+            return value
+        print("Please enter a name, or press Enter to use the shown default.")
+
+
+def _prompt_ml_mode(current: str = "v1") -> str:
+    default = "2" if str(current).lower() == "v2" else "1"
+    while True:
+        choice = _prompt_text("Select ML mode: 1=ML V1, 2=ML V2", default).strip().lower()
+        if choice in {"1", "v1", "ml1", "ml v1"}:
+            return "v1"
+        if choice in {"2", "v2", "ml2", "ml v2"}:
+            return "v2"
+        print("Please type 1 for ML V1 or 2 for ML V2.")
+
+
 def setup_command(force: bool = False) -> int:
     """Interactive one-time onboarding after `pip install psycgod-sage`."""
     if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SAGE_TEST_SETUP") != "1":
-        return 0
-    if not sys.stdin.isatty():
-        print("SAGE setup is interactive. Run `sage setup` in a terminal when ready.")
-        print("Non-interactive installs can use SAGE immediately with ML V1/local-only defaults.")
         return 0
 
     state = _read_setup_state()
@@ -466,7 +498,12 @@ def setup_command(force: bool = False) -> int:
     print("One install is enough: `pip install psycgod-sage` gives you the `sage` command.")
     print()
 
-    display_name = _prompt_text("What should SAGE call you", str(state.get("display_name") or ""))
+    interactive = sys.stdin.isatty()
+    if interactive:
+        display_name = _prompt_display_name(str(state.get("display_name") or ""))
+    else:
+        display_name = _machine_display_name(str(state.get("display_name") or ""))
+        print(f"Non-interactive setup: using display name {display_name}")
     if display_name:
         try:
             from . import telemetry
@@ -485,8 +522,13 @@ def setup_command(force: bool = False) -> int:
     print("  1) ML V1 - included, light, scikit-learn/local heuristics, no large download.")
     print("  2) ML V2 - optional neural embeddings, better semantic matching, larger install.")
     print("You can start V2 later with: `sage ml setup` or `pip install psycgod-sage[ml]`.")
-    ml_choice = _prompt_text("Select ML mode (1 or 2)", str(state.get("ml_mode") or "1"))
-    ml_mode = "v2" if ml_choice.strip() in {"2", "v2", "V2"} else "v1"
+    if interactive:
+        ml_mode = _prompt_ml_mode(str(state.get("ml_mode") or "v1"))
+    else:
+        ml_mode = str(state.get("ml_mode") or "v1").lower()
+        if ml_mode not in {"v1", "v2"}:
+            ml_mode = "v1"
+        print(f"Non-interactive setup: using ML {ml_mode.upper()}")
     if ml_mode == "v2":
         if _check_ml_v2_deps():
             print("ML V2 dependencies are already installed.")
@@ -503,17 +545,13 @@ def setup_command(force: bool = False) -> int:
     print("  SAGE can request an API key from the Cloudflare-backed SAGE API.")
     print("  Telemetry stays local by default unless a key is connected; safe events queue offline")
     print("  and SAGE retries in the background, including every 10th command proof sync.")
-    connect_choice = _prompt_text("Connect now? (y/N)", "N").lower()
-    if connect_choice in {"y", "yes"}:
-        try:
-            from . import telemetry
-
-            result = telemetry.api_machine_login(display_name=display_name)
-            cloud_connected = bool(result.get("ok"))
-            print(f"Connected. Key ID: {result.get('key_id', '')}")
-        except Exception as exc:
-            print(f"Cloud connection skipped: {exc}")
-            print("Queued telemetry will send later after you run `sage connect`.")
+    print("Connecting automatically. If cloud is unreachable, SAGE stays local and retries later.")
+    try:
+        connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="")
+        cloud_connected = connect_command(connect_args) == 0
+    except Exception as exc:
+        print(f"Cloud connection skipped: {exc}")
+        print("Queued telemetry will send later after you run `sage connect`.")
 
     if not _ensure_system_enforcement("run"):
         print("Warning: AI-agent enforcement was not fully installed. Run `sage install` later.")
@@ -1577,16 +1615,16 @@ def connect_command(args) -> int:
     expiry_days = _resolve_expiry_days(args)
     print(f"API key expiration: {expiry_days} days\n")
 
-    # Step 2: Ask display name
-    display_name = ""
-    if sys.stdin.isatty():
+    # Step 2: Resolve display name. Setup passes this explicitly; direct
+    # `sage connect` still asks when interactive and falls back to machine id.
+    display_name = str(getattr(args, "display_name", "") or "").strip()
+    if not display_name and sys.stdin.isatty():
         try:
             display_name = input("What can SAGE call you? ").strip()
         except (EOFError, KeyboardInterrupt):
             display_name = ""
     if not display_name:
-        import socket
-        display_name = socket.gethostname()
+        display_name = _machine_display_name("")
     print()
 
     result = None
@@ -1633,6 +1671,11 @@ def connect_command(args) -> int:
             print(f"      GitHub CLI unavailable: {gh_exc}")
 
     # Method 3: GitHub OAuth (browser/device flow)
+    if not result and not sys.stdin.isatty():
+        print("[3/3] Skipping browser/device OAuth in non-interactive mode.")
+        print("SAGE remains usable locally. Retry cloud connection later with: sage connect")
+        return 1
+
     if not result:
         print("[3/3] Starting GitHub OAuth...")
         from .github_oauth import github_device_flow, github_oauth_flow

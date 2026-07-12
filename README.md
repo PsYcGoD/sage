@@ -47,10 +47,38 @@ python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python 
 
 Package name: `psycgod-sage` | CLI command: `sage`
 
-**Also available on npm:**
+### npm/npx launcher
+
+SAGE is also available through npm for people who prefer Node-style installs or `npx`.
+The npm package is not a separate SAGE engine anymore. It installs/updates the canonical
+PyPI package `psycgod-sage` and forwards commands to the same Python SAGE core.
 
 ```bash
 npm install -g psycgod-sage-js
+```
+
+One-shot `npx` usage:
+
+```bash
+npx -y psycgod-sage-js run -- npm test
+npx -y psycgod-sage-js run -- python -m pytest
+npx -y psycgod-sage-js history
+```
+
+AI-agent command rule depends on how SAGE was installed:
+
+| Install path | Agents must use |
+|---|---|
+| PyPI / pip | `sage run -- <command>` |
+| npm / npx | `npx -y psycgod-sage-js run -- <command>` |
+
+Both paths use the same PyPI SAGE implementation, same DB, same ML V1, same telemetry rules,
+and the same optional ML V2 path. ML V2 can be installed later with:
+
+```bash
+sage ml setup
+# or, from npm/npx:
+npx -y psycgod-sage-js ml setup
 ```
 
 Or use the installer script directly from GitHub:
@@ -58,24 +86,6 @@ Or use the installer script directly from GitHub:
 ```powershell
 irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
 ```
-### JavaScript/npm Version
-
-SAGE is also available as an npm package for MCP Registry compatibility:
-
-```bash
-npm install -g psycgod-sage-js
-
-Feature	Python	JavaScript
-Core compression (97%)	Yes	Yes
-MCP Server	Yes	Yes
-ML V1 (pattern-based)	Yes	Yes
-ML V2 (neural embeddings)	Yes	No
-Agents	7	4
-TUI/GUI	Yes	No
-MCP Registry	No	Yes
-Both versions share the same database. Use Python for full features, JavaScript for MCP Registry.
-
-See js/ folder for JavaScript source.
 
 That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
 

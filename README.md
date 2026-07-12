@@ -90,10 +90,10 @@ sage init
 On first use, SAGE configures itself without prompts:
 
 ```
-1. Use machine identity
-2. Enable ML V1 by default
-3. Connect to SAGE cloud API automatically when reachable
-4. Install local AI-agent enforcement
+1. Enable ML V1 by default
+2. Connect to SAGE cloud API automatically when reachable
+3. Install local AI-agent enforcement
+4. Keeps the DB Local
 ```
 
 - ML V1: included, light, local scikit-learn/heuristic prediction, learns from your usage over time

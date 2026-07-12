@@ -1,0 +1,12 @@
+src/
+tests/
+*.ts
+!dist/**/*.d.ts
+tsconfig.json
+.git
+.gitignore
+.vscode
+.idea
+node_modules
+*.log
+*.map

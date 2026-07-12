@@ -19,3 +19,12 @@ if ($ForceSetup) {
 } else {
     python -m sage
 }
+
+$setupExit = $LASTEXITCODE
+Write-Host ""
+Write-Host "SAGE API connection result:" -ForegroundColor Cyan
+python -m sage api whoami
+
+if ($setupExit -ne 0) {
+    exit $setupExit
+}

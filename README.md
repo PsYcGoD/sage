@@ -39,13 +39,19 @@ Even when context is already maxed out, SAGE keeps raw logs local and sends the 
 
 ## Install
 
-One pasted command installs SAGE and immediately starts setup:
+One pasted command installs SAGE, runs setup, connects to the SAGE API, prints the API connection result, and installs AI-agent enforcement:
 
 ```powershell
-python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python -m sage }
+irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
 ```
 
 Package name: `psycgod-sage` | CLI command: `sage`
+
+If you do not want to use the installer script, the raw PowerShell equivalent is:
+
+```powershell
+python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python -m sage; python -m sage api whoami }
+```
 
 ### npm/npx launcher
 
@@ -81,13 +87,7 @@ sage ml setup
 npx -y psycgod-sage-js ml setup
 ```
 
-Or use the installer script directly from GitHub:
-
-```powershell
-irm https://raw.githubusercontent.com/PsYcGoD/sage/main/install.ps1 | iex
-```
-
-That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, and installs mandatory local AI-agent instructions for supported agents.
+That one command installs the SAGE Python package, launches zero-prompt setup, uses this machine's identity, enables ML V1, connects to the Cloudflare-backed SAGE API when possible, prints `sage api whoami`, and installs mandatory local AI-agent instructions for supported agents.
 
 After install, the first real SAGE command also runs setup automatically if needed. A new user should not have to run `sage login` or `sage connect` just to activate SAGE.
 

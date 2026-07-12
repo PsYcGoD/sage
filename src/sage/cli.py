@@ -462,7 +462,21 @@ def setup_command(force: bool = False) -> int:
 
     state = _read_setup_state()
     if state.get("completed") and not force:
-        print("SAGE setup already completed. Run `sage setup --force` to change it.")
+        print("SAGE setup already completed.")
+        print("API connection status:")
+        try:
+            from . import telemetry
+
+            whoami = telemetry.api_whoami()
+            status = telemetry.api_status()
+            print(f"  Connected: {bool(status.get('connected'))}")
+            print(f"  Identity: {whoami.get('display_name') or whoami.get('username') or '(not set)'}")
+            print(f"  Key ID: {whoami.get('key_id') or '(not connected)'}")
+            print(f"  Endpoint: {whoami.get('endpoint') or '(not configured)'}")
+            print(f"  Telemetry: {status.get('effective_level_name', 'unknown')} (level {status.get('effective_level', '?')})")
+        except Exception as exc:
+            print(f"  Status check failed: {exc}")
+        print("Run `sage setup --force` only if you want to repair/reconnect.")
         return 0
 
     print("SAGE first-time setup")

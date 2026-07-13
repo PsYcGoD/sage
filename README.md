@@ -39,13 +39,21 @@ Even when context is already maxed out, SAGE keeps raw logs local and sends the 
 
 ## Install
 
-Recommended one-command install:
+Recommended safe npm install:
 
 ```bash
 npm install -g psycgod-sage
 ```
 
-That single npm command installs/updates the canonical PyPI SAGE core, runs setup, connects to the SAGE API, prints `sage api whoami`, and installs AI-agent enforcement.
+That command only installs the npm launcher. It does not run setup, connect to cloud services, or write AI-agent configuration during install.
+
+After install, run setup explicitly:
+
+```bash
+sage setup
+```
+
+Setup installs/updates the canonical PyPI SAGE core when needed, connects to the SAGE API, prints `sage api whoami`, and installs AI-agent enforcement.
 
 Package names:
 
@@ -53,10 +61,11 @@ Package names:
 - PyPI: `psycgod-sage`
 - CLI command after install: `sage`
 
-Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command, but pip does not reliably allow packages to run post-install onboarding code. If you want the same full install+setup+API-status flow from Python directly, use:
+Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. Setup remains explicit for safety:
 
 ```powershell
-python -m pip install --upgrade psycgod-sage; if ($LASTEXITCODE -eq 0) { python -m sage; python -m sage api whoami }
+python -m pip install --upgrade psycgod-sage
+sage setup
 ```
 
 One-shot `npx` usage without global install:
@@ -83,7 +92,7 @@ sage ml setup
 npx -y psycgod-sage ml setup
 ```
 
-After install, the first real SAGE command also runs setup automatically if needed. A new user should not have to run `sage login` or `sage connect` just to activate SAGE.
+After install, setup is explicit and visible. A new user should not have to run `sage login` or `sage connect`; `sage setup` handles connection and prints status.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 

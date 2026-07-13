@@ -33,13 +33,13 @@ SAGE_TOOLS = [
     },
     {
         "name": "sage_explain_error",
-        "description": "Get AI-friendly explanation of command error",
+        "description": "Get a structured explanation of why a command failed. Returns {error_type, summary, root_cause, affected_files, suggestions}. Use to understand failures before attempting fixes. Parses common error patterns: compiler errors, test failures, permission denied, missing dependencies, syntax errors. Read-only, no side effects. Differs from sage_suggest_fix: this explains the problem; sage_suggest_fix provides fix commands. Use this first to understand, then sage_agentic_fix to get a fix.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "command_id": {
                     "type": "integer",
-                    "description": "Specific command ID (optional, defaults to last failed)"
+                    "description": "Run ID of the failed command (omit to analyze most recent failed command)"
                 }
             }
         }
@@ -59,18 +59,18 @@ SAGE_TOOLS = [
     },
     {
         "name": "sage_spawn_agent",
-        "description": "Spawn specialized agent for task",
+        "description": "Spawn a specialized sub-agent for a focused task. Returns {agent_id, status, result} when complete. Agent types: 'code' for implementation/refactoring, 'test' for writing/running tests, 'debug' for investigating failures, 'security' for vulnerability scanning, 'performance' for profiling/optimization. Use when a task benefits from focused expertise. The spawned agent runs in the same SAGE session and has access to command history. Side effects: agent may execute commands and modify files based on task. Agents run synchronously and return when complete.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "agent_type": {
                     "type": "string",
                     "enum": ["code", "test", "debug", "security", "performance"],
-                    "description": "Type of agent to spawn"
+                    "description": "Specialization: code (implement), test (verify), debug (investigate), security (scan), performance (optimize)"
                 },
                 "task": {
                     "type": "string",
-                    "description": "Task description for the agent"
+                    "description": "Natural language description of what the agent should accomplish"
                 }
             },
             "required": ["agent_type", "task"]
@@ -78,7 +78,7 @@ SAGE_TOOLS = [
     },
     {
         "name": "sage_run_workflow",
-        "description": "Execute workflow pipeline",
+        "description": "Execute a named workflow pipeline (test, ci, deploy, or custom). Use when running multi-step automated sequences defined in YAML. Returns {success, steps: [{name, status, duration_ms, output}], total_duration_ms}. Side effects: executes commands defined in workflow, may modify files. Errors: throws WorkflowNotFound if name invalid, YAMLParseError if file malformed. Prefer over manual multi-command sequences for reproducible CI/CD tasks.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -95,18 +95,18 @@ SAGE_TOOLS = [
     },
     {
         "name": "sage_get_history",
-        "description": "Get command history",
+        "description": "Retrieve recent command execution history from SAGE's SQLite database. Returns [{run_id, command, exit_code, duration_ms, timestamp, compression_ratio}]. Use to review what commands ran, find a run_id for sage_show_raw or sage_explain_error, or analyze patterns in failures. Set failed_only=true to filter to non-zero exit codes only. Read-only, no side effects. Prefer over shell history for accurate timing and compression metrics.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "limit": {
                     "type": "integer",
-                    "description": "Number of commands to retrieve",
+                    "description": "Number of recent commands to retrieve (most recent first)",
                     "default": 10
                 },
                 "failed_only": {
                     "type": "boolean",
-                    "description": "Only show failed commands",
+                    "description": "Filter to commands with non-zero exit code only",
                     "default": False
                 }
             }
@@ -143,13 +143,13 @@ SAGE_TOOLS = [
     },
     {
         "name": "sage_call",
-        "description": "Run a command as an explicit agent tool-call with purpose metadata (tracked for tool-quality metrics).",
+        "description": "Run a command with explicit purpose tagging for analytics. Use instead of sage_run_command when you want to track WHY commands are run (read/search/test/build/deploy/audit). Returns same output as sage_run_command plus {purpose, agent} metadata. The purpose tag feeds SAGE's ML predictor to learn which command types fail in this repo. No side effects beyond command execution. Use 'read' for cat/head/tail, 'search' for grep/find, 'test' for pytest/jest, 'build' for make/npm build, 'deploy' for deployment scripts, 'audit' for security scans.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "command": {"type": "string", "description": "Command to execute"},
-                "purpose": {"type": "string", "enum": ["read", "search", "test", "build", "deploy", "audit", "unknown"], "default": "unknown"},
-                "agent": {"type": "string", "description": "Calling agent name", "default": "mcp"}
+                "command": {"type": "string", "description": "Shell command to execute"},
+                "purpose": {"type": "string", "enum": ["read", "search", "test", "build", "deploy", "audit", "unknown"], "description": "Why this command is being run - improves ML failure prediction", "default": "unknown"},
+                "agent": {"type": "string", "description": "Name of the calling agent for multi-agent tracking", "default": "mcp"}
             },
             "required": ["command"]
         }
@@ -232,11 +232,11 @@ SAGE_TOOLS = [
     },
     {
         "name": "sage_agentic_fix",
-        "description": "Get an auto-fix suggestion for the last failed command. Returns the fix command, strategy, and confidence.",
+        "description": "Get an auto-fix suggestion for a failed command. Analyzes the error output and returns {fix_command, strategy, confidence, explanation}. Use after a command fails to get a ready-to-run fix. Differs from sage_suggest_fix: this returns a single best fix with confidence score; sage_suggest_fix returns multiple options. Read-only - does NOT execute the fix (use sage_agentic_run for auto-apply). Confidence is 0.0-1.0; values >0.8 are high-confidence fixes. Returns null if no fix can be determined.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "command_id": {"type": "integer", "description": "Specific command ID (optional, defaults to last failed)"}
+                "command_id": {"type": "integer", "description": "Run ID of the failed command (omit to use most recent failed command)"}
             }
         }
     },

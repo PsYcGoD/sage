@@ -44,6 +44,10 @@ DEFAULT_IDLE_TIMEOUT_SECONDS = 300
 MIN_IDLE_TIMEOUT_SECONDS = 10
 
 
+def _verbose_stderr_enabled() -> bool:
+    return os.getenv("SAGE_MCP_VERBOSE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _mcp_idle_timeout() -> int:
     """Return the MCP stdio idle timeout.
 
@@ -169,11 +173,12 @@ class MCPServer:
             time.sleep(1)
             if time.monotonic() - self._last_activity < self.idle_timeout:
                 continue
-            print(
-                f"[SAGE MCP Server] idle for {self.idle_timeout}s; exiting",
-                file=sys.stderr,
-                flush=True,
-            )
+            if _verbose_stderr_enabled():
+                print(
+                    f"[SAGE MCP Server] idle for {self.idle_timeout}s; exiting",
+                    file=sys.stderr,
+                    flush=True,
+                )
             self._running = False
             self._remove_session()
             os._exit(0)
@@ -274,11 +279,12 @@ class MCPServer:
         self._cleanup_session_records()
         self._write_session()
         self._start_idle_watchdog()
-        print(
-            f"[SAGE MCP Server] stdio ready (idle timeout {self.idle_timeout}s)",
-            file=sys.stderr,
-            flush=True,
-        )
+        if _verbose_stderr_enabled():
+            print(
+                f"[SAGE MCP Server] stdio ready (idle timeout {self.idle_timeout}s)",
+                file=sys.stderr,
+                flush=True,
+            )
 
         try:
             for line in sys.stdin:

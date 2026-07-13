@@ -51,7 +51,7 @@ def _doctor_fast(deep: bool = False) -> int:
     return 0
 
 if __name__ == "__main__":
-    if len(sys.argv) >= 2 and sys.argv[1] == "doctor":
+    if len(sys.argv) >= 2 and sys.argv[1] == "doctor" and "--activation" not in sys.argv[2:]:
         raise SystemExit(_doctor_fast(deep="--deep" in sys.argv[2:]))
 
     from .cli import main

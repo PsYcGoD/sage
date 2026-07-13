@@ -4,14 +4,14 @@
 
 The npm package `psycgod-sage` is intended to be a safe launcher for the canonical PyPI package `psycgod-sage`.
 
-As of npm package version `1.0.12`:
+As of npm package version `1.0.13`:
 
 - `npm install -g psycgod-sage` is passive.
 - There is no `preinstall`, `install`, or `postinstall` lifecycle script.
 - Install does not connect to any SAGE API.
 - Install does not write AI-agent config files or hooks.
 - Install does not install/update Python packages during npm install.
-- Setup is explicit via `sage setup`.
+- Activation is explicit via the user's first `sage` / `npx -y psycgod-sage ...` command.
 
 ## Why this changed
 
@@ -25,15 +25,17 @@ Earlier npm versions attempted to make onboarding one-step by using `postinstall
 
 That was too much behavior for install time and could be classified by automated security systems as unsafe install-time execution or persistence.
 
-## Explicit setup behavior
+## Explicit activation behavior
 
-Users now run setup intentionally:
+Users now activate SAGE intentionally by running a SAGE command:
 
 ```bash
-sage setup
+sage doctor --activation
+sage run -- npm test
+npx -y psycgod-sage run -- npm test
 ```
 
-Setup may:
+On that explicit invocation, SAGE may:
 
 - install/update the Python SAGE core when needed,
 - connect to the SAGE API,

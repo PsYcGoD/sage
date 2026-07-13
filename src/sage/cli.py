@@ -375,6 +375,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor_parser = sub.add_parser("doctor", help="Check local setup.")
     doctor_parser.add_argument("--deep", action="store_true", help="Include slower PATH and optional dependency checks.")
+    doctor_parser.add_argument("--activation", action="store_true", help="Verify first-run activation, API connection, telemetry queue, and agent enforcement.")
     sub.add_parser("stats", help="Show SAGE token, ML, and agent statistics.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
     sub.add_parser("gui", help="Show GUI availability status.")
@@ -706,7 +707,7 @@ def main(argv: list[str] | None = None) -> int:
         return logout_command()
 
     if args.command_name == "doctor":
-        return doctor(deep=args.deep)
+        return doctor(deep=args.deep, activation=bool(getattr(args, "activation", False)))
 
     if args.command_name == "stats":
         return stats_command()
@@ -1384,21 +1385,37 @@ def api_visitors_command() -> int:
     telemetry_stats = data.get("telemetry", {}) or {}
     users = data.get("users", {}) or {}
     clicks = data.get("clicks", {}) or {}
+    total_events = int(telemetry_stats.get("total_events", 0) or 0)
+    total_installs = int(installs.get("total_installs", 0) or 0)
+    connected_users = int(users.get("connected_users", 0) or 0)
+    active_installs_24h = int(installs.get("active_installs_24h", 0) or 0)
+    active_users_24h = int(users.get("active_api_users_24h", 0) or 0)
     print("SAGE private dashboard analytics")
     print(f"Generated: {data.get('generated_at')}")
+    print("\nActivation funnel")
+    print("GitHub clones/downloads are external interest only; they are not counted here until SAGE actually runs.")
+    print(f"Connected API users/keys: {connected_users}")
+    print(f"Machines sending command telemetry: {total_installs}")
+    print(f"Active telemetry machines (24h): {active_installs_24h}")
+    print(f"Active API users (24h): {active_users_24h}")
+    print(f"Telemetry command events: {total_events}")
+    if connected_users and not total_installs:
+        print("Funnel note: users connected, but no machine has sent command telemetry yet.")
+    elif connected_users and total_installs < connected_users:
+        print("Funnel note: many connected users have not run `sage run -- ...` yet.")
     print("\nSAGE installs and connected GitHub users")
-    print(f"Telemetry command events: {telemetry_stats.get('total_events', 0)}")
+    print(f"Telemetry command events: {total_events}")
     print(f"Telemetry command events today: {telemetry_stats.get('events_today', 0)}")
     print(f"Live telemetry command events now (15m): {telemetry_stats.get('live_events_15m', 0)}")
     print(f"Active telemetry command events (24h): {telemetry_stats.get('active_events_24h', 0)}")
-    print(f"Distinct telemetry installs/machines: {installs.get('total_installs', 0)}")
+    print(f"Distinct telemetry installs/machines: {total_installs}")
     print(f"New telemetry installs/machines today: {installs.get('new_installs_today', 0)}")
     print(f"Live telemetry installs/machines now (15m): {installs.get('live_installs_15m', 0)}")
-    print(f"Active telemetry installs/machines (24h): {installs.get('active_installs_24h', 0)}")
-    print(f"Connected GitHub users: {users.get('connected_users', 0)}")
+    print(f"Active telemetry installs/machines (24h): {active_installs_24h}")
+    print(f"Connected GitHub users: {connected_users}")
     print(f"GitHub connect events today: {users.get('new_logins_today', 0)}")
     print(f"Live GitHub users now (15m): {users.get('live_api_users_15m', 0)}")
-    print(f"Active GitHub users (24h): {users.get('active_api_users_24h', 0)}")
+    print(f"Active GitHub users (24h): {active_users_24h}")
     print("\nPublic dashboard visitors")
     print(f"All-time unique visitors: {totals.get('unique_visitors', 0)}")
     print(f"All-time page views: {totals.get('page_views', 0)}")
@@ -2155,7 +2172,100 @@ def ml_command(args) -> int:
 
     return 1
 
-def doctor(deep: bool = False) -> int:
+def _format_bool(value: bool) -> str:
+    return "yes" if value else "no"
+
+
+def _last_run_summary() -> dict:
+    try:
+        with connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, created_at, exit_code, command_kind, command_family, is_ai_session
+                FROM runs
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            return {}
+        return {
+            "id": int(row["id"]),
+            "created_at": str(row["created_at"] or ""),
+            "exit_code": int(row["exit_code"] or 0),
+            "command_kind": str(row["command_kind"] or ""),
+            "command_family": str(row["command_family"] or ""),
+            "is_ai_session": bool(row["is_ai_session"]),
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _activation_doctor() -> int:
+    from . import telemetry
+    from .install import is_sage_installed_system_wide
+
+    status = telemetry.api_status()
+    queue = status.get("queue") or {}
+    last_run = _last_run_summary()
+    setup_state = _read_setup_state()
+    api_verified = False
+    api_error = ""
+    whoami = {}
+    if status.get("connected"):
+        try:
+            whoami = telemetry.api_whoami()
+            api_verified = bool(whoami.get("server_verified"))
+        except Exception as exc:
+            api_error = str(exc)
+
+    print("\nActivation proof")
+    print(f"Setup completed: {_format_bool(bool(setup_state.get('completed')))}")
+    print(f"Setup identity: {setup_state.get('display_name') or '(machine default pending)'}")
+    print(f"API connected: {_format_bool(bool(status.get('connected')))}")
+    print(f"API verified: {_format_bool(api_verified)}")
+    if api_error:
+        print(f"API verify error: {api_error}")
+    print(f"Key ID: {status.get('key_id') or '(not connected)'}")
+    if whoami:
+        print(f"Server identity: {whoami.get('display_name') or whoami.get('username') or whoami.get('server_identity') or '(unknown)'}")
+    print(f"Telemetry: {status.get('effective_level_name', 'unknown')} (level {status.get('effective_level', '?')})")
+    print(
+        "Telemetry queue: "
+        f"{int(queue.get('queued', 0))} queued, "
+        f"{int(queue.get('sent', 0))} sent, "
+        f"{int(queue.get('failed', 0))} failed"
+    )
+    if last_run.get("error"):
+        print(f"Last local run: error - {last_run['error']}")
+    elif last_run:
+        print(
+            "Last local run: "
+            f"#{last_run['id']} at {last_run['created_at']} "
+            f"exit={last_run['exit_code']} "
+            f"kind={last_run['command_kind'] or 'unknown'} "
+            f"family={last_run['command_family'] or 'unknown'} "
+            f"ai_session={_format_bool(bool(last_run['is_ai_session']))}"
+        )
+    else:
+        print("Last local run: none yet")
+    try:
+        enforced = is_sage_installed_system_wide()
+    except Exception:
+        enforced = False
+    print(f"Agent enforcement installed: {_format_bool(enforced)}")
+    print()
+    print("Safe activation model:")
+    print("  - pip/npm install stays passive for package-policy safety.")
+    print("  - first explicit `sage` or `npx -y psycgod-sage ...` command runs setup/connect.")
+    print("  - each `sage run -- ...` queues telemetry locally and syncs when connected.")
+    print("  - proof snapshots sync every 10th command.")
+
+    ok = bool(status.get("connected")) and api_verified and status.get("effective_level", 0) > 0
+    return 0 if ok else 1
+
+
+def doctor(deep: bool = False, activation: bool = False) -> int:
     from .security import load_policy, policy_path
 
     print("S.A.G.E doctor")
@@ -2192,6 +2302,8 @@ def doctor(deep: bool = False) -> int:
         print(f"tiktoken: {'available' if importlib.util.find_spec('tiktoken') else 'not found'}")
     else:
         print("Tool checks: skipped (use 'sage doctor --deep')")
+    if activation:
+        return _activation_doctor()
     return 0
 
 def stats_command() -> int:

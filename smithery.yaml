@@ -1,0 +1,28 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      SAGE_MCP_ENABLE_COMMANDS:
+        type: string
+        default: "0"
+        description: "Set to 1 only for trusted local clients. Keep 0 for hosted marketplace checks."
+      SAGE_MCP_IDLE_TIMEOUT_SECONDS:
+        type: string
+        default: "300"
+        description: "Seconds before the MCP server exits when idle."
+      SAGE_MCP_VERBOSE:
+        type: string
+        default: "0"
+        description: "Set to 1 to print MCP lifecycle logs to stderr."
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: 'python',
+      args: ['-m', 'sage.mcp.server'],
+      env: {
+        SAGE_MCP_ENABLE_COMMANDS: config.SAGE_MCP_ENABLE_COMMANDS || '0',
+        SAGE_MCP_IDLE_TIMEOUT_SECONDS: config.SAGE_MCP_IDLE_TIMEOUT_SECONDS || '300',
+        SAGE_MCP_VERBOSE: config.SAGE_MCP_VERBOSE || '0'
+      }
+    })

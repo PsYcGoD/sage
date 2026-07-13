@@ -15,12 +15,12 @@ SAGE routes terminal commands through `sage run --`, compresses noisy output bef
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 15,856 |
-| Tokens processed | 462.8M |
+| Commands processed | 15,910 |
+| Tokens processed | 462.9M |
 | Tokens saved | 452.0M |
 | Compression rate | 97.66% |
-| Estimated savings | $9,378.27 |
-| Success rate | 92.3% |
+| Estimated savings | $9,380.01 |
+| Success rate | 92.2% |
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 
@@ -35,7 +35,7 @@ SAGE is available through both Python and npm entry points. The npm package dele
 | PyPI | [`psycgod-sage`](https://pypi.org/project/psycgod-sage/) | Canonical Python package |
 | npm / npx | [`psycgod-sage`](https://www.npmjs.com/package/psycgod-sage) | Published npm launcher |
 | MCP Registry | [`io.github.PsYcGoD/sage`](https://registry.modelcontextprotocol.io/) | Official registry entry |
-| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Listed MCP server |
+| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Released MCP server; hosted build test passed |
 
 MCP stdio servers exit after 5 minutes of inactivity by default. The ML daemon still sleeps after short idle windows; MCP stays alive longer because clients such as Claude Code keep stdio servers open between tool calls. Set `SAGE_MCP_IDLE_TIMEOUT_SECONDS` for a stricter or longer local policy.
 

@@ -141,7 +141,8 @@ CLAUDE_HOOK_SCRIPT = dedent(
             if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
                 return _deny(
                     "SAGE enforcement: shell commands must start with "
-                    "'sage run --' or 'npx -y psycgod-sage run --'."
+                    "'sage run --' or 'npx -y psycgod-sage run --'. "
+                    "The blocked command is intentionally not printed to avoid leaking secrets."
                 )
 
         if tool_name in FILE_TOOLS:
@@ -352,14 +353,20 @@ def _register_mcp_server() -> bool:
         if "mcpServers" not in settings:
             settings["mcpServers"] = {}
         
-        if "sage" in settings["mcpServers"]:
+        server = {
+            "command": sys.executable or "python",
+            "args": ["-m", "sage.mcp.server"],
+            "env": {
+                "SAGE_MCP_IDLE_TIMEOUT_SECONDS": "0",
+                "SAGE_MCP_ENABLE_COMMANDS": "0",
+                "SAGE_MCP_VERBOSE": "0",
+            },
+            "description": "Smart Agent Guidance Engine - stable local MCP server"
+        }
+        if settings["mcpServers"].get("sage") == server:
             return False
         
-        settings["mcpServers"]["sage"] = {
-            "command": "python",
-            "args": ["-m", "sage.mcp.server"],
-            "description": "Smart Agent Guidance Engine - Mandatory wrapper"
-        }
+        settings["mcpServers"]["sage"] = server
         
         claude_settings.parent.mkdir(parents=True, exist_ok=True)
         claude_settings.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")

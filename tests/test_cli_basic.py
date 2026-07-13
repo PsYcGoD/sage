@@ -235,6 +235,19 @@ class TestAgentInstall:
         assert (tmp_path / ".claude" / "CLAUDE.md").exists()
         assert (tmp_path / ".codex" / "AGENTS.md").exists()
 
+    def test_auto_enforcement_warning_does_not_block_commands(self, monkeypatch):
+        from sage import install
+        from sage.cli import _ensure_system_enforcement
+
+        monkeypatch.setattr(install, "is_sage_installed_system_wide", lambda: False)
+
+        def fail_install(*args, **kwargs):
+            raise PermissionError("locked config")
+
+        monkeypatch.setattr(install, "install_sage_system_wide", fail_install)
+
+        assert _ensure_system_enforcement("run") is True
+
 
 class TestDatabase:
     """Test database persistence"""

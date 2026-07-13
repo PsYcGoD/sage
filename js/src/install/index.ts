@@ -11,8 +11,9 @@ export async function injectAllAgentConfigs(): Promise<number> {
     try {
       const success = await injectAgentConfig(target);
       if (success) injected++;
-    } catch {
-      // Skip failed injections silently
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`SAGE: could not update ${target.name} config (${message})`);
     }
   }
 

@@ -35,7 +35,7 @@ SAGE is available through both Python and npm entry points. The npm package dele
 | MCP Registry | [`io.github.PsYcGoD/sage`](https://registry.modelcontextprotocol.io/) | Official registry entry |
 | Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Listed MCP server |
 
-MCP stdio servers exit after 10 seconds of inactivity by default. Set `SAGE_MCP_IDLE_TIMEOUT_SECONDS` to a higher value if a client needs a longer idle window.
+MCP stdio servers exit after 5 minutes of inactivity by default. The ML daemon still sleeps after short idle windows; MCP stays alive longer because clients such as Claude Code keep stdio servers open between tool calls. Set `SAGE_MCP_IDLE_TIMEOUT_SECONDS` for a stricter or longer local policy.
 
 ### Proof at Full Context
 

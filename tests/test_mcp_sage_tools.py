@@ -34,7 +34,7 @@ def test_mcp_run_command_is_opt_in(monkeypatch):
 
 def test_mcp_idle_timeout_is_configurable_and_clamped(monkeypatch):
     monkeypatch.delenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", raising=False)
-    assert _mcp_idle_timeout() == 10
+    assert _mcp_idle_timeout() == 300
 
     monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "2")
     assert _mcp_idle_timeout() == 10
@@ -43,7 +43,7 @@ def test_mcp_idle_timeout_is_configurable_and_clamped(monkeypatch):
     assert _mcp_idle_timeout() == 45
 
     monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "bad")
-    assert _mcp_idle_timeout() == 10
+    assert _mcp_idle_timeout() == 300
 
 
 def test_external_mcp_missing_command_fails_fast():

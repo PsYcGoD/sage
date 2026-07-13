@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import warnings
 
 import joblib
 import pandas as pd
 from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier, RandomForestClassifier, VotingClassifier
+from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -188,7 +190,9 @@ class SklearnFailureModel:
         if not self.model_path.exists():
             return None
         try:
-            package = joblib.load(self.model_path)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", InconsistentVersionWarning)
+                package = joblib.load(self.model_path)
         except Exception:
             return None
         if package.get("version") != MODEL_VERSION:

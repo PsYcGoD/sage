@@ -7,7 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { TOOLS, handleToolCall } from './tools.js';
 
-const DEFAULT_IDLE_TIMEOUT_MS = 10_000;
+const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 const MIN_IDLE_TIMEOUT_MS = 10_000;
 
 function getIdleTimeoutMs(): number {

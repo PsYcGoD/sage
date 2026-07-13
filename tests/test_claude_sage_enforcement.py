@@ -27,6 +27,15 @@ def test_blocks_bare_shell_command():
     assert "npx -y psycgod-sage run --" in result.stderr
 
 
+def test_blocked_shell_command_does_not_echo_secret_text():
+    command = "deploy --password super-secret-token"
+    result = run_hook({"tool_name": "Bash", "tool_input": {"command": command}})
+
+    assert result.returncode == 2
+    assert command not in result.stderr
+    assert "super-secret-token" not in result.stderr
+
+
 def test_allows_sage_wrapped_shell_command():
     result = run_hook({"tool_name": "Bash", "tool_input": {"command": "sage run -- git status"}})
 

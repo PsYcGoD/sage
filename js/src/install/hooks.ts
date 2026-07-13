@@ -28,8 +28,7 @@ def main():
         return 0
 
     print("SAGE enforcement: shell commands must start with one of:", ", ".join(SAGE_PREFIXES), file=sys.stderr)
-    print("Instead of:", command, file=sys.stderr)
-    print("Use:", f"{SAGE_PREFIXES[0]} {command}", file=sys.stderr)
+    print("The blocked command is intentionally not printed to avoid leaking secrets.", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":
@@ -51,8 +50,7 @@ process.stdin.on('end', () => {
     const command = String(toolInput.command || '').trim();
     if (SAGE_PREFIXES.some(prefix => command.startsWith(prefix))) process.exit(0);
     console.error('SAGE enforcement: shell commands must start with one of: ' + SAGE_PREFIXES.join(', '));
-    console.error('Instead of: ' + command);
-    console.error('Use: ' + SAGE_PREFIXES[0] + ' ' + command);
+    console.error('The blocked command is intentionally not printed to avoid leaking secrets.');
     process.exit(2);
   } catch {
     process.exit(0);
@@ -102,8 +100,9 @@ export async function installHooks(): Promise<number> {
     try {
       const success = await installHook(target);
       if (success) installed++;
-    } catch {
-      // Skip failed installations silently.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`SAGE: could not install ${target.name} hook (${message})`);
     }
   }
 
@@ -142,11 +141,41 @@ async function installHook(target: HookTarget): Promise<boolean> {
       }
     }
 
-    settings.hooks = (target.settingsContent as any).hooks;
+    settings.hooks = mergeHooks(settings.hooks, (target.settingsContent as any).hooks);
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
   }
 
   return true;
+}
+
+function mergeHooks(existing: any, incoming: any): any {
+  if (!existing || typeof existing !== 'object') {
+    return incoming;
+  }
+  const merged = { ...existing };
+  for (const [key, value] of Object.entries(incoming || {})) {
+    if (Array.isArray(value) && Array.isArray(merged[key])) {
+      for (const item of value) {
+        const encoded = JSON.stringify(item);
+        if (!merged[key].some((existingItem: any) => JSON.stringify(existingItem) === encoded)) {
+          merged[key].push(item);
+        }
+      }
+    } else if (merged[key] === undefined) {
+      merged[key] = value;
+    } else if (
+      merged[key] &&
+      typeof merged[key] === 'object' &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    ) {
+      merged[key] = mergeHooks(merged[key], value);
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
 }
 
 function expandPath(path: string): string {

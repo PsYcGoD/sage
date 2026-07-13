@@ -4,6 +4,8 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/PsYcGoD/sage/blob/main/pyproject.toml)
 [![License](https://img.shields.io/github/license/PsYcGoD/sage.svg)](https://github.com/PsYcGoD/sage/blob/main/LICENSE)
 [![Release](https://img.shields.io/github/v/release/PsYcGoD/sage?include_prereleases)](https://github.com/PsYcGoD/sage/releases)
+[![sage MCP server](https://glama.ai/mcp/servers/PsYcGoD/sage/badges/score.svg)](https://glama.ai/mcp/servers/PsYcGoD/sage)
+[![sage MCP server](https://glama.ai/mcp/servers/PsYcGoD/sage/badges/card.svg)](https://glama.ai/mcp/servers/PsYcGoD/sage)
 
 A local-first CLI wrapper for Claude Code, Codex, Cursor, and other AI coding agents.
 
@@ -13,11 +15,11 @@ SAGE routes terminal commands through `sage run --`, compresses noisy output bef
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 15,827 |
-| Tokens processed | 462.4M |
-| Tokens saved | 451.6M |
-| Compression rate | 97.67% |
-| Estimated savings | $9,371.52 |
+| Commands processed | 15,856 |
+| Tokens processed | 462.8M |
+| Tokens saved | 452.0M |
+| Compression rate | 97.66% |
+| Estimated savings | $9,378.27 |
 | Success rate | 92.3% |
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)

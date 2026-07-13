@@ -36,6 +36,9 @@ def test_mcp_idle_timeout_is_configurable_and_clamped(monkeypatch):
     monkeypatch.delenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", raising=False)
     assert _mcp_idle_timeout() == 300
 
+    monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "0")
+    assert _mcp_idle_timeout() == 0
+
     monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "2")
     assert _mcp_idle_timeout() == 10
 

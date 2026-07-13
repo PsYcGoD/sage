@@ -12,10 +12,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import warnings
 
 import joblib
 import pandas as pd
 from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier, VotingClassifier
+from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.metrics import accuracy_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -242,7 +244,9 @@ class FamilyFailureModel:
             return None
 
         try:
-            package = joblib.load(path)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", InconsistentVersionWarning)
+                package = joblib.load(path)
             if package.get("version") != MODEL_VERSION:
                 return None
             self._cache[cache_key] = package

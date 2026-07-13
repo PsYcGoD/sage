@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_INFO = {"name": "sage", "version": "2.0.4"}
 COMMAND_TOOL_NAMES = {"sage_run_command"}
-DEFAULT_IDLE_TIMEOUT_SECONDS = 10
+DEFAULT_IDLE_TIMEOUT_SECONDS = 300
 MIN_IDLE_TIMEOUT_SECONDS = 10
 
 
@@ -49,8 +49,10 @@ def _mcp_idle_timeout() -> int:
 
     MCP clients usually restart stdio servers on demand, so idle MCP servers
     should not sit around forever when an AI client crashes or forgets to close
-    stdin. The default matches SAGE's low-footprint daemon policy and can be
-    raised by setting SAGE_MCP_IDLE_TIMEOUT_SECONDS.
+    stdin. MCP clients such as Claude Code often keep a stdio server open
+    between tool calls, so the default must be long enough not to look like a
+    flaky server while still cleaning truly abandoned processes. Set
+    SAGE_MCP_IDLE_TIMEOUT_SECONDS for stricter or longer local policy.
     """
     raw = os.getenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "").strip()
     if not raw:

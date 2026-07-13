@@ -326,7 +326,15 @@ def run_command(
     )
 
     agent_results = []
-    if os.environ.get("SAGE_DISABLE_AGENTS") != "1":
+    agents_enabled = (
+        os.environ.get("SAGE_ENABLE_AGENTS") == "1"
+        or (
+            returncode != 0
+            and os.environ.get("SAGE_DISABLE_FAILURE_AGENTS") != "1"
+            and os.environ.get("SAGE_DISABLE_AGENTS") != "1"
+        )
+    )
+    if agents_enabled:
         try:
             from .agents import execute_agents_for_run
 
@@ -429,12 +437,12 @@ def run_command(
         if result['token_savings'] > 0:
             print(f"[sage] context: saved {result['token_savings']} tokens ({result['compression_ratio']} compression)")
 
-        if os.environ.get("SAGE_DISABLE_AGENTS") != "1":
+        if agents_enabled:
             from .agents.registry import select_agents_for_command
             specs = select_agents_for_command(command_text)
             if specs:
                 agent_names = ", ".join(s.name for s in specs)
-                print(f"[sage] agents: {len(specs)} completed ({agent_names})")
+                print(f"[sage] agents: {len(specs)} queued ({agent_names})")
 
     if not suppress_summary:
         print("[sage] summary:")

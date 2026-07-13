@@ -13,14 +13,29 @@ SAGE routes terminal commands through `sage run --`, compresses noisy output bef
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 10,574 |
-| Tokens processed | 264.5M |
-| Tokens saved | 256.1M |
-| Compression rate | 96.8% |
-| Estimated savings | $2,753.34 |
-| Success rate | 94.6% |
+| Commands processed | 15,827 |
+| Tokens processed | 462.4M |
+| Tokens saved | 451.6M |
+| Compression rate | 97.67% |
+| Estimated savings | $9,371.52 |
+| Success rate | 92.3% |
 
-Live dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
+Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
+
+![SAGE public proof dashboard](docs/assets/sage-live-dashboard.png)
+
+## Distribution Status
+
+SAGE is available through both Python and npm entry points. The npm package delegates to the canonical Python implementation so the CLI behavior, local database, ML V1 behavior, telemetry queue, and MCP server stay consistent.
+
+| Channel | Package | Current status |
+|---|---|---|
+| PyPI | [`psycgod-sage`](https://pypi.org/project/psycgod-sage/) | Canonical Python package |
+| npm / npx | [`psycgod-sage`](https://www.npmjs.com/package/psycgod-sage) | Published npm launcher |
+| MCP Registry | [`io.github.PsYcGoD/sage`](https://registry.modelcontextprotocol.io/) | Official registry entry |
+| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Listed MCP server |
+
+MCP stdio servers exit after 10 seconds of inactivity by default. Set `SAGE_MCP_IDLE_TIMEOUT_SECONDS` to a higher value if a client needs a longer idle window.
 
 ### Proof at Full Context
 
@@ -63,7 +78,7 @@ Package names:
 
 - PyPI: `psycgod-sage`
 - CLI command after install: `sage`
-- npm: `psycgod-sage` (restoration pending; npm install is intentionally passive when available)
+- npm: `psycgod-sage`
 
 Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. The first explicit `sage` command activates/connects safely:
 
@@ -72,7 +87,7 @@ python -m pip install --upgrade psycgod-sage
 sage run -- python -m pytest
 ```
 
-When npm is restored, one-shot `npx` usage without global install:
+One-shot `npx` usage without global install:
 
 ```bash
 npx -y psycgod-sage run -- npm test
@@ -85,7 +100,7 @@ AI-agent command rule depends on how SAGE was installed:
 | Install path | Agents must use |
 |---|---|
 | PyPI / pip | `sage run -- <command>` |
-| npm / npx, when restored | `npx -y psycgod-sage run -- <command>` |
+| npm / npx | `npx -y psycgod-sage run -- <command>` |
 
 Both paths use the same PyPI SAGE implementation, same DB, same ML V1, same telemetry rules,
 and the same optional ML V2 path. ML V2 can be installed later with:

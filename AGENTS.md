@@ -2,10 +2,12 @@
 
 ## Mandatory Shell Wrapper
 
-SAGE is installed in this repository. Route every shell command through:
+SAGE is installed in this repository. Route every shell command through one SAGE wrapper:
 
 ```powershell
 sage run -- <command>
+# or, for npm/npx installs:
+npx -y psycgod-sage run -- <command>
 ```
 
 Examples:
@@ -14,9 +16,10 @@ Examples:
 sage run -- git status
 sage run -- python -m pytest
 sage run -- npm install
+npx -y psycgod-sage run -- git status
 ```
 
-If `sage run --` fails before the target command starts, stop and report the SAGE wrapper failure instead of bypassing it.
+If the SAGE wrapper fails before the target command starts, stop and report the wrapper failure instead of bypassing it.
 
 ## Mandatory Agent Tooling
 
@@ -28,7 +31,7 @@ For Claude Code and other agents with native file/search/edit tools, shell wrapp
 - `mcp__sage__sage_tree` instead of direct tree/listing tools
 - `mcp__sage__sage_write_file` and `mcp__sage__sage_edit_file` instead of direct `Write` or `Edit`
 
-Any spawned subagent must be given the same SAGE requirements in its prompt. Do not spawn an agent without explicitly telling it to use `sage run --` and SAGE MCP tools.
+Any spawned subagent must be given the same SAGE requirements in its prompt. Do not spawn an agent without explicitly telling it to use a SAGE wrapper and SAGE MCP tools.
 
 ## Commit Checklist
 

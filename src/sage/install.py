@@ -14,14 +14,17 @@ SAGE_BLOCK_END = "# SAGE MANAGED BLOCK END"
 
 SAGE_MANDATORY_BODY = """## SAGE Integration - MANDATORY
 
-This system has SAGE installed. You MUST route every shell command through SAGE.
+Route every shell command through SAGE. Do not run bare terminal commands.
+
+Allowed wrappers:
+- PyPI/pip install: `sage run -- <command>`
+- npm/npx install: `npx -y psycgod-sage run -- <command>`
 
 Rules:
-- Every shell command MUST use: `sage run -- <command>`
-- Every Python command: `sage run -- python script.py`
-- Every package command: `sage run -- npm install`
-- Every test command: `sage run -- pytest`
-- Never run bare terminal commands when SAGE is available.
+- Python: `sage run -- python script.py` or `npx -y psycgod-sage run -- python script.py`
+- Packages: `sage run -- npm install` or `npx -y psycgod-sage run -- npm install`
+- Tests: `sage run -- pytest` or `npx -y psycgod-sage run -- pytest`
+- If the wrapper fails before the target command starts, stop and report the wrapper failure.
 
 Why:
 - Tracks local command history for the user
@@ -32,10 +35,9 @@ Why:
 Examples:
 - Wrong: `python test.py`
 - Correct: `sage run -- python test.py`
+- Correct with npm/npx: `npx -y psycgod-sage run -- python test.py`
 - Wrong: `git status`
 - Correct: `sage run -- git status`
-
-If `sage run --` fails before the target command starts, stop and report the SAGE wrapper failure.
 
 For agents with native file/search/edit tools, shell wrapping is not enough. Use SAGE MCP tools for repository work:
 - `mcp__sage__sage_read_file` instead of direct `Read`
@@ -44,7 +46,7 @@ For agents with native file/search/edit tools, shell wrapping is not enough. Use
 - `mcp__sage__sage_tree` instead of direct tree/listing tools
 - `mcp__sage__sage_write_file` and `mcp__sage__sage_edit_file` instead of direct `Write` or `Edit`
 
-Any spawned subagent must be given the same SAGE requirements in its prompt. Do not spawn an agent without explicitly telling it to use `sage run --` and SAGE MCP tools.
+Any spawned subagent must be given the same SAGE requirements in its prompt. Do not spawn an agent without explicitly telling it to use a SAGE wrapper and SAGE MCP tools.
 """
 
 SAGE_MANDATORY_INSTRUCTION = (
@@ -54,7 +56,8 @@ SAGE_MANDATORY_INSTRUCTION = (
 CURSOR_SAGE_INSTRUCTION = (
     f"{SAGE_BLOCK_START}\n"
     "# SAGE Integration - MANDATORY\n\n"
-    "Route every terminal command through `sage run -- <command>`. "
+    "Route every terminal command through `sage run -- <command>` or "
+    "`npx -y psycgod-sage run -- <command>`. "
     "Do not run bare shell commands when SAGE is available.\n"
     f"{SAGE_BLOCK_END}\n"
 )
@@ -63,30 +66,31 @@ AIDER_SAGE_INSTRUCTION = (
     f"\n{SAGE_BLOCK_START}\n"
     "# SAGE Integration - MANDATORY\n"
     "# Route all shell commands through: sage run -- <command>\n"
+    "# Or with npm/npx: npx -y psycgod-sage run -- <command>\n"
     f"{SAGE_BLOCK_END}\n"
 )
 
 CLINE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
-    "Examples: sage run -- npm install, sage run -- python script.py\n"
+    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
+    "Examples: sage run -- npm install, npx -y psycgod-sage run -- python script.py\n"
 )
 
 CONTINUE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
-    "Examples: sage run -- npm install, sage run -- python script.py\n"
+    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
+    "Examples: sage run -- npm install, npx -y psycgod-sage run -- python script.py\n"
 )
 
 JETBRAINS_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
-    "Examples: sage run -- npm install, sage run -- python script.py\n"
+    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
+    "Examples: sage run -- npm install, npx -y psycgod-sage run -- python script.py\n"
 )
 
 OPENCODE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
+    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
 )
 CLAUDE_HOOK_SCRIPT = dedent(
     r'''
@@ -97,7 +101,7 @@ CLAUDE_HOOK_SCRIPT = dedent(
     from typing import Any
 
 
-    SAGE_PREFIX = "sage run --"
+    SAGE_PREFIXES = ("sage run --", "npx -y psycgod-sage run --")
     FILE_TOOLS = {
         "Read",
         "Grep",
@@ -124,7 +128,7 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
     def _allows_subagent(prompt: str) -> bool:
         lowered = prompt.lower()
-        return SAGE_PREFIX in lowered and "mcp__sage__" in lowered
+        return any(prefix in lowered for prefix in SAGE_PREFIXES) and "mcp__sage__" in lowered
 
 
     def main() -> int:
@@ -134,8 +138,11 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
         if tool_name in {"Bash", "Shell", "PowerShell"}:
             command = str(tool_input.get("command") or "").strip()
-            if not command.startswith(SAGE_PREFIX):
-                return _deny("SAGE enforcement: shell commands must start with 'sage run --'.")
+            if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
+                return _deny(
+                    "SAGE enforcement: shell commands must start with "
+                    "'sage run --' or 'npx -y psycgod-sage run --'."
+                )
 
         if tool_name in FILE_TOOLS:
             return _deny("SAGE enforcement: Use SAGE MCP tools instead of direct file/search/edit tools.")
@@ -145,7 +152,7 @@ CLAUDE_HOOK_SCRIPT = dedent(
             if not _allows_subagent(prompt):
                 return _deny(
                     "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                    "to use 'sage run --' and SAGE MCP tools."
+                    "to use a SAGE wrapper and SAGE MCP tools."
                 )
 
         return 0
@@ -160,7 +167,9 @@ CLAUDE_SETTINGS = {
     "permissions": {
         "allow": [
             "Bash(sage run -- *)",
+            "Bash(npx -y psycgod-sage run -- *)",
             "PowerShell(sage run -- *)",
+            "PowerShell(npx -y psycgod-sage run -- *)",
             "mcp__sage__sage_call",
             "mcp__sage__sage_edit_file",
             "mcp__sage__sage_explain_error",

@@ -59,7 +59,7 @@ export class Database {
 
   private runMigrations(): void {
     const currentVersion = this.getSchemaVersion();
-    
+
     for (const migration of MIGRATIONS) {
       if (migration.version > currentVersion) {
         this.db.exec(migration.sql);
@@ -136,11 +136,11 @@ export class Database {
   findSimilarCommands(command: string, limit: number = 20): SavedRun[] {
     // Extract base command for matching
     const baseCmd = command.split(/\s+/)[0];
-    
+
     const rows = this.db.prepare(`
-      SELECT * FROM runs 
-      WHERE command LIKE ? 
-      ORDER BY id DESC 
+      SELECT * FROM runs
+      WHERE command LIKE ?
+      ORDER BY id DESC
       LIMIT ?
     `).all(`${baseCmd}%`, limit) as any[];
 
@@ -157,7 +157,7 @@ export class Database {
 
   getTotalStats(): { runs: number; savedTokens: number; totalTime: number } {
     const row = this.db.prepare(`
-      SELECT 
+      SELECT
         COUNT(*) as runs,
         COALESCE(SUM(original_tokens - compressed_tokens), 0) as saved_tokens,
         COALESCE(SUM(duration_ms), 0) as total_time

@@ -39,31 +39,31 @@ Even when context is already maxed out, SAGE keeps raw logs local and sends the 
 
 ## Install
 
-Recommended safe npm install:
+Recommended install:
 
-```bash
-npm install -g psycgod-sage
+```powershell
+python -m pip install --upgrade psycgod-sage
 ```
 
-That command only installs the npm launcher. It does not run setup, connect to cloud services, or write AI-agent configuration during install. This keeps npm install policy-safe.
+That command installs the `sage` CLI. Package installation stays passive for package-index safety; activation happens only when the user explicitly runs SAGE.
 
 Activation happens on the first explicit SAGE command the user runs:
 
-```bash
-sage run -- npm test
+```powershell
+sage run -- python -m pytest
 ```
 
-That first run installs/updates the canonical PyPI SAGE core when needed, connects to the SAGE API, and installs AI-agent enforcement before running the wrapped command. To check it without wrapping a project command:
+That first run connects to the SAGE API when reachable and installs AI-agent enforcement before running the wrapped command. To check activation without wrapping a project command:
 
-```bash
+```powershell
 sage doctor --activation
 ```
 
 Package names:
 
-- npm: `psycgod-sage`
 - PyPI: `psycgod-sage`
 - CLI command after install: `sage`
+- npm: `psycgod-sage` (restoration pending; npm install is intentionally passive when available)
 
 Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. The first explicit `sage` command activates/connects safely:
 
@@ -72,7 +72,7 @@ python -m pip install --upgrade psycgod-sage
 sage run -- python -m pytest
 ```
 
-One-shot `npx` usage without global install:
+When npm is restored, one-shot `npx` usage without global install:
 
 ```bash
 npx -y psycgod-sage run -- npm test
@@ -85,7 +85,7 @@ AI-agent command rule depends on how SAGE was installed:
 | Install path | Agents must use |
 |---|---|
 | PyPI / pip | `sage run -- <command>` |
-| npm / npx | `npx -y psycgod-sage run -- <command>` |
+| npm / npx, when restored | `npx -y psycgod-sage run -- <command>` |
 
 Both paths use the same PyPI SAGE implementation, same DB, same ML V1, same telemetry rules,
 and the same optional ML V2 path. ML V2 can be installed later with:

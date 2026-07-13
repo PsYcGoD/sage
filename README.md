@@ -45,15 +45,19 @@ Recommended safe npm install:
 npm install -g psycgod-sage
 ```
 
-That command only installs the npm launcher. It does not run setup, connect to cloud services, or write AI-agent configuration during install.
+That command only installs the npm launcher. It does not run setup, connect to cloud services, or write AI-agent configuration during install. This keeps npm install policy-safe.
 
-After install, run setup explicitly:
+Activation happens on the first explicit SAGE command the user runs:
 
 ```bash
-sage setup
+sage run -- npm test
 ```
 
-Setup installs/updates the canonical PyPI SAGE core when needed, connects to the SAGE API, prints `sage api whoami`, and installs AI-agent enforcement.
+That first run installs/updates the canonical PyPI SAGE core when needed, connects to the SAGE API, and installs AI-agent enforcement before running the wrapped command. To check it without wrapping a project command:
+
+```bash
+sage doctor --activation
+```
 
 Package names:
 
@@ -61,11 +65,11 @@ Package names:
 - PyPI: `psycgod-sage`
 - CLI command after install: `sage`
 
-Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. Setup remains explicit for safety:
+Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. The first explicit `sage` command activates/connects safely:
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
-sage setup
+sage run -- python -m pytest
 ```
 
 One-shot `npx` usage without global install:
@@ -92,7 +96,7 @@ sage ml setup
 npx -y psycgod-sage ml setup
 ```
 
-After install, setup is explicit and visible. A new user should not have to run `sage login` or `sage connect`; `sage setup` handles connection and prints status.
+After install, activation is explicit and visible on first SAGE use. A new user should not have to run `sage login` or `sage connect`; `sage`, `sage setup`, `sage doctor --activation`, or `sage run -- ...` handles connection and prints status.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 

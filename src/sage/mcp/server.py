@@ -65,6 +65,8 @@ def _mcp_idle_timeout() -> int:
         timeout = int(raw)
     except ValueError:
         return DEFAULT_IDLE_TIMEOUT_SECONDS
+    if timeout <= 0:
+        return 0
     return max(MIN_IDLE_TIMEOUT_SECONDS, timeout)
 
 
@@ -165,6 +167,8 @@ class MCPServer:
             log.debug("suppressed", exc_info=True)
 
     def _start_idle_watchdog(self) -> None:
+        if self.idle_timeout <= 0:
+            return
         thread = threading.Thread(target=self._idle_watchdog, name="sage-mcp-idle-watchdog", daemon=True)
         thread.start()
 

@@ -1,65 +1,20 @@
 {
-  "$schema": "https://registry.modelcontextprotocol.io/v0.1/schema/server.json",
-  "name": "io.github.psycgod/sage",
-  "version": "1.0.1",
-  "description": "Smart Agent Guidance Engine - CLI wrapper with 97% compression for AI coding agents. Run commands, track history, predict failures, and save tokens.",
-  "repository": "https://github.com/PsYcGoD/sage",
-  "homepage": "https://www.npmjs.com/package/psycgod-sage",
-  "license": "MIT",
-  "runtime": "node",
-  "install": {
-    "npm": "psycgod-sage"
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PsYcGoD/sage",
+  "description": "CLI wrapper and MCP server for AI coding agents with local history and compressed output.",
+  "repository": {
+    "url": "https://github.com/PsYcGoD/sage",
+    "source": "github"
   },
-  "run": {
-    "command": "node",
-    "args": ["node_modules/psycgod-sage/dist/mcp/server.js"]
-  },
-  "tools": [
+  "version": "1.0.16",
+  "packages": [
     {
-      "name": "sage_run",
-      "description": "Run a command with SAGE compression and tracking"
-    },
-    {
-      "name": "sage_read_file",
-      "description": "Read a file with smart compression for large files"
-    },
-    {
-      "name": "sage_write_file",
-      "description": "Write content to a file"
-    },
-    {
-      "name": "sage_edit_file",
-      "description": "Edit a file by replacing exact string matches"
-    },
-    {
-      "name": "sage_grep",
-      "description": "Search files for a pattern"
-    },
-    {
-      "name": "sage_glob",
-      "description": "Find files matching a pattern"
-    },
-    {
-      "name": "sage_tree",
-      "description": "Show directory tree"
-    },
-    {
-      "name": "sage_get_history",
-      "description": "Get recent command history"
-    },
-    {
-      "name": "sage_explain_error",
-      "description": "Get explanation for a command error"
-    },
-    {
-      "name": "sage_suggest_fix",
-      "description": "Get suggested fix for a failed command"
-    },
-    {
-      "name": "sage_spawn_agent",
-      "description": "Spawn a SAGE agent (code, debug, test, security)"
+      "registryType": "npm",
+      "identifier": "psycgod-sage",
+      "version": "1.0.16",
+      "transport": {
+        "type": "stdio"
+      }
     }
-  ],
-  "categories": ["developer-tools", "productivity"],
-  "tags": ["cli", "compression", "token-savings", "ai-coding", "mcp"]
+  ]
 }

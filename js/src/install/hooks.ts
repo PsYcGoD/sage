@@ -2,14 +2,14 @@
 import { homedir } from 'os';
 import { join, dirname } from 'path';
 import { existsSync, writeFileSync, mkdirSync, chmodSync, readFileSync } from 'fs';
-import { SAGE_RUN_PREFIX } from './targets.js';
+import { PYPI_RUN_PREFIX, SAGE_RUN_PREFIX } from './targets.js';
 
 const ENFORCE_SAGE_PY = `#!/usr/bin/env python3
 """SAGE npm enforcement hook - blocks commands not routed through npx SAGE."""
 import json
 import sys
 
-SAGE_PREFIX = ${JSON.stringify(SAGE_RUN_PREFIX)}
+SAGE_PREFIXES = (${JSON.stringify(SAGE_RUN_PREFIX)}, ${JSON.stringify(PYPI_RUN_PREFIX)})
 
 def main():
     try:
@@ -24,12 +24,12 @@ def main():
         return 0
 
     command = str(tool_input.get("command") or "").strip()
-    if command.startswith(SAGE_PREFIX):
+    if any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
         return 0
 
-    print("SAGE enforcement: shell commands must start with:", SAGE_PREFIX, file=sys.stderr)
+    print("SAGE enforcement: shell commands must start with one of:", ", ".join(SAGE_PREFIXES), file=sys.stderr)
     print("Instead of:", command, file=sys.stderr)
-    print("Use:", f"{SAGE_PREFIX} {command}", file=sys.stderr)
+    print("Use:", f"{SAGE_PREFIXES[0]} {command}", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":
@@ -37,7 +37,7 @@ if __name__ == "__main__":
 `;
 
 const ENFORCE_SAGE_JS = `#!/usr/bin/env node
-const SAGE_PREFIX = ${JSON.stringify(SAGE_RUN_PREFIX)};
+const SAGE_PREFIXES = [${JSON.stringify(SAGE_RUN_PREFIX)}, ${JSON.stringify(PYPI_RUN_PREFIX)}];
 
 let input = '';
 process.stdin.setEncoding('utf8');
@@ -49,10 +49,10 @@ process.stdin.on('end', () => {
     const toolInput = data.tool_input || {};
     if (!['Bash', 'Shell', 'PowerShell', 'bash_tool'].includes(toolName)) process.exit(0);
     const command = String(toolInput.command || '').trim();
-    if (command.startsWith(SAGE_PREFIX)) process.exit(0);
-    console.error('SAGE enforcement: shell commands must start with: ' + SAGE_PREFIX);
+    if (SAGE_PREFIXES.some(prefix => command.startsWith(prefix))) process.exit(0);
+    console.error('SAGE enforcement: shell commands must start with one of: ' + SAGE_PREFIXES.join(', '));
     console.error('Instead of: ' + command);
-    console.error('Use: ' + SAGE_PREFIX + ' ' + command);
+    console.error('Use: ' + SAGE_PREFIXES[0] + ' ' + command);
     process.exit(2);
   } catch {
     process.exit(0);
@@ -87,7 +87,7 @@ interface HookTarget {
 const HOOK_TARGETS: HookTarget[] = [
   { name: 'Claude Code', hookPath: '~/.claude/hooks/enforce_sage.py', settingsPath: '~/.claude/settings.json', hookContent: ENFORCE_SAGE_PY, settingsContent: CLAUDE_HOOKS_SETTINGS },
   { name: 'Codex CLI', hookPath: '~/.codex/hooks/enforce_sage.py', settingsPath: '~/.codex/config.json', hookContent: ENFORCE_SAGE_PY, settingsContent: { hooks: { pre_command: ['python ~/.codex/hooks/enforce_sage.py'] } } },
-  { name: 'OpenCode', hookPath: '~/.config/opencode/hooks/enforce_sage.py', settingsPath: '~/.config/opencode/settings.json', hookContent: ENFORCE_SAGE_PY, settingsContent: { hooks: { PreToolUse: [{ matcher: 'Bash|Shell|PowerShell', hooks: ['python ~/.config/opencode/hooks/enforce_sage.py'] }] } } },
+  { name: 'OpenCode', hookPath: '~/.config/opencode/hooks/enforce_sage.py', settingsPath: '~/.config/opencode/settings.json', hookContent: ENFORCE_SAGE_PY, settingsContent: { hooks: { PreToolUse: [{ matcher: 'Bash|Shell|PowerShell', hooks: [{ type: 'command', command: 'python ~/.config/opencode/hooks/enforce_sage.py' }] }] } } },
   { name: 'Cline', hookPath: '~/.cline/hooks/enforce_sage.py', settingsPath: '~/.cline/settings.json', hookContent: ENFORCE_SAGE_PY, settingsContent: { hooks: { pre_command: ['python ~/.cline/hooks/enforce_sage.py'] } } },
   { name: 'Cursor', hookPath: '~/.cursor/hooks/enforce_sage.py', hookContent: ENFORCE_SAGE_PY },
   { name: 'Windsurf', hookPath: '~/.windsurf/hooks/enforce_sage.py', hookContent: ENFORCE_SAGE_PY },

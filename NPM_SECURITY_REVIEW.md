@@ -4,7 +4,7 @@
 
 The npm package `psycgod-sage` is intended to be a safe launcher for the canonical PyPI package `psycgod-sage`.
 
-As of npm package version `1.0.13`:
+As of npm package version `1.0.14`:
 
 - `npm install -g psycgod-sage` is passive.
 - There is no `preinstall`, `install`, or `postinstall` lifecycle script.

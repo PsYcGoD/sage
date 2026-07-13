@@ -1,20 +1,24 @@
 // SAGE AI Agent Targets for npm/npx installs.
 
 export const SAGE_RUN_PREFIX = 'npx -y psycgod-sage run --';
+export const PYPI_RUN_PREFIX = 'sage run --';
 export const SAGE_BLOCK_START = '# SAGE MANAGED BLOCK START';
 export const SAGE_BLOCK_END = '# SAGE MANAGED BLOCK END';
 
 export const SAGE_INSTRUCTION = `${SAGE_BLOCK_START}
 ## SAGE Integration - MANDATORY
 
-This system has SAGE installed through npm/npx. You MUST route every shell command through SAGE.
+Route every shell command through SAGE. Do not run bare terminal commands.
+
+Allowed wrappers:
+- npm/npx install: \`${SAGE_RUN_PREFIX} <command>\`
+- PyPI/pip install: \`${PYPI_RUN_PREFIX} <command>\`
 
 Rules:
-- Every shell command MUST use: \`${SAGE_RUN_PREFIX} <command>\`
-- Every Python command: \`${SAGE_RUN_PREFIX} python script.py\`
-- Every package command: \`${SAGE_RUN_PREFIX} npm install\`
-- Every test command: \`${SAGE_RUN_PREFIX} pytest\`
-- Never run bare terminal commands when SAGE is available.
+- Python: \`${SAGE_RUN_PREFIX} python script.py\` or \`${PYPI_RUN_PREFIX} python script.py\`
+- Packages: \`${SAGE_RUN_PREFIX} npm install\` or \`${PYPI_RUN_PREFIX} npm install\`
+- Tests: \`${SAGE_RUN_PREFIX} pytest\` or \`${PYPI_RUN_PREFIX} pytest\`
+- If the wrapper fails before the target command starts, stop and report the wrapper failure.
 
 Why:
 - npm/npx SAGE delegates to the canonical PyPI SAGE core, so behavior matches \`psycgod-sage\`.
@@ -26,10 +30,9 @@ Why:
 Examples:
 - Wrong: \`python test.py\`
 - Correct: \`${SAGE_RUN_PREFIX} python test.py\`
+- Correct with PyPI: \`${PYPI_RUN_PREFIX} python test.py\`
 - Wrong: \`git status\`
 - Correct: \`${SAGE_RUN_PREFIX} git status\`
-
-If \`${SAGE_RUN_PREFIX}\` fails before the target command starts, stop and report the SAGE wrapper failure.
 
 ML V1 is included. Optional ML V2 can be installed later by the user with:
 \`npx -y psycgod-sage ml setup\`
@@ -39,6 +42,7 @@ ${SAGE_BLOCK_END}
 export const SAGE_INSTRUCTION_SHORT = `${SAGE_BLOCK_START}
 # SAGE Integration - MANDATORY
 # Route all shell commands through: ${SAGE_RUN_PREFIX} <command>
+# Or with PyPI/pip: ${PYPI_RUN_PREFIX} <command>
 ${SAGE_BLOCK_END}
 `;
 

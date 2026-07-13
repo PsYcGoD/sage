@@ -4,14 +4,16 @@ SAGE enforcement is mandatory in this repository.
 
 ## Shell Commands
 
-Every shell command must be routed through SAGE:
+Every shell command must be routed through one SAGE wrapper:
 
 ```powershell
 sage run -- <command>
+# or, for npm/npx installs:
+npx -y psycgod-sage run -- <command>
 ```
 
 Do not use bare `Bash`, bare `PowerShell`, or direct terminal commands.
-If `sage run --` fails before the target command starts, stop and report that wrapper failure.
+If the SAGE wrapper fails before the target command starts, stop and report that wrapper failure.
 
 ## Files, Search, And Edits
 
@@ -32,7 +34,7 @@ Do not use direct `Read`, `Grep`, `Glob`, `Edit`, `Write`, or `NotebookEdit`.
 Any spawned subagent must receive the same SAGE instruction in its prompt:
 
 ```text
-Use SAGE for every shell command: sage run -- <command>.
+Use SAGE for every shell command: sage run -- <command> or npx -y psycgod-sage run -- <command>.
 Use SAGE MCP tools for read/search/write/edit work.
 Do not use direct Read/Grep/Glob/Edit/Write or bare Bash/PowerShell.
 ```

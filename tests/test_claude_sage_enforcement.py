@@ -23,11 +23,19 @@ def test_blocks_bare_shell_command():
     result = run_hook({"tool_name": "Bash", "tool_input": {"command": "git status"}})
 
     assert result.returncode == 2
-    assert "shell commands must start with 'sage run --'" in result.stderr
+    assert "sage run --" in result.stderr
+    assert "npx -y psycgod-sage run --" in result.stderr
 
 
 def test_allows_sage_wrapped_shell_command():
     result = run_hook({"tool_name": "Bash", "tool_input": {"command": "sage run -- git status"}})
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_allows_npx_sage_wrapped_shell_command():
+    result = run_hook({"tool_name": "Bash", "tool_input": {"command": "npx -y psycgod-sage run -- git status"}})
 
     assert result.returncode == 0
     assert result.stderr == ""

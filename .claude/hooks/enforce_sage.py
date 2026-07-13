@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 
-SAGE_PREFIX = "sage run --"
+SAGE_PREFIXES = ("sage run --", "npx -y psycgod-sage run --")
 FILE_TOOLS = {
     "Read",
     "Grep",
@@ -32,7 +32,7 @@ def _deny(message: str) -> int:
 
 def _allows_subagent(prompt: str) -> bool:
     lowered = prompt.lower()
-    return SAGE_PREFIX in lowered and "mcp__sage__" in lowered
+    return any(prefix in lowered for prefix in SAGE_PREFIXES) and "mcp__sage__" in lowered
 
 
 def main() -> int:
@@ -42,8 +42,11 @@ def main() -> int:
 
     if tool_name in {"Bash", "Shell", "PowerShell"}:
         command = str(tool_input.get("command") or "").strip()
-        if not command.startswith(SAGE_PREFIX):
-            return _deny("SAGE enforcement: shell commands must start with 'sage run --'.")
+        if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
+            return _deny(
+                "SAGE enforcement: shell commands must start with "
+                "'sage run --' or 'npx -y psycgod-sage run --'."
+            )
 
     if tool_name in FILE_TOOLS:
         return _deny("SAGE enforcement: Use SAGE MCP tools instead of direct file/search/edit tools.")
@@ -53,7 +56,7 @@ def main() -> int:
         if not _allows_subagent(prompt):
             return _deny(
                 "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                "to use 'sage run --' and SAGE MCP tools."
+                "to use a SAGE wrapper and SAGE MCP tools."
             )
 
     return 0

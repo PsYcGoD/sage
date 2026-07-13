@@ -100,6 +100,7 @@ def test_run_command_executes_agents_for_saved_run(monkeypatch, tmp_path):
     import time
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.setenv("SAGE_SUPPRESS_FOOTER", "1")
+    monkeypatch.setenv("SAGE_ENABLE_AGENTS", "1")
     monkeypatch.delenv("SAGE_DISABLE_AGENTS", raising=False)
 
     exit_code = run_command(["python", "-c", "print('pytest failed with error')"])

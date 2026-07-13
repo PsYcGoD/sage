@@ -3,16 +3,16 @@
   "name": "io.github.psycgod/sage",
   "version": "1.0.1",
   "description": "Smart Agent Guidance Engine - CLI wrapper with 97% compression for AI coding agents. Run commands, track history, predict failures, and save tokens.",
-  "repository": "https://github.com/PsYcGoD/sage-js",
-  "homepage": "https://www.npmjs.com/package/psycgod-sage-js",
+  "repository": "https://github.com/PsYcGoD/sage",
+  "homepage": "https://www.npmjs.com/package/psycgod-sage",
   "license": "MIT",
   "runtime": "node",
   "install": {
-    "npm": "psycgod-sage-js"
+    "npm": "psycgod-sage"
   },
   "run": {
     "command": "node",
-    "args": ["node_modules/psycgod-sage-js/dist/mcp/server.js"]
+    "args": ["node_modules/psycgod-sage/dist/mcp/server.js"]
   },
   "tools": [
     {

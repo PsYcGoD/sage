@@ -6,6 +6,10 @@ import logging
 import json
 import os
 import sys
+import threading
+import time
+import uuid
+from pathlib import Path
 from typing import Any, Optional
 
 from .tools import (
@@ -36,6 +40,37 @@ log = logging.getLogger(__name__)
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_INFO = {"name": "sage", "version": "2.0.4"}
 COMMAND_TOOL_NAMES = {"sage_run_command"}
+DEFAULT_IDLE_TIMEOUT_SECONDS = 10
+MIN_IDLE_TIMEOUT_SECONDS = 10
+
+
+def _mcp_idle_timeout() -> int:
+    """Return the MCP stdio idle timeout.
+
+    MCP clients usually restart stdio servers on demand, so idle MCP servers
+    should not sit around forever when an AI client crashes or forgets to close
+    stdin. The default matches SAGE's low-footprint daemon policy and can be
+    raised by setting SAGE_MCP_IDLE_TIMEOUT_SECONDS.
+    """
+    raw = os.getenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_IDLE_TIMEOUT_SECONDS
+    try:
+        timeout = int(raw)
+    except ValueError:
+        return DEFAULT_IDLE_TIMEOUT_SECONDS
+    return max(MIN_IDLE_TIMEOUT_SECONDS, timeout)
+
+
+def _session_dir() -> Path:
+    base = os.getenv("SAGE_DATA_DIR")
+    if base:
+        root = Path(base)
+    elif os.name == "nt" and os.getenv("LOCALAPPDATA"):
+        root = Path(os.environ["LOCALAPPDATA"]) / "SAGE"
+    else:
+        root = Path.home() / ".sage"
+    return root / "mcp-sessions"
 
 def command_tools_enabled() -> bool:
     """Return whether MCP clients may execute local commands through SAGE."""
@@ -46,6 +81,12 @@ class MCPServer:
 
     def __init__(self):
         self.command_tools_enabled = command_tools_enabled()
+        self.idle_timeout = _mcp_idle_timeout()
+        self._last_activity = time.monotonic()
+        self._started_at = time.time()
+        self._running = True
+        self._session_id = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
+        self._session_file = _session_dir() / f"{self._session_id}.json"
         self.tools = {
             "sage_explain_error": sage_explain_error,
             "sage_suggest_fix": sage_suggest_fix,
@@ -67,8 +108,77 @@ class MCPServer:
         if self.command_tools_enabled:
             self.tools["sage_run_command"] = sage_run_command
 
+    def _touch_activity(self) -> None:
+        self._last_activity = time.monotonic()
+        self._write_session()
+
+    def _write_session(self) -> None:
+        """Write a small session heartbeat for diagnostics and stale cleanup."""
+        try:
+            self._session_file.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "pid": os.getpid(),
+                "session_id": self._session_id,
+                "cwd": os.getcwd(),
+                "started_at": self._started_at,
+                "last_activity": time.time(),
+                "idle_timeout_seconds": self.idle_timeout,
+            }
+            tmp = self._session_file.with_suffix(f".{uuid.uuid4().hex}.tmp")
+            tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp.replace(self._session_file)
+        except Exception:
+            log.debug("suppressed", exc_info=True)
+
+    def _remove_session(self) -> None:
+        try:
+            self._session_file.unlink(missing_ok=True)
+        except Exception:
+            log.debug("suppressed", exc_info=True)
+
+    def _cleanup_session_records(self) -> None:
+        """Remove old MCP heartbeat files.
+
+        This intentionally does not kill arbitrary PIDs from old files because
+        PIDs can be reused. Live processes now self-exit via the idle watchdog;
+        this cleanup keeps diagnostics from filling with stale session records.
+        """
+        cutoff = time.time() - max(self.idle_timeout * 4, 300)
+        try:
+            directory = _session_dir()
+            if not directory.exists():
+                return
+            for path in directory.glob("*.json"):
+                try:
+                    stat = path.stat()
+                    if stat.st_mtime < cutoff:
+                        path.unlink(missing_ok=True)
+                except Exception:
+                    log.debug("suppressed", exc_info=True)
+        except Exception:
+            log.debug("suppressed", exc_info=True)
+
+    def _start_idle_watchdog(self) -> None:
+        thread = threading.Thread(target=self._idle_watchdog, name="sage-mcp-idle-watchdog", daemon=True)
+        thread.start()
+
+    def _idle_watchdog(self) -> None:
+        while self._running:
+            time.sleep(1)
+            if time.monotonic() - self._last_activity < self.idle_timeout:
+                continue
+            print(
+                f"[SAGE MCP Server] idle for {self.idle_timeout}s; exiting",
+                file=sys.stderr,
+                flush=True,
+            )
+            self._running = False
+            self._remove_session()
+            os._exit(0)
+
     def handle_request(self, request: dict) -> Optional[dict]:
         """Handle one JSON-RPC request. Returns None for notifications."""
+        self._touch_activity()
         method = request.get("method")
         request_id = request.get("id")
         is_notification = "id" not in request
@@ -159,21 +269,32 @@ class MCPServer:
             sys.stdin.reconfigure(encoding="utf-8")
         except Exception:
             log.debug("suppressed", exc_info=True)
-        print("[SAGE MCP Server] stdio ready", file=sys.stderr)
+        self._cleanup_session_records()
+        self._write_session()
+        self._start_idle_watchdog()
+        print(
+            f"[SAGE MCP Server] stdio ready (idle timeout {self.idle_timeout}s)",
+            file=sys.stderr,
+            flush=True,
+        )
 
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                request = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        try:
+            for line in sys.stdin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    request = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-            response = self.handle_request(request)
-            if response is not None:
-                sys.stdout.write(json.dumps(response) + "\n")
-                sys.stdout.flush()
+                response = self.handle_request(request)
+                if response is not None:
+                    sys.stdout.write(json.dumps(response) + "\n")
+                    sys.stdout.flush()
+        finally:
+            self._running = False
+            self._remove_session()
 
 def main():
     """MCP server entry point."""

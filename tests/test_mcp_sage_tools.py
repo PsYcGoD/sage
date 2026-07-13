@@ -1,6 +1,6 @@
 """Tests for the new compressed MCP tools."""
 
-from sage.mcp.server import MCPServer
+from sage.mcp.server import MCPServer, _mcp_idle_timeout
 from sage.mcp.client import connect_and_list
 from sage.mcp.tools import SAGE_TOOLS, sage_grep, sage_read_file, sage_run_workflow, sage_spawn_agent
 
@@ -30,6 +30,20 @@ def test_mcp_run_command_is_opt_in(monkeypatch):
     listed = {tool["name"] for tool in server._tool_specs()}
     assert "sage_run_command" in listed
     assert "sage_run_command" in server.tools
+
+
+def test_mcp_idle_timeout_is_configurable_and_clamped(monkeypatch):
+    monkeypatch.delenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", raising=False)
+    assert _mcp_idle_timeout() == 10
+
+    monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "2")
+    assert _mcp_idle_timeout() == 10
+
+    monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "45")
+    assert _mcp_idle_timeout() == 45
+
+    monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "bad")
+    assert _mcp_idle_timeout() == 10
 
 
 def test_external_mcp_missing_command_fails_fast():

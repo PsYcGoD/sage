@@ -260,11 +260,15 @@ def test_public_proof_snapshot_includes_agent_savings(monkeypatch, tmp_path):
     totals = snapshot["totals"]
 
     assert totals["tokens_saved"] == 1_500_000
-    assert totals["estimated_savings_usd"] == 8.625
+    assert totals["estimated_savings_usd"] == 31.125
     assert totals["savings_by_model"][0]["model"] == "claude-sonnet"
     assert totals["savings_by_model"][0]["estimated_savings_usd"] == 4.5
     assert totals["savings_by_model"][1]["model"] == "codex"
     assert totals["savings_by_model"][1]["estimated_savings_usd"] == 2.25
+    assert totals["savings_by_model"][3]["model"] == "claude-fable-5"
+    assert totals["savings_by_model"][3]["estimated_savings_usd"] == 15
+    assert totals["savings_by_model"][4]["model"] == "claude-opus"
+    assert totals["savings_by_model"][4]["estimated_savings_usd"] == 7.5
     agent_rows = {row["agent"]: row for row in totals["savings_by_agent"]}
     assert agent_rows["opencode"]["model"] == "Claude Sonnet"
     assert agent_rows["opencode"]["estimated_savings_usd"] == 4.5

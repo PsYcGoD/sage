@@ -19,6 +19,16 @@ MODEL_SAVINGS_PROFILES: dict[str, dict[str, Any]] = {
         "provider": "Google",
         "input_rate_per_million": 1.25,
     },
+    "claude-fable-5": {
+        "label": "Claude Fable 5",
+        "provider": "Anthropic",
+        "input_rate_per_million": 10.0,
+    },
+    "claude-opus": {
+        "label": "Claude Opus",
+        "provider": "Anthropic",
+        "input_rate_per_million": 5.0,
+    },
     "ollama": {
         "label": "Ollama",
         "provider": "Local",

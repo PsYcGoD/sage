@@ -1,6 +1,29 @@
-# Demo GIF Plan
+# Demo GIFs and 30-second video
 
 Goal: create short GIFs that show SAGE value before asking users to install.
+
+## Generated real assets
+
+These were generated from actual local SAGE command output using:
+
+```bash
+python scripts/create_demo_video_assets.py
+```
+
+Outputs:
+
+- `docs/assets/sage-demo-01-first-impression.gif`
+- `docs/assets/sage-demo-02-real-compression.gif`
+- `docs/assets/sage-demo-03-proof-loop.gif`
+- `docs/assets/sage-30s-real-demo.mp4`
+
+The GIFs are split into three ~10-second sections:
+
+1. First impression: `sage demo`
+2. Real compression: `sage run -- rg ...` on this repo
+3. Proof loop: `sage history --limit 3`
+
+The MP4 combines the same three parts into one ~30-second video.
 
 ## GIF 1: `sage run --`
 

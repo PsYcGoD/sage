@@ -11,16 +11,50 @@ A local-first CLI wrapper for Claude Code, Codex, Cursor, and other AI coding ag
 
 SAGE routes terminal commands through `sage run --`, compresses noisy output before it enters the agent context, keeps raw logs on your machine, and proves token savings with privacy-safe metrics.
 
+## Start Here: Install, Activate, Then Use Any AI Agent
+
+Package install is intentionally passive for PyPI/npm safety. After install, run one SAGE command to activate SAGE, connect when reachable, and inject local AI-agent instructions/hooks.
+
+### PyPI / pip
+
+```powershell
+python -m pip install --upgrade psycgod-sage
+sage run -- python -m pytest
+```
+
+### npm / npx
+
+```bash
+npm install -g psycgod-sage
+npx -y psycgod-sage run -- npm test
+```
+
+If you do not want to run a project command yet, activate/check setup with:
+
+```bash
+sage doctor --activation
+# or from npm/npx
+npx -y psycgod-sage doctor --activation
+```
+
+After activation, restart any open AI-agent sessions. Then a normal prompt like:
+
+```text
+Please help me with my general book in this folder.
+```
+
+should make supported agents start with SAGE file/search tools and use `sage run -- <command>` or `npx -y psycgod-sage run -- <command>` for terminal work. The user should not need to keep typing SAGE commands manually.
+
 ## Live Proof
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 15,910 |
-| Tokens processed | 462.9M |
-| Tokens saved | 452.0M |
-| Compression rate | 97.66% |
-| Estimated savings | $9,380.01 |
-| Success rate | 92.2% |
+| Commands processed | 16,209 |
+| Tokens processed | 488.2M |
+| Tokens saved | 477.3M |
+| Compression rate | 97.76% |
+| Estimated savings | $9,903.58 |
+| Success rate | 92.0% |
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 
@@ -54,7 +88,7 @@ Provider-confirmed A/B tests show why this matters:
 
 Even when context is already maxed out, SAGE keeps raw logs local and sends the agent a smaller, useful version instead of flooding the conversation with full terminal noise.
 
-## Install
+## Install Details
 
 Recommended install:
 
@@ -62,7 +96,7 @@ Recommended install:
 python -m pip install --upgrade psycgod-sage
 ```
 
-That command installs the `sage` CLI. Package installation stays passive for package-index safety; activation happens only when the user explicitly runs SAGE.
+That command installs the `sage` CLI. Package installation stays passive for package-index safety; activation/injection happens when the user explicitly runs a SAGE command.
 
 Activation happens on the first explicit SAGE command the user runs:
 

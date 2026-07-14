@@ -31,6 +31,11 @@ def test_readme_public_positioning():
 
     assert "# SAGE" in readme
     assert "pip install psycgod-sage" in readme
+    assert "## Start Here: Install, Activate, Then Use Any AI Agent" in readme
+    assert "sage doctor --activation" in readme
+    assert "npx -y psycgod-sage doctor --activation" in readme
+    assert "After activation, restart any open AI-agent sessions" in readme
+    assert "Please help me with my general book in this folder" in readme
     assert "Raw logs" in readme or "raw logs" in readme.lower()
     assert "## Known Limitations" in readme
     assert "raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-run.svg" in readme

@@ -46,6 +46,36 @@ class CliTests(unittest.TestCase):
         latest_run.assert_called_once_with(only_failures=True)
         self.assertIn("Run #3 failed", out.getvalue())
 
+    def test_demo_command_shows_first_run_value(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = cli.demo_command()
+
+        text = out.getvalue()
+        self.assertEqual(code, 0)
+        self.assertIn("SAGE demo", text)
+        self.assertIn("Before: 12,000 tokens", text)
+        self.assertIn("After:  800 tokens", text)
+        self.assertIn("Saved:  93%", text)
+        self.assertIn("Claude", text)
+        self.assertIn("Codex", text)
+        self.assertIn("25+ AI/dev logs", text)
+
+    def test_demo_main_runs_after_setup_and_enforcement(self):
+        calls = []
+
+        with (
+            patch("sage.cli._ensure_first_run_setup", side_effect=lambda command: calls.append(("setup", command)) or 0),
+            patch("sage.cli._ensure_system_enforcement", side_effect=lambda command: calls.append(("enforce", command)) or True),
+        ):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = cli.main(["demo"])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [("setup", "demo"), ("enforce", "demo")])
+        self.assertIn("SAGE demo", out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

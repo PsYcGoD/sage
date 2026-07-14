@@ -167,6 +167,8 @@ class TestAgentInstall:
 
         content = codex_agents.read_text(encoding="utf-8")
         assert "SAGE MANAGED BLOCK START" in content
+        assert "start through SAGE automatically" in content
+        assert "Please help me with my general book in this folder" in content
 
     def test_cli_first_use_auto_installs_global_agent_enforcement(self, tmp_path, monkeypatch):
         from sage import cli, install
@@ -188,7 +190,10 @@ class TestAgentInstall:
         content = codex_agents.read_text(encoding="utf-8")
         assert "sage run -- <command>" in content
         assert "npx -y psycgod-sage run -- <command>" in content
+        assert "start through SAGE automatically" in content
         assert "mcp__sage__sage_read_file" in content
+        assert "mcp__sage__sage_tree" in content
+        assert "Please help me with my general book in this folder" in content
         assert "ð" not in content
         assert "â" not in content
 
@@ -225,6 +230,7 @@ class TestAgentInstall:
         claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert "SAGE Integration - MANDATORY" in claude
         assert "mcp__sage__sage_edit_file" in claude
+        assert "start through SAGE automatically" in claude
 
     def test_cli_install_command_runs_system_enforcement(self, tmp_path, monkeypatch):
         from sage import install

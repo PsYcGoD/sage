@@ -246,7 +246,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       <section class="hero-stats">
         <div class="card"><div class="label">Total Runs</div><div class="value" id="total-runs">-</div><div class="sub">Commands executed</div></div>
         <div class="card"><div class="label">Tokens Saved</div><div class="value" id="tokens-saved">-</div><div class="sub" id="tokens-processed-label">-</div></div>
-        <div class="card"><div class="label">Estimated Savings</div><div class="value" id="estimated-savings">-</div><div class="sub">Reference terminal-context savings</div></div>
+        <div class="card"><div class="label">Estimated Savings</div><div class="value" id="estimated-savings">-</div><div class="sub" id="estimated-savings-delta">Reference terminal-context savings</div></div>
         <div class="card"><div class="label">Compression Rate</div><div class="value" id="compression-rate">-</div><div class="sub">Average across all runs</div></div>
         <div class="card"><div class="label">Success Rate</div><div class="value" id="success-rate">-</div><div class="sub" id="success-label">-</div></div>
       </section>
@@ -447,6 +447,12 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
         document.getElementById("total-runs").textContent = Number(totals.total_runs || 0).toLocaleString();
         document.getElementById("tokens-saved").textContent = formatNumber(totals.tokens_saved);
         document.getElementById("estimated-savings").textContent = formatCurrency(totals.estimated_savings_usd);
+        const recent = totals.recent_6h || {};
+        const recentSaved = Number(recent.tokens_saved || 0);
+        const recentUsd = Number(recent.estimated_savings_usd || 0);
+        document.getElementById("estimated-savings-delta").textContent = recentSaved > 0
+          ? "Last 6h: +" + formatNumber(recentSaved) + " tokens / +" + formatCurrency(recentUsd)
+          : "Reference terminal-context savings";
         document.getElementById("tokens-processed-label").textContent =
           Number(totals.tokens_saved || 0).toLocaleString() + " saved / " + formatNumber(totals.tokens_processed) + " processed";
         document.getElementById("compression-rate").textContent = Number(totals.compression_percent || 0).toFixed(2) + "%";
@@ -2143,6 +2149,15 @@ async function getAggregateRunTotals(env) {
       COUNT(CASE WHEN prediction_score IS NOT NULL THEN 1 END) AS prediction_rows
      FROM telemetry_events`
   ).first();
+  const recent6h = await env.DB.prepare(
+    `SELECT
+      COUNT(*) AS events,
+      COALESCE(SUM(original_tokens), 0) AS original_tokens,
+      COALESCE(SUM(compressed_tokens), 0) AS compressed_tokens,
+      COALESCE(SUM(saved_tokens), 0) AS saved_tokens
+     FROM telemetry_events
+     WHERE julianday(received_at) >= julianday('now', '-6 hours')`
+  ).first();
   const agentUsageRows = await env.DB.prepare(
     `SELECT
       COALESCE(NULLIF(json_extract(payload_json, '$.agent_client'), ''), command_family, command_kind, '') AS agent_client,
@@ -2169,6 +2184,8 @@ async function getAggregateRunTotals(env) {
   const predictionRows = Number(activity?.prediction_rows || 0);
   const savingsByModel = buildSavingsByModel(saved);
   const savingsByAgent = buildSavingsByAgent(agentUsage);
+  const recentSaved = Number(recent6h?.saved_tokens || 0);
+  const recentSavingsByModel = buildSavingsByModel(recentSaved);
   return {
     total_runs: totalRuns,
     successful_runs: successful,
@@ -2179,6 +2196,13 @@ async function getAggregateRunTotals(env) {
     estimated_savings_usd: totalModelSavings(savingsByModel),
     savings_by_model: savingsByModel,
     savings_by_agent: savingsByAgent,
+    recent_6h: {
+      events: Number(recent6h?.events || 0),
+      tokens_processed: Number(recent6h?.original_tokens || 0),
+      tokens_compressed: Number(recent6h?.compressed_tokens || 0),
+      tokens_saved: recentSaved,
+      estimated_savings_usd: totalModelSavings(recentSavingsByModel),
+    },
     compression_percent: original ? Number(((saved / original) * 100).toFixed(2)) : 0,
     success_rate: totalRuns ? Number(((successful / totalRuns) * 100).toFixed(2)) : 0,
     failure_prediction_stats: {
@@ -2217,6 +2241,7 @@ function mergeSnapshotWithAggregateTotals(snapshotTotals = {}, aggregateTotals =
     });
   }
   merged.savings_by_agent = mergeSavingsByAgent(merged.savings_by_agent, aggregateTotals.savings_by_agent);
+  if (aggregateTotals.recent_6h) merged.recent_6h = aggregateTotals.recent_6h;
 
   const snapshotPrediction = merged.failure_prediction_stats || {};
   const aggregatePrediction = aggregateTotals.failure_prediction_stats || {};

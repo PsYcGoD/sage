@@ -7,9 +7,10 @@ const ALLOWED_ORIGINS = [
 
 const MODEL_SAVINGS_PROFILES = [
   { model: "claude-sonnet", label: "Claude Sonnet", provider: "Anthropic", input_rate_per_million: 3.0 },
-  { model: "claude-opus", label: "Claude Opus", provider: "Anthropic", input_rate_per_million: 5.0 },
   { model: "codex", label: "OpenAI Codex", provider: "OpenAI", input_rate_per_million: 1.5 },
   { model: "gemini-pro", label: "Gemini 2.5 Pro", provider: "Google", input_rate_per_million: 1.25 },
+  { model: "claude-fable-5", label: "Claude Fable 5", provider: "Anthropic", input_rate_per_million: 10.0 },
+  { model: "claude-opus", label: "Claude Opus", provider: "Anthropic", input_rate_per_million: 5.0 },
 ];
 
 const AGENT_SAVINGS_PROFILES = [

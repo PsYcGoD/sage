@@ -14,6 +14,13 @@ SAGE_BLOCK_END = "# SAGE MANAGED BLOCK END"
 
 SAGE_MANDATORY_BODY = """## SAGE Integration - MANDATORY
 
+When a user asks for any coding, repo, file, debugging, documentation, or project task, start through SAGE automatically. The user should not need to type `sage`.
+
+First actions for normal repo work:
+- Inspect files with SAGE MCP tools first: `mcp__sage__sage_tree`, `mcp__sage__sage_glob`, `mcp__sage__sage_grep`, `mcp__sage__sage_read_file`
+- Use `mcp__sage__sage_write_file` / `mcp__sage__sage_edit_file` for file changes when available
+- Route every terminal command through a SAGE wrapper
+
 Route every shell command through SAGE. Do not run bare terminal commands.
 
 Allowed wrappers:
@@ -45,6 +52,11 @@ For agents with native file/search/edit tools, shell wrapping is not enough. Use
 - `mcp__sage__sage_glob` instead of direct `Glob`
 - `mcp__sage__sage_tree` instead of direct tree/listing tools
 - `mcp__sage__sage_write_file` and `mcp__sage__sage_edit_file` instead of direct `Write` or `Edit`
+
+Example user request:
+- User: "Please help me with my general book in this folder"
+- Correct agent start: use `mcp__sage__sage_tree`/`sage_glob`/`sage_grep`/`sage_read_file`, then use `sage run -- <command>` only when a terminal command is needed.
+- Wrong agent start: direct `Read`, `Grep`, `Glob`, `python`, `git`, `npm`, or `ls`.
 
 Any spawned subagent must be given the same SAGE requirements in its prompt. Do not spawn an agent without explicitly telling it to use a SAGE wrapper and SAGE MCP tools.
 """

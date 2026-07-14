@@ -112,6 +112,8 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser = sub.add_parser("setup", help="Run first-time SAGE onboarding.")
     setup_parser.add_argument("--force", action="store_true", help="Run onboarding even if it already completed.")
 
+    sub.add_parser("demo", help="Show a 15-second SAGE compression demo.")
+
     serve_parser = sub.add_parser("serve", help="ML prediction daemon (sleeps after 10 seconds idle).")
     serve_sub = serve_parser.add_subparsers(dest="serve_action")
     serve_sub.add_parser("start", help="Start the ML daemon (default if no subcommand).")
@@ -568,6 +570,9 @@ def main(argv: list[str] | None = None) -> int:
 
     _ensure_system_enforcement(args.command_name)
 
+    if args.command_name == "demo":
+        return demo_command()
+
     REQUIRES_API = {"github-bot"}
     if args.command_name in REQUIRES_API:
         from . import telemetry
@@ -724,6 +729,61 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 2
+
+def demo_command() -> int:
+    before_tokens = 12_000
+    after_tokens = 800
+    saved_tokens = before_tokens - after_tokens
+    saved_percent = round((saved_tokens / before_tokens) * 100)
+    supported_logs = [
+        "Claude",
+        "Codex",
+        "OpenAI",
+        "OpenClaw",
+        "Aider",
+        "JetBrains",
+        "Windsurf",
+        "Cursor",
+        "Grok",
+        "Ollama",
+        "OpenCode",
+        "Cline",
+        "Roo Code",
+        "Continue",
+        "Copilot",
+        "Gemini",
+        "Qwen",
+        "DeepSeek",
+        "Bedrock",
+        "Vertex AI",
+        "LM Studio",
+        "LocalAI",
+        "MCP",
+        "shell",
+        "CI",
+    ]
+
+    print("SAGE demo")
+    print("=" * 48)
+    print("A noisy AI-agent terminal log comes in...")
+    print()
+    print(f"Before: {before_tokens:,} tokens")
+    print(f"After:  {after_tokens:,} tokens")
+    print(f"Saved:  {saved_percent}% ({saved_tokens:,} tokens)")
+    print()
+    print(
+        "This is what SAGE does for "
+        + ", ".join(supported_logs[:10])
+        + ", and 25+ AI/dev logs."
+    )
+    print()
+    print("Try it on a real command:")
+    print("  sage run -- pytest")
+    print("  sage run -- npm test")
+    print("  sage run -- python your_script.py")
+    print()
+    print("Raw output stays local; SAGE stores a compact summary for agents.")
+    return 0
 
 def explain(only_failed: bool = False) -> int:
     record = latest_run(only_failures=only_failed)

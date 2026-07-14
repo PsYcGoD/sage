@@ -2667,10 +2667,16 @@ function mergeSnapshotWithAggregateTotals(snapshotTotals = {}, aggregateTotals =
       tokens_processed: aggregateTotals.tokens_processed,
       tokens_compressed: aggregateTotals.tokens_compressed,
       tokens_saved: aggregateTotals.tokens_saved,
-      estimated_savings_usd: aggregateTotals.estimated_savings_usd,
-      savings_by_model: aggregateTotals.savings_by_model,
       compression_percent: aggregateTotals.compression_percent,
     });
+  }
+  if (Number(aggregateTotals.tokens_saved || 0) > 0) {
+    // The public "Estimated Savings" card is a reference-model calculation over
+    // the live aggregate saved-token total. Older proof snapshots can contain
+    // partial per-model rows from real agent attribution; do not let those stale
+    // rows lower the live public total when aggregate counters are current.
+    merged.savings_by_model = buildSavingsByModel(merged.tokens_saved);
+    merged.estimated_savings_usd = totalModelSavings(merged.savings_by_model);
   }
   merged.savings_by_agent = mergeSavingsByAgent(merged.savings_by_agent, aggregateTotals.savings_by_agent);
   if (aggregateTotals.recent_6h) merged.recent_6h = aggregateTotals.recent_6h;

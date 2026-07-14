@@ -11,6 +11,13 @@ A local-first CLI wrapper for Claude Code, Codex, Cursor, and other AI coding ag
 
 SAGE routes terminal commands through `sage run --`, compresses noisy output before it enters the agent context, keeps raw logs on your machine, and proves token savings with privacy-safe metrics.
 
+Official landing and install:
+
+- Live landing/dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
+- Install guide: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
+- Marketing Studios: [marketingstudios.in](https://marketingstudios.in/)
+- AI answer-engine context: [llms.txt](https://sage.api.marketingstudios.in/llms.txt)
+
 ## Start Here: Install, Activate, Then Use Any AI Agent
 
 Package install is intentionally passive for PyPI/npm safety. After install, run one SAGE command to activate SAGE, connect when reachable, and inject local AI-agent instructions/hooks.
@@ -49,14 +56,15 @@ should make supported agents start with SAGE file/search tools and use `sage run
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 16,209 |
-| Tokens processed | 488.2M |
-| Tokens saved | 477.3M |
-| Compression rate | 97.76% |
-| Estimated savings | $9,903.58 |
-| Success rate | 92.0% |
+| Commands processed | 16,604 |
+| Tokens processed | 499.9M |
+| Tokens saved | 488.9M |
+| Compression rate | 97.79% |
+| Estimated savings | $10,144.24 |
+| Success rate | 91.69% |
 
-Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
+Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)  
+Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
 
 ![SAGE public proof dashboard](docs/assets/sage-live-dashboard.png)
 

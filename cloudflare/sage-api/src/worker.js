@@ -267,7 +267,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
         <span class="badge green">&#9679; Live Data</span>
         <span class="badge">Verified Aggregate Proof</span>
         <a class="badge primary" href="/install">Install SAGE</a>
-        <a class="badge green" href="/features">Explore SAGE Features</a>
+        <a class="badge green" href="https://glama.ai/mcp/servers/PsYcGoD/sage">MCP on Glama</a>
         <a class="badge" href="https://marketingstudios.in/">Marketing Studios</a>
         <a class="badge" href="https://github.com/PsYcGoD/sage">GitHub Repository</a>
       </div>
@@ -937,7 +937,7 @@ const SAGE_FEATURES_HTML = `<!DOCTYPE html>
       <div class="brand">S.A.G.E</div>
       <nav class="nav" aria-label="SAGE pages">
         <a class="pill" href="/dashboard">Live Dashboard</a>
-        <a class="pill" href="/install">Install</a>
+        <a class="pill" href="/llms.txt">llms.txt</a>
         <a class="pill" href="https://marketingstudios.in/">Marketing Studios</a>
         <a class="pill" href="https://github.com/PsYcGoD/sage">GitHub</a>
       </nav>

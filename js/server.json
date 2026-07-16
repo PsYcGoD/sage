@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.PsYcGoD/sage",
-  "description": "CLI wrapper and MCP server for AI coding agents with local history and compressed output.",
+  "description": "CLI wrapper with optional manual MCP server for AI coding agents, local history, and compressed output.",
   "repository": {
     "url": "https://github.com/PsYcGoD/sage",
     "source": "github"
   },
-  "version": "1.0.22",
+  "version": "1.0.23",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "psycgod-sage",
-      "version": "1.0.22",
+      "version": "1.0.23",
       "transport": {
         "type": "stdio"
       }

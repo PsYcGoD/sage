@@ -22,7 +22,7 @@ Official landing and install:
 
 Package install is intentionally passive for PyPI/npm safety. **Activation is compulsory before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically.**
 
-Run `sage activate` once after install. It connects when reachable, writes/repairs global and project AI-agent memory files, registers supported hooks/MCP config, and prints a verification report.
+Run `sage activate` once after install. It connects when reachable, writes/repairs global and project AI-agent memory files, installs shell-wrapper hooks where supported, and prints a verification report. It does **not** auto-enable the SAGE MCP server.
 
 ### PyPI / pip
 
@@ -76,16 +76,16 @@ Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketings
 
 ## Distribution Status
 
-SAGE is available through both Python and npm entry points. The npm package delegates to the canonical Python implementation so the CLI behavior, local database, ML V1 behavior, telemetry queue, and MCP server stay consistent.
+SAGE is available through both Python and npm entry points. The npm package delegates to the canonical Python implementation so the CLI behavior, local database, ML V1 behavior, and telemetry queue stay consistent.
 
 | Channel | Package | Current status |
 |---|---|---|
 | PyPI | [`psycgod-sage`](https://pypi.org/project/psycgod-sage/) | Canonical Python package |
 | npm / npx | [`psycgod-sage`](https://www.npmjs.com/package/psycgod-sage) | Published npm launcher |
-| MCP Registry | [`io.github.PsYcGoD/sage`](https://registry.modelcontextprotocol.io/) | Official registry entry |
-| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Released MCP server; hosted build test passed |
+| MCP Registry | [`io.github.PsYcGoD/sage`](https://registry.modelcontextprotocol.io/) | Optional/manual MCP entry |
+| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Optional/manual hosted MCP server |
 
-MCP stdio servers exit after 5 minutes of inactivity by default. The ML daemon still sleeps after short idle windows; MCP stays alive longer because clients such as Claude Code keep stdio servers open between tool calls. Set `SAGE_MCP_IDLE_TIMEOUT_SECONDS` for a stricter or longer local policy.
+MCP is optional and manual. SAGE no longer auto-injects its MCP server during pip/npm/git activation because MCP stdio sessions can disconnect mid-agent session and leave agents without tools. The safe default is memory/hook activation plus `sage run -- <command>` for shell commands. If you want MCP tools, install them manually with `sage mcp install`, or use the public MCP listings on [Glama](https://glama.ai/mcp/servers/PsYcGoD/sage) / [MCP Registry](https://registry.modelcontextprotocol.io/).
 
 ### Proof at Full Context
 
@@ -120,7 +120,7 @@ sage activate
 sage run -- python -m pytest
 ```
 
-`sage activate` connects to the SAGE API when reachable and installs AI-agent memory/hook enforcement before users expect their agents to use SAGE. To check activation without wrapping a project command:
+`sage activate` connects to the SAGE API when reachable and installs AI-agent memory plus shell-wrapper hook enforcement before users expect their agents to use SAGE. It does not auto-register MCP. To check activation without wrapping a project command:
 
 ```powershell
 sage activate
@@ -270,7 +270,7 @@ sage ml setup                     # Install ML V2 (optional)
 sage ml train                     # Retrain on your history
 sage install                      # Repair/re-apply system-wide AI agent enforcement
 sage init                         # Per-project AGENTS.md/CLAUDE.md/hooks
-sage mcp install                  # MCP server for AI agents
+sage mcp install                  # Optional/manual MCP config for users who want MCP tools
 sage dashboard start              # Local proof dashboard
 ```
 

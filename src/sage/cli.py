@@ -595,7 +595,7 @@ def activate_command(*, force: bool = False, project: bool = True) -> int:
     print()
     print("Activation complete.")
     print("IMPORTANT: restart any open Claude/Codex/Cursor/Windsurf/OpenCode/Cline sessions now.")
-    print("After restart, normal prompts should make supported agents start with SAGE MCP/file tools")
+    print("After restart, normal prompts should make supported agents use their normal file/search/edit tools")
     print("and route terminal commands through `sage run -- <command>` or `npx -y psycgod-sage run -- <command>`.")
     print()
     print("Verification:")

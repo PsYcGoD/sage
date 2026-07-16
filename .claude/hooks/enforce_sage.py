@@ -6,16 +6,6 @@ from typing import Any
 
 
 SAGE_PREFIXES = ("sage run --", "npx -y psycgod-sage run --")
-FILE_TOOLS = {
-    "Read",
-    "Grep",
-    "Glob",
-    "Write",
-    "Edit",
-    "MultiEdit",
-    "NotebookRead",
-    "NotebookEdit",
-}
 
 
 def _payload() -> dict[str, Any]:
@@ -30,11 +20,6 @@ def _deny(message: str) -> int:
     return 2
 
 
-def _allows_subagent(prompt: str) -> bool:
-    lowered = prompt.lower()
-    return any(prefix in lowered for prefix in SAGE_PREFIXES) and "mcp__sage__" in lowered
-
-
 def main() -> int:
     payload = _payload()
     tool_name = str(payload.get("tool_name") or "")
@@ -45,18 +30,16 @@ def main() -> int:
         if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
             return _deny(
                 "SAGE enforcement: shell commands must start with "
-                "'sage run --' or 'npx -y psycgod-sage run --'."
+                "'sage run --' or 'npx -y psycgod-sage run --'. "
+                "The blocked command is intentionally not printed to avoid leaking secrets."
             )
-
-    if tool_name in FILE_TOOLS:
-        return _deny("SAGE enforcement: Use SAGE MCP tools instead of direct file/search/edit tools.")
 
     if tool_name == "Agent":
         prompt = str(tool_input.get("prompt") or "")
-        if not _allows_subagent(prompt):
+        if not any(prefix in prompt.lower() for prefix in SAGE_PREFIXES):
             return _deny(
                 "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                "to use a SAGE wrapper and SAGE MCP tools."
+                "to route terminal commands through a SAGE wrapper."
             )
 
     return 0

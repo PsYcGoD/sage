@@ -388,6 +388,21 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser = sub.add_parser("doctor", help="Check local setup.")
     doctor_parser.add_argument("--deep", action="store_true", help="Include slower PATH and optional dependency checks.")
     doctor_parser.add_argument("--activation", action="store_true", help="Verify first-run activation, API connection, telemetry queue, and agent enforcement.")
+    install_parser = sub.add_parser(
+        "install",
+        help="Install and activate SAGE for this machine and current project AI agents.",
+    )
+    install_parser.add_argument("--force", action="store_true", help="Repair/re-run setup before installing.")
+    install_parser.add_argument(
+        "--no-project",
+        action="store_true",
+        help="Only install global/user AI-agent memory files, not the current project.",
+    )
+    install_parser.add_argument(
+        "--no-wait",
+        action="store_true",
+        help="Do not pause for Enter after a successful interactive install.",
+    )
     sub.add_parser("stats", help="Show SAGE token, ML, and agent statistics.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
     sub.add_parser("gui", help="Show GUI availability status.")
@@ -768,7 +783,11 @@ def main(argv: list[str] | None = None) -> int:
         return api_command(args)
 
     if args.command_name == "install":
-        return install_command()
+        return install_command(
+            force=bool(getattr(args, "force", False)),
+            project=not bool(getattr(args, "no_project", False)),
+            wait=not bool(getattr(args, "no_wait", False)),
+        )
 
     if args.command_name == "connect":
         return connect_command(args)
@@ -3330,14 +3349,29 @@ def init_project() -> int:
     print("Local agents should now read AGENTS.md / CLAUDE.md and Claude hooks will block non-SAGE tool use.")
     return 0
 
-def install_command() -> int:
-    from .install import install_sage_system_wide
+def _wait_for_enter_if_interactive(message: str) -> None:
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return
+    try:
+        input(message)
+    except (EOFError, KeyboardInterrupt):
+        print()
 
-    results = install_sage_system_wide()
-    print("\nSAGE system-wide enforcement status:")
-    for name, changed in results.items():
-        print(f"- {name.replace('_', ' ')}: {'updated' if changed else 'already configured or skipped'}")
-    print("\nRestart Claude/Codex/Cursor/Windsurf/OpenCode/Aider sessions so they reload instructions.")
+
+def install_command(*, force: bool = False, project: bool = True, wait: bool = True) -> int:
+    """One-command onboarding: setup API identity and install agent enforcement."""
+    print("SAGE install")
+    print("This connects this machine, installs/repairs AI-agent instructions, and enables SAGE hooks.")
+    print()
+
+    rc = activate_command(force=force, project=project)
+    if rc != 0:
+        return rc
+
+    print()
+    print("SAGE installed successfully.")
+    if wait:
+        _wait_for_enter_if_interactive("Press Enter to finish.")
     return 0
 
 def gui_command() -> int:

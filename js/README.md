@@ -9,15 +9,15 @@ and PyPI behavior stay identical. ML V1 is included. ML V2 remains optional.
 
 ```bash
 npm install -g psycgod-sage
-npx -y psycgod-sage activate
+npx -y psycgod-sage install
 ```
 
-`activate` is compulsory before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically. It writes/repairs local AI-agent memory files and supported shell-wrapper hooks, then prints a verification report. It does **not** auto-enable SAGE MCP. Restart open AI-agent sessions after activation.
+`install` is the explicit one-command onboarding step before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically. It connects this machine, writes/repairs local AI-agent memory files and supported shell-wrapper hooks, then prints a verification report. It does **not** auto-enable SAGE MCP. Restart open AI-agent sessions after install.
 
 One-shot npx usage:
 
 ```bash
-npx -y psycgod-sage activate
+npx -y psycgod-sage install
 npx -y psycgod-sage run -- npm test
 ```
 
@@ -25,14 +25,14 @@ Equivalent Python install:
 
 ```bash
 pip install psycgod-sage
-sage activate
+sage install
 sage run -- npm test
 ```
 
 ## Usage
 
 ```bash
-npx -y psycgod-sage activate
+npx -y psycgod-sage install
 npx -y psycgod-sage run -- npm test
 npx -y psycgod-sage history
 npx -y psycgod-sage explain --failed

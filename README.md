@@ -225,12 +225,12 @@ SAGE sits between your terminal and your AI coding workflow. It keeps full raw l
 
 SAGE attempts connected proof mode automatically during first setup using a machine identity/hardware login. If the cloud is unreachable, commands still work locally and safe telemetry stays queued for a later retry.
 
-Local-only mode is the opt-out/offline mode. It does not require GitHub OAuth and does not send data.
+Local-only mode is the opt-out/offline mode. It does not require any account login and does not send data.
 
-| Mode | Requires OAuth? | Sends data? | What leaves the machine? |
+| Mode | Requires login? | Sends data? | What leaves the machine? |
 |---|---:|---:|---|
 | Local-only | No | No | Nothing |
-| Connected proof | Yes | Yes | Aggregate counters only |
+| Connected proof | SAGE machine auth | Yes | Aggregate counters only |
 | Debug telemetry | Optional | Opt-in only | Redacted diagnostic summaries only |
 
 Manual connection commands are for repair, rotation, or advanced users — not required onboarding:
@@ -357,7 +357,7 @@ See [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md) | [CONTRIBUTING.md](CO
 ## Known Limitations
 
 - The desktop GUI is not public yet.
-- GitHub OAuth is only required for connected proof/dashboard sync.
+- Connected proof/dashboard sync uses SAGE machine authentication.
 - ML V2 requires `pip install psycgod-sage[ml]` (~2 GB for torch).
 - ML accuracy improves with usage; fresh installs have minimal training data.
 - The public dashboard is aggregate-only.

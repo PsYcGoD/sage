@@ -400,125 +400,6 @@ def account_status() -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------- API login
-
-def api_github_login(
-    *,
-    auth_code: str = "",
-    github_access_token: str = "",
-    redirect_uri: str = "",
-    display_name: str | None = None,
-    public_profile: bool = False,
-    expiry_days: int = 30,
-    base_url: str = "",
-) -> dict[str, Any]:
-    """
-    Create SAGE API key using GitHub OAuth.
-
-    Args:
-        auth_code: GitHub OAuth authorization code
-        display_name: Optional display name (defaults to GitHub name)
-        public_profile: Show name on public proof
-        expiry_days: API key expiration (30/60/90 days)
-        base_url: Optional API base URL
-
-    Returns:
-        Dict with api_key, key_id, username, etc.
-    """
-    payload = {
-        "github_auth_code": auth_code,
-        "github_access_token": github_access_token,
-        "redirect_uri": redirect_uri,
-        "display_name": display_name,
-        "public_profile": bool(public_profile),
-        "expiry_days": max(1, min(365, int(expiry_days))),
-        "scope": "personal",
-    }
-    config = load_config()
-    payload["installation_id"] = config["installation_id"]
-    payload["client_version"] = _client_version()
-    payload["platform"] = _platform()
-
-    last_error = ""
-    for candidate in _endpoint_candidates(base_url or DEFAULT_API_BASE_URL):
-        try:
-            # Send to /v1/github-login endpoint (handles OAuth exchange)
-            data = json.dumps(payload).encode("utf-8")
-            request = urllib_request.Request(
-                f"{candidate}/v1/github-login",
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": "SAGE-CLI/0.1",
-                },
-                method="POST",
-            )
-            with urllib_request.urlopen(request, timeout=30) as http_response:
-                body = http_response.read().decode("utf-8")
-            response = json.loads(body or "{}")
-        except urllib_error.HTTPError as exc:
-            try:
-                body = exc.read().decode("utf-8", errors="replace")
-                parsed = json.loads(body or "{}")
-                detail = parsed.get("detail") or parsed.get("error") or body
-            except Exception:
-                detail = str(exc)
-            raise RuntimeError(f"SAGE API rejected GitHub login: HTTP {exc.code}: {detail}") from exc
-        except OSError as exc:
-            last_error = str(exc)
-            continue
-
-        api_key = str(response.get("api_key") or "")
-        key_id = str(response.get("key_id") or "")
-        github_username = str(response.get("github_username") or "")
-        github_id = int(response.get("github_id") or 0)
-
-        if not api_key or not key_id:
-            raise RuntimeError("SAGE API did not return an API key.")
-
-        # Save config
-        config["api_base_url"] = candidate
-        config["api_endpoint"] = f"{candidate}/v1/telemetry"
-        config["api_key_id"] = key_id
-        storage = _store_api_key(config, api_key, key_id)
-        config["api_profile"] = {
-            "display_name": response.get("display_name", github_username),
-            "username": github_username,
-            "github_id": github_id,
-            "public_profile": bool(public_profile),
-            "scope": "personal",
-        }
-        config["telemetry_level"] = 1
-        save_config(config)
-
-        # Link account
-        account_link(
-            github_username,
-            user_id=str(github_id),
-            api_key_ref=key_id,
-            key_max_level=1,
-        )
-        account_use(github_username)
-
-        return {
-            "ok": True,
-            "base_url": candidate,
-            "endpoint": f"{candidate}/v1/telemetry",
-            "api_key_redacted": _redact_key(api_key),
-            "key_id": key_id,
-            "username": github_username,
-            "github_id": github_id,
-            "display_name": response.get("display_name", github_username),
-            "expires_at": response.get("expires_at", ""),
-            "public_profile": bool(public_profile),
-            "effective_level": 1,
-            "effective_level_name": "Level 1 (safe metrics only)",
-            "api_key_storage": storage,
-        }
-
-    raise RuntimeError(f"SAGE API unreachable. Last error: {last_error}")
-
-
 def api_login(
     *,
     display_name: str = "",
@@ -530,7 +411,7 @@ def api_login(
     expiry_days: int = 30,
 ) -> dict[str, Any]:
     """Create a SAGE API key and store it locally."""
-    raise RuntimeError("Legacy API login is disabled. Use GitHub OAuth with `sage connect`.")
+    raise RuntimeError("Legacy API login is disabled. Use SAGE machine authentication with `sage connect`.")
     payload = {
         "display_name": display_name,
         "username": username,

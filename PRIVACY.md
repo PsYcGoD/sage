@@ -2,10 +2,10 @@
 
 SAGE CLI is local-first. The default design is that raw terminal data stays on your machine.
 
-| Mode | Requires GitHub OAuth? | Sends data? | What leaves the machine? |
+| Mode | Requires login? | Sends data? | What leaves the machine? |
 |---|---:|---:|---|
 | Local-only | No | No | Nothing |
-| Connected proof | Yes | Yes | Aggregate counters only |
+| Connected proof | SAGE machine auth | Yes | Aggregate counters only |
 | Debug/advanced telemetry | Optional | Opt-in only | Redacted diagnostic summaries only |
 
 ## Local Data
@@ -24,7 +24,7 @@ Telemetry level `0` sends nothing. Level `1` sends aggregate proof counters such
 
 Higher telemetry levels are opt-in and constrained by account/key policy.
 
-Connected mode uses GitHub OAuth and a SAGE API key only for optional public proof/dashboard sync.
+Connected mode uses SAGE machine authentication and a SAGE API key only for optional public proof/dashboard sync.
 
 ## Credentials
 

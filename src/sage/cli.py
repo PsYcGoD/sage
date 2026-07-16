@@ -1572,7 +1572,7 @@ def api_users_command(args=None) -> int:
     return 0
 
 def login_command(args) -> int:
-    print("SAGE login now uses GitHub OAuth.")
+    print("SAGE login uses SAGE machine authentication.")
     if not hasattr(args, "expiry_days"):
         args.expiry_days = 30
     return connect_command(args)
@@ -1677,7 +1677,7 @@ def _detect_ai_agents() -> list[dict[str, str]]:
 
 
 def connect_command(args) -> int:
-    """Connect SAGE — hardware auth first, then GitHub OAuth as fallback."""
+    """Connect SAGE using SAGE machine authentication only."""
     from . import telemetry
     from .install import install_sage_system_wide, is_sage_installed_system_wide
     import os
@@ -1710,89 +1710,15 @@ def connect_command(args) -> int:
     result = None
     method = ""
 
-    # Method 1: Hardware fingerprint (zero interaction)
-    print("[1/3] Trying hardware authentication...")
+    print("Trying SAGE machine authentication...")
     try:
         result = telemetry.api_machine_login(expiry_days=expiry_days, display_name=display_name)
         method = "hardware"
-        print("      Hardware auth successful!")
+        print("      Machine auth successful!")
     except Exception as hw_exc:
-        print(f"      Hardware auth unavailable: {hw_exc}")
-
-    # Method 2: GitHub CLI token (no browser needed if gh is logged in)
-    if not result:
-        print("[2/3] Trying GitHub CLI (silent)...")
-        import subprocess
-        try:
-            gh = subprocess.run(
-                ["gh", "auth", "token"],
-                capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=10,
-            )
-            token = gh.stdout.strip()
-            if gh.returncode == 0 and token:
-                result_data = telemetry.api_github_login(
-                    github_access_token=token,
-                    expiry_days=expiry_days,
-                )
-                result = {
-                    "ok": True,
-                    "key_id": result_data.get("key_id"),
-                    "username": result_data.get("github_username") or result_data.get("username", ""),
-                    "expires_at": result_data.get("expires_at", ""),
-                    "method": "github-cli",
-                    "storage": telemetry.load_config().get("api_key_storage", "file"),
-                }
-                method = "github-cli"
-                print("      GitHub CLI auth successful!")
-            else:
-                raise RuntimeError("gh not authenticated")
-        except Exception as gh_exc:
-            print(f"      GitHub CLI unavailable: {gh_exc}")
-
-    # Method 3: GitHub OAuth (browser/device flow)
-    if not result and (bool(getattr(args, "auto_only", False)) or not sys.stdin.isatty()):
-        print("[3/3] Skipping browser/device OAuth in automatic mode.")
+        print(f"      Machine auth unavailable: {hw_exc}")
         print("SAGE remains usable locally. Automatic setup will retry on repair/force setup.")
         return 1
-
-    if not result:
-        print("[3/3] Starting GitHub OAuth...")
-        from .github_oauth import github_device_flow, github_oauth_flow
-        try:
-            try:
-                oauth_result = github_oauth_flow()
-                if not oauth_result.get("auth_code"):
-                    raise RuntimeError("No auth code returned")
-                result_data = telemetry.api_github_login(
-                    auth_code=oauth_result["auth_code"],
-                    redirect_uri=oauth_result.get("redirect_uri", ""),
-                    expiry_days=expiry_days,
-                )
-            except Exception:
-                print("      Browser OAuth failed, trying device flow...")
-                device_result = github_device_flow(status_callback=print)
-                result_data = telemetry.api_github_login(
-                    github_access_token=device_result["access_token"],
-                    expiry_days=expiry_days,
-                )
-            result = {
-                "ok": True,
-                "key_id": result_data.get("key_id"),
-                "username": result_data.get("github_username") or result_data.get("username", ""),
-                "expires_at": result_data.get("expires_at", ""),
-                "method": "github-oauth",
-                "storage": telemetry.load_config().get("api_key_storage", "file"),
-            }
-            method = "github-oauth"
-            print("      GitHub OAuth successful!")
-        except Exception as oauth_exc:
-            print(f"\nAll connection methods failed: {oauth_exc}")
-            print("\nTroubleshooting:")
-            print("  1. Check internet connection")
-            print("  2. Install GitHub CLI: https://cli.github.com")
-            print("  3. Repair automatic setup: sage setup --force")
-            return 1
 
     # Verify with server
     print("\nVerifying with server...")
@@ -1849,63 +1775,19 @@ def connect_command(args) -> int:
     return 0
 
 def rotate_key_command(args) -> int:
-    """Rotate API key through GitHub OAuth."""
+    """Rotate API key through SAGE machine authentication."""
     from . import telemetry
-    from .github_oauth import github_oauth_flow
-    import subprocess
 
     old_status = telemetry.api_status()
     expiry_days = _resolve_expiry_days(args)
     try:
         print(f"API key expiration: {expiry_days} days")
-        print("Opening GitHub OAuth to rotate your SAGE API key...")
-        oauth_result = github_oauth_flow()
-        if not oauth_result.get("auth_code"):
-            print("GitHub authentication failed.")
-            return 1
-
-        try:
-            result = telemetry.api_github_login(
-                auth_code=oauth_result["auth_code"],
-                redirect_uri=oauth_result.get("redirect_uri", ""),
-                display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
-                public_profile=(
-                    args.public_profile
-                    if hasattr(args, "public_profile") and args.public_profile
-                    else bool(old_status.get("profile", {}).get("public_profile"))
-                ),
-                expiry_days=expiry_days,
-                base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
-            )
-        except Exception as oauth_exc:
-            print(f"Browser OAuth API exchange failed: {oauth_exc}")
-            print("Trying GitHub CLI fallback...")
-            gh = subprocess.run(
-                ["gh", "auth", "token"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=20,
-            )
-            token = gh.stdout.strip()
-            if gh.returncode != 0 or not token:
-                details = (gh.stderr or gh.stdout or "").strip()
-                raise RuntimeError(
-                    "Browser OAuth failed and GitHub CLI fallback is not available. "
-                    f"gh output: {details or 'no token returned'}"
-                ) from oauth_exc
-            result = telemetry.api_github_login(
-                github_access_token=token,
-                display_name=args.display_name or old_status.get("profile", {}).get("display_name") or None,
-                public_profile=(
-                    args.public_profile
-                    if hasattr(args, "public_profile") and args.public_profile
-                    else bool(old_status.get("profile", {}).get("public_profile"))
-                ),
-                expiry_days=expiry_days,
-                base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
-            )
+        print("Rotating SAGE API key with machine authentication...")
+        result = telemetry.api_machine_login(
+            expiry_days=expiry_days,
+            display_name=args.display_name or old_status.get("profile", {}).get("display_name") or "",
+            base_url=args.endpoint if hasattr(args, "endpoint") else old_status.get("base_url", ""),
+        )
     except Exception as exc:
         print(f"Key rotation failed: {exc}")
         return 1

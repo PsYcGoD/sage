@@ -306,14 +306,14 @@ class SettingsPanel(ctk.CTkToplevel):
             return
         if hasattr(self, "sage_api_github_label"):
             self.sage_api_github_label.configure(
-                text=f"@{status.get('username')} (GitHub)" if status.get("connected") else "Not connected",
+                text=f"{status.get('username') or status.get('display_name') or 'machine'}" if status.get("connected") else "Not connected",
                 text_color="#10b981" if status.get("connected") else "#6b7280",
             )
         if status.get("display_name"):
             self.config.set("profile_name", status.get("display_name"))
 
     def _connect_sage_api(self):
-        """Connect SAGE API with GitHub OAuth."""
+        """Connect SAGE API with SAGE machine authentication."""
         display_name = None
         public_profile = self.sage_api_public_switch.get() == 1
 
@@ -322,87 +322,17 @@ class SettingsPanel(ctk.CTkToplevel):
         expiry_days = int(expiry_text.split()[0])  # Extract number
 
         self.sage_api_connect_btn.configure(state="disabled", text="Connecting...")
-        self.sage_api_status.configure(text="Checking GitHub login...", text_color="gray65")
+        self.sage_api_status.configure(text="Connecting with SAGE machine auth...", text_color="gray65")
 
         def worker():
             try:
                 from sage import telemetry
-                from sage.github_oauth import github_device_flow, github_oauth_flow
                 from sage.install import install_sage_system_wide, is_sage_installed_system_wide
 
-                result = None
-                gh_error = None
-                device_error = None
-
-                try:
-                    self.after(0, lambda: self.sage_api_status.configure(
-                        text="Using existing GitHub CLI login...",
-                        text_color="gray65",
-                    ))
-                    result = self._connect_sage_api_with_gh_token(
-                        display_name=display_name,
-                        public_profile=public_profile,
-                        expiry_days=expiry_days,
-                        original_error=RuntimeError("Browser OAuth was not attempted"),
-                    )
-                except Exception as exc:
-                    gh_error = exc
-
-                if result is None:
-                    try:
-                        self.after(0, lambda: self.sage_api_status.configure(
-                            text="Opening GitHub device login...",
-                            text_color="gray65",
-                        ))
-
-                        device_result = github_device_flow(
-                            status_callback=lambda message: self.after(
-                                0,
-                                lambda text=message: self.sage_api_status.configure(
-                                    text=text,
-                                    text_color="gray65",
-                                ),
-                            )
-                        )
-                        result = telemetry.api_github_login(
-                            github_access_token=device_result["access_token"],
-                            display_name=display_name,
-                            public_profile=public_profile,
-                            expiry_days=expiry_days,
-                        )
-                    except Exception as exc:
-                        device_error = exc
-
-                if result is None:
-                    try:
-                        self.after(0, lambda: self.sage_api_status.configure(
-                            text="Opening GitHub browser login...",
-                            text_color="gray65",
-                        ))
-                        oauth_result = github_oauth_flow()
-
-                        if not oauth_result.get("auth_code"):
-                            raise RuntimeError("GitHub authentication cancelled")
-
-                        self.after(0, lambda: self.sage_api_status.configure(
-                            text="GitHub approved. Creating SAGE API key...",
-                            text_color="gray65",
-                        ))
-
-                        result = telemetry.api_github_login(
-                            auth_code=oauth_result["auth_code"],
-                            redirect_uri=oauth_result.get("redirect_uri", ""),
-                            display_name=display_name,
-                            public_profile=public_profile,
-                            expiry_days=expiry_days,
-                        )
-                    except Exception as oauth_exc:
-                        raise RuntimeError(
-                            "All GitHub login methods failed. "
-                            f"GitHub CLI: {gh_error}. "
-                            f"Device login: {device_error}. "
-                            f"Browser login: {oauth_exc}"
-                        ) from oauth_exc
+                result = telemetry.api_machine_login(
+                    display_name=display_name or "",
+                    expiry_days=expiry_days,
+                )
 
                 profile_name = result.get("display_name") or result.get("username") or ""
                 if profile_name:
@@ -417,7 +347,7 @@ class SettingsPanel(ctk.CTkToplevel):
                     "SAGE API connected\n"
                     f"Endpoint: {result['base_url']}\n"
                     f"Key: {result['key_id']}\n"
-                    f"GitHub: @{result.get('username')}\n"
+                    f"Identity: {result.get('username') or result.get('display_name') or 'machine'}\n"
                     "Local proof history sync has started in the background.\n"
                     "Safe metrics are enabled. Raw commands and output stay local."
                 )
@@ -428,40 +358,6 @@ class SettingsPanel(ctk.CTkToplevel):
                 self.after(0, lambda: self._finish_sage_api_connect(message, ok=False))
 
         threading.Thread(target=worker, daemon=True).start()
-
-    def _connect_sage_api_with_gh_token(
-        self,
-        *,
-        display_name: str | None,
-        public_profile: bool,
-        expiry_days: int,
-        original_error: Exception,
-    ) -> dict:
-        from sage import telemetry
-
-        result = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=20,
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
-        )
-        token = result.stdout.strip()
-        if result.returncode != 0 or not token:
-            details = (result.stderr or result.stdout or "").strip()
-            raise RuntimeError(
-                "Browser OAuth failed and GitHub CLI fallback is not available. "
-                f"OAuth error: {original_error}. gh output: {details or 'no token returned'}"
-            )
-
-        return telemetry.api_github_login(
-            github_access_token=token,
-            display_name=display_name,
-            public_profile=public_profile,
-            expiry_days=expiry_days,
-        )
 
     def _sync_sage_api_after_connect(self):
         try:

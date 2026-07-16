@@ -129,7 +129,7 @@ AGENT_SPECS: dict[str, dict] = {
     "GitHub Copilot": {
         "icon": "🐙",
         "modes": {
-            "GitHub OAuth": {
+            "GitHub CLI Login": {
                 "inject": False,
                 "description": "Opens GitHub login in your browser. Requires an active Copilot subscription.",
                 "action": "gh auth login",

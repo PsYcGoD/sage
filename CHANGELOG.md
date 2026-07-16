@@ -109,7 +109,7 @@
 ### Documentation
 
 - README updated with live proof stats from public dashboard.
-- Install path clarified: GitHub-first until PyPI Trusted Publishing is resolved.
+- Install path clarified for PyPI/npm first installs.
 
 ## v2.0.0-cli-public
 
@@ -138,6 +138,6 @@ Public CLI-first release candidate for SAGE.
 ### Known Limitations
 
 - The GUI is not public yet.
-- GitHub OAuth / SAGE API access is required for most API-backed commands.
+- SAGE machine authentication is required for connected proof/dashboard sync.
 - Telemetry above local-only is opt-in and policy-limited.
 - The public dashboard publishes aggregate proof metrics only.

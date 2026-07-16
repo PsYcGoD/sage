@@ -1,4 +1,4 @@
-// SAGE API Connection - Auto-connect with machine UUID / git oauth
+// SAGE API Connection - Auto-connect with machine UUID.
 import { execSync } from 'child_process';
 import { homedir, platform } from 'os';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +10,7 @@ const API_BASE = 'https://sage.api.marketingstudios.in';
 export interface ConnectResult {
   ok: boolean;
   keyId?: string;
+  apiKey?: string;
   error?: string;
 }
 
@@ -17,15 +18,18 @@ export async function autoConnect(displayName: string): Promise<ConnectResult> {
   const machineId = getMachineId();
   
   try {
-    const response = await fetch(`${API_BASE}/v1/connect`, {
+    const response = await fetch(`${API_BASE}/v1/machine-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         display_name: displayName,
-        machine_id: machineId,
+        fingerprint: machineId,
+        hostname: displayName || machineId.slice(0, 12),
+        installation_id: machineId,
         platform: platform(),
-        version: '1.0.0',
-        source: 'sage-js'
+        client_version: '1.0.0',
+        source: 'sage-js',
+        expiry_days: 30
       })
     });
     
@@ -33,12 +37,12 @@ export async function autoConnect(displayName: string): Promise<ConnectResult> {
       return { ok: false, error: `HTTP ${response.status}` };
     }
 
-    const data = await response.json() as { key_id?: string };
+    const data = await response.json() as { key_id?: string; api_key?: string };
     
     // Store the key
-    storeApiKey(data.key_id || machineId);
+    storeApiKey(data.api_key || data.key_id || machineId);
     
-    return { ok: true, keyId: data.key_id };
+    return { ok: true, keyId: data.key_id, apiKey: data.api_key };
   } catch (e) {
     // Offline - queue for later, but still return success for setup
     storeApiKey(machineId); // Use machine ID as temporary key

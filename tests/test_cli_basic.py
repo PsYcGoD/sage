@@ -95,7 +95,7 @@ class TestSageRun:
         assert "42" in result.stdout
 
     def test_sage_run_works_local_only_on_clean_machine(self, tmp_path):
-        """A fresh install can wrap commands without GitHub OAuth."""
+        """A fresh install can wrap commands without account login."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
         env["SAGE_SKIP_AUTO_INSTALL"] = "1"
@@ -111,7 +111,7 @@ class TestSageRun:
         assert "requires API connection" not in result.stdout
 
     def test_context_report_works_local_only_on_clean_machine(self, tmp_path):
-        """A fresh install can inspect local context stats without GitHub OAuth."""
+        """A fresh install can inspect local context stats without account login."""
         env = os.environ.copy()
         env["LOCALAPPDATA"] = str(tmp_path)
         env["SAGE_SKIP_AUTO_INSTALL"] = "1"

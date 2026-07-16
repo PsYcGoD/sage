@@ -17,9 +17,8 @@ SAGE_MANDATORY_BODY = """## SAGE Integration - MANDATORY
 When a user asks for any coding, repo, file, debugging, documentation, or project task, start through SAGE automatically. The user should not need to type `sage`.
 
 First actions for normal repo work:
-- Inspect files with SAGE MCP tools first: `mcp__sage__sage_tree`, `mcp__sage__sage_glob`, `mcp__sage__sage_grep`, `mcp__sage__sage_read_file`
-- Use `mcp__sage__sage_write_file` / `mcp__sage__sage_edit_file` for file changes when available
 - Route every terminal command through a SAGE wrapper
+- Use native file/search/edit tools normally unless the user has manually installed and enabled the optional SAGE MCP server.
 
 Route every shell command through SAGE. Do not run bare terminal commands.
 
@@ -46,19 +45,17 @@ Examples:
 - Wrong: `git status`
 - Correct: `sage run -- git status`
 
-For agents with native file/search/edit tools, shell wrapping is not enough. Use SAGE MCP tools for repository work:
-- `mcp__sage__sage_read_file` instead of direct `Read`
-- `mcp__sage__sage_grep` instead of direct `Grep`
-- `mcp__sage__sage_glob` instead of direct `Glob`
-- `mcp__sage__sage_tree` instead of direct tree/listing tools
-- `mcp__sage__sage_write_file` and `mcp__sage__sage_edit_file` instead of direct `Write` or `Edit`
+Optional MCP:
+- SAGE MCP is not auto-enabled because MCP stdio sessions can disconnect in long-running AI-agent sessions.
+- If SAGE MCP tools are manually installed and visible, you may use them.
+- If SAGE MCP tools are unavailable or disconnected, keep working with native file/search/edit tools and continue wrapping terminal commands through SAGE.
 
 Example user request:
 - User: "Please help me with my general book in this folder"
-- Correct agent start: use `mcp__sage__sage_tree`/`sage_glob`/`sage_grep`/`sage_read_file`, then use `sage run -- <command>` only when a terminal command is needed.
-- Wrong agent start: direct `Read`, `Grep`, `Glob`, `python`, `git`, `npm`, or `ls`.
+- Correct agent start: inspect/read/edit files with available native tools, then use `sage run -- <command>` only when a terminal command is needed.
+- Wrong agent start: bare `python`, `git`, `npm`, `ls`, or other terminal commands without SAGE.
 
-Any spawned subagent must be given the same SAGE requirements in its prompt. Do not spawn an agent without explicitly telling it to use a SAGE wrapper and SAGE MCP tools.
+Any spawned subagent must be given the same SAGE shell-wrapper requirement in its prompt. Do not require MCP tools unless the user manually enabled SAGE MCP and the tools are currently connected.
 """
 
 SAGE_MANDATORY_INSTRUCTION = (
@@ -114,16 +111,6 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
 
     SAGE_PREFIXES = ("sage run --", "npx -y psycgod-sage run --")
-    FILE_TOOLS = {
-        "Read",
-        "Grep",
-        "Glob",
-        "Write",
-        "Edit",
-        "MultiEdit",
-        "NotebookRead",
-        "NotebookEdit",
-    }
 
 
     def _payload() -> dict[str, Any]:
@@ -136,11 +123,6 @@ CLAUDE_HOOK_SCRIPT = dedent(
     def _deny(message: str) -> int:
         print(message, file=sys.stderr)
         return 2
-
-
-    def _allows_subagent(prompt: str) -> bool:
-        lowered = prompt.lower()
-        return any(prefix in lowered for prefix in SAGE_PREFIXES) and "mcp__sage__" in lowered
 
 
     def main() -> int:
@@ -157,15 +139,12 @@ CLAUDE_HOOK_SCRIPT = dedent(
                     "The blocked command is intentionally not printed to avoid leaking secrets."
                 )
 
-        if tool_name in FILE_TOOLS:
-            return _deny("SAGE enforcement: Use SAGE MCP tools instead of direct file/search/edit tools.")
-
         if tool_name == "Agent":
             prompt = str(tool_input.get("prompt") or "")
-            if not _allows_subagent(prompt):
+            if not any(prefix in prompt.lower() for prefix in SAGE_PREFIXES):
                 return _deny(
                     "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                    "to use a SAGE wrapper and SAGE MCP tools."
+                    "to route terminal commands through a SAGE wrapper."
                 )
 
         return 0
@@ -183,35 +162,16 @@ CLAUDE_SETTINGS = {
             "Bash(npx -y psycgod-sage run -- *)",
             "PowerShell(sage run -- *)",
             "PowerShell(npx -y psycgod-sage run -- *)",
-            "mcp__sage__sage_call",
-            "mcp__sage__sage_edit_file",
-            "mcp__sage__sage_explain_error",
-            "mcp__sage__sage_get_history",
-            "mcp__sage__sage_glob",
-            "mcp__sage__sage_grep",
-            "mcp__sage__sage_read_file",
-            "mcp__sage__sage_run_workflow",
-            "mcp__sage__sage_show_raw",
-            "mcp__sage__sage_spawn_agent",
-            "mcp__sage__sage_suggest_fix",
-            "mcp__sage__sage_tree",
-            "mcp__sage__sage_write_file",
         ],
         "deny": [
             "Bash(*)",
             "PowerShell(*)",
-            "Read(*)",
-            "Grep(*)",
-            "Glob(*)",
-            "Edit(*)",
-            "Write(*)",
-            "NotebookEdit(*)",
         ],
     },
     "hooks": {
         "PreToolUse": [
             {
-                "matcher": "Bash|Shell|PowerShell|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookRead|NotebookEdit|Agent",
+                "matcher": "Bash|Shell|PowerShell|Agent",
                 "hooks": [
                     {
                         "type": "command",
@@ -327,6 +287,51 @@ def _merge_json_file(path: Path, patch: dict) -> bool:
         return False
 
 
+def _repair_claude_settings(path: Path) -> bool:
+    """Remove stale auto-MCP and native-tool denies from old SAGE injections."""
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8") or "{}")
+    except Exception as exc:
+        print(f"Warning: Could not read {path}: {exc}", file=sys.stderr)
+        return False
+
+    original = json.dumps(data, sort_keys=True)
+    permissions = data.get("permissions")
+    if isinstance(permissions, dict):
+        stale_denies = {
+            "Read(*)",
+            "Grep(*)",
+            "Glob(*)",
+            "Edit(*)",
+            "Write(*)",
+            "MultiEdit(*)",
+            "NotebookRead(*)",
+            "NotebookEdit(*)",
+        }
+        deny = permissions.get("deny")
+        if isinstance(deny, list):
+            permissions["deny"] = [item for item in deny if item not in stale_denies]
+        allow = permissions.get("allow")
+        if isinstance(allow, list):
+            permissions["allow"] = [
+                item for item in allow
+                if not (isinstance(item, str) and item.startswith("mcp__sage__"))
+            ]
+
+    mcp_servers = data.get("mcpServers")
+    if isinstance(mcp_servers, dict) and "sage" in mcp_servers:
+        mcp_servers.pop("sage", None)
+        if not mcp_servers:
+            data.pop("mcpServers", None)
+
+    if json.dumps(data, sort_keys=True) == original:
+        return False
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
 def _shell_path(path: Path) -> str:
     """Return a shell-friendly path for hook commands on Windows and POSIX."""
     return '"' + str(path).replace('"', '\\"') + '"'
@@ -352,40 +357,9 @@ def _install_claude_enforcement(root: Path) -> dict[str, bool]:
     settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = f"python {_shell_path(hook_path)}"
     results["claude_settings"] = _merge_json_file(settings_path, settings)
     results["claude_local_settings"] = _merge_json_file(local_settings_path, settings)
+    results["claude_settings_repair"] = _repair_claude_settings(settings_path)
+    results["claude_local_settings_repair"] = _repair_claude_settings(local_settings_path)
     return results
-
-
-def _register_mcp_server() -> bool:
-    """Register SAGE as MCP server in Claude Code settings."""
-    claude_settings = Path.home() / ".claude" / "settings.json"
-    
-    try:
-        settings = json.loads(claude_settings.read_text(encoding="utf-8")) if claude_settings.exists() else {}
-        
-        if "mcpServers" not in settings:
-            settings["mcpServers"] = {}
-        
-        server = {
-            "command": sys.executable or "python",
-            "args": ["-m", "sage.mcp.server"],
-            "env": {
-                "SAGE_MCP_IDLE_TIMEOUT_SECONDS": "0",
-                "SAGE_MCP_ENABLE_COMMANDS": "0",
-                "SAGE_MCP_VERBOSE": "0",
-            },
-            "description": "Smart Agent Guidance Engine - stable local MCP server"
-        }
-        if settings["mcpServers"].get("sage") == server:
-            return False
-        
-        settings["mcpServers"]["sage"] = server
-        
-        claude_settings.parent.mkdir(parents=True, exist_ok=True)
-        claude_settings.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-        return True
-    except Exception as exc:
-        print(f"Warning: Could not register MCP server: {exc}", file=sys.stderr)
-        return False
 
 
 def install_sage_system_wide(*, verbose: bool = True) -> dict[str, bool]:
@@ -394,7 +368,7 @@ def install_sage_system_wide(*, verbose: bool = True) -> dict[str, bool]:
 
     Modifies:
     - ~/.claude/CLAUDE.md
-    - ~/.claude/settings.json (MCP server registration)
+    - ~/.claude/settings.json (shell-wrapper hook only; MCP is manual)
     - ~/.codex/AGENTS.md
     - ~/.cursorrules
     - ~/.windsurfrules
@@ -426,15 +400,6 @@ def install_sage_system_wide(*, verbose: bool = True) -> dict[str, bool]:
     if verbose:
         for name, changed in claude_results.items():
             print(f"{'Installed' if changed else 'Verified'} {name.replace('_', ' ')}")
-
-    # Register MCP server for Claude Code
-    mcp_registered = _register_mcp_server()
-    results["mcp_server"] = mcp_registered
-    if verbose:
-        if mcp_registered:
-            print("Registered SAGE MCP server in Claude Code")
-        else:
-            print("MCP server already registered or Claude Code not found")
 
     if verbose:
         print("\nSAGE prompt integration complete")

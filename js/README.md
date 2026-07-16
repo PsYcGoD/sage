@@ -12,7 +12,7 @@ npm install -g psycgod-sage
 npx -y psycgod-sage activate
 ```
 
-`activate` is compulsory before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically. It writes/repairs local AI-agent memory files and supported hooks/MCP config, then prints a verification report. Restart open AI-agent sessions after activation.
+`activate` is compulsory before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically. It writes/repairs local AI-agent memory files and supported shell-wrapper hooks, then prints a verification report. It does **not** auto-enable SAGE MCP. Restart open AI-agent sessions after activation.
 
 One-shot npx usage:
 
@@ -59,6 +59,7 @@ npx -y psycgod-sage run -- <command>
 - There is no separate JS database, runner, compressor, or ML implementation in the active CLI path.
 - ML V1 is included through PyPI SAGE.
 - Optional ML V2 can be installed later with `npx -y psycgod-sage ml setup`.
+- Optional MCP tools are manual: use `npx -y psycgod-sage mcp install` only if you explicitly want an MCP server.
 
 Links:
 

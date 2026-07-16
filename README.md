@@ -18,17 +18,17 @@ Official landing and install:
 - Marketing Studios: [marketingstudios.in](https://marketingstudios.in/)
 - AI answer-engine context: [llms.txt](https://sage.api.marketingstudios.in/llms.txt)
 
-## Start Here: Install, Activate, Then Use Any AI Agent
+## Start Here: Install SAGE, Then Use Any AI Agent
 
-Package install is intentionally passive for PyPI/npm safety. **Activation is compulsory before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically.**
+Package install is intentionally passive for PyPI/npm safety. **Run `sage install` once before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically.**
 
-Run `sage activate` once after install. It connects when reachable, writes/repairs global and project AI-agent memory files, installs shell-wrapper hooks where supported, and prints a verification report. It does **not** auto-enable the SAGE MCP server.
+`sage install` connects this machine when reachable, writes/repairs global and project AI-agent memory files, installs shell-wrapper hooks where supported, and prints a verification report. It does **not** auto-enable the SAGE MCP server.
 
 ### PyPI / pip
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
-sage activate
+sage install
 sage run -- python -m pytest
 ```
 
@@ -36,21 +36,21 @@ sage run -- python -m pytest
 
 ```bash
 npm install -g psycgod-sage
-npx -y psycgod-sage activate
+npx -y psycgod-sage install
 npx -y psycgod-sage run -- npm test
 ```
 
 If you only want to verify activation later:
 
 ```bash
-sage activate
+sage install
 sage doctor --activation
 # or from npm/npx
-npx -y psycgod-sage activate
+npx -y psycgod-sage install
 npx -y psycgod-sage doctor --activation
 ```
 
-After activation, restart any open AI-agent sessions. Then a normal prompt like:
+After install, restart any open AI-agent sessions. Then a normal prompt like:
 
 ```text
 Please help me with my general book in this folder.

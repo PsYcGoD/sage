@@ -50,11 +50,11 @@ def test_allows_npx_sage_wrapped_shell_command():
     assert result.stderr == ""
 
 
-def test_blocks_direct_file_tool():
+def test_allows_direct_file_tool():
     result = run_hook({"tool_name": "Read", "tool_input": {"file_path": "README.md"}})
 
-    assert result.returncode == 2
-    assert "Use SAGE MCP tools instead" in result.stderr
+    assert result.returncode == 0
+    assert result.stderr == ""
 
 
 def test_blocks_subagent_without_sage_instructions():

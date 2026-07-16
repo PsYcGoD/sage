@@ -191,8 +191,8 @@ class TestAgentInstall:
         assert "sage run -- <command>" in content
         assert "npx -y psycgod-sage run -- <command>" in content
         assert "start through SAGE automatically" in content
-        assert "mcp__sage__sage_read_file" in content
-        assert "mcp__sage__sage_tree" in content
+        assert "Use native file/search/edit tools normally" in content
+        assert "SAGE MCP tools are unavailable" in content
         assert "Please help me with my general book in this folder" in content
         assert "ð" not in content
         assert "â" not in content
@@ -201,8 +201,8 @@ class TestAgentInstall:
         assert "PreToolUse" in settings
         assert "Bash(sage run -- *)" in settings
         assert "Bash(npx -y psycgod-sage run -- *)" in settings
-        assert "Read(*)" in settings
-        assert "mcpServers" in settings
+        assert "Read(*)" not in settings
+        assert "mcpServers" not in settings
         parsed_settings = json.loads(settings)
         hook_config = parsed_settings["hooks"]["PreToolUse"][0]["hooks"][0]
         assert hook_config["type"] == "command"
@@ -229,17 +229,21 @@ class TestAgentInstall:
 
         claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert "SAGE Integration - MANDATORY" in claude
-        assert "mcp__sage__sage_edit_file" in claude
+        assert "Use native file/search/edit tools normally" in claude
         assert "start through SAGE automatically" in claude
 
     def test_cli_install_command_runs_system_enforcement(self, tmp_path, monkeypatch):
-        from sage import install
-        from sage.cli import install_command
+        from sage import cli
 
-        monkeypatch.setattr(install.Path, "home", staticmethod(lambda: tmp_path))
-        assert install_command() == 0
-        assert (tmp_path / ".claude" / "CLAUDE.md").exists()
-        assert (tmp_path / ".codex" / "AGENTS.md").exists()
+        calls: list[tuple[bool, bool]] = []
+
+        def fake_activate_command(*, force: bool = False, project: bool = True) -> int:
+            calls.append((force, project))
+            return 0
+
+        monkeypatch.setattr(cli, "activate_command", fake_activate_command)
+        assert cli.install_command(force=True, project=False, wait=False) == 0
+        assert calls == [(True, False)]
 
     def test_auto_enforcement_warning_does_not_block_commands(self, monkeypatch):
         from sage import install

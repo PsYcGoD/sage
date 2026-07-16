@@ -71,6 +71,8 @@ Use Claude's native file/search/edit tools normally.
 
 SAGE MCP is optional and manual only. If SAGE MCP tools are visible and connected, they may be used. If they are unavailable or disconnected, continue with native Read/Grep/Glob/Edit/Write tools. Do not block work just because MCP is down.
 
+For multi-line file writes/appends, use native Write/Edit tools. Do not use shell heredocs through `sage run`; heredocs are shell-specific and can fail through wrappers/monitors.
+
 ## Subagents
 
 Any spawned subagent must receive the same SAGE instruction in its prompt:
@@ -78,6 +80,7 @@ Any spawned subagent must receive the same SAGE instruction in its prompt:
 ```text
 Use SAGE for every shell command: sage run -- <command> or npx -y psycgod-sage run -- <command>.
 Use native file/search/edit tools unless optional SAGE MCP tools are manually enabled and currently connected.
+Use native Write/Edit for multi-line file writes instead of heredocs through SAGE.
 Do not use bare Bash/PowerShell.
 ```
 

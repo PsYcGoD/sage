@@ -19,6 +19,7 @@ When a user asks for any coding, repo, file, debugging, documentation, or projec
 First actions for normal repo work:
 - Route every terminal command through a SAGE wrapper
 - Use native file/search/edit tools normally unless the user has manually installed and enabled the optional SAGE MCP server.
+- For multi-line file writes/appends, use native Write/Edit tools. Do not use shell heredocs through `sage run`; heredocs are shell-specific and can fail through wrappers/monitors.
 
 Route every shell command through SAGE. Do not run bare terminal commands.
 
@@ -49,6 +50,7 @@ Optional MCP:
 - SAGE MCP is not auto-enabled because MCP stdio sessions can disconnect in long-running AI-agent sessions.
 - If SAGE MCP tools are manually installed and visible, you may use them.
 - If SAGE MCP tools are unavailable or disconnected, keep working with native file/search/edit tools and continue wrapping terminal commands through SAGE.
+- Multi-line file writes should use native Write/Edit tools, not shell heredocs through `sage run`.
 
 Example user request:
 - User: "Please help me with my general book in this folder"
@@ -292,7 +294,7 @@ def _repair_claude_settings(path: Path) -> bool:
     if not path.exists():
         return False
     try:
-        data = json.loads(path.read_text(encoding="utf-8") or "{}")
+        data = json.loads(path.read_text(encoding="utf-8-sig") or "{}")
     except Exception as exc:
         print(f"Warning: Could not read {path}: {exc}", file=sys.stderr)
         return False
@@ -332,6 +334,25 @@ def _repair_claude_settings(path: Path) -> bool:
     return True
 
 
+def _remove_sage_mcp_server_file(path: Path) -> bool:
+    """Remove stale SAGE MCP registration from Claude mcp-servers.json."""
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig") or "{}")
+    except Exception as exc:
+        print(f"Warning: Could not read {path}: {exc}", file=sys.stderr)
+        return False
+    if not isinstance(data, dict) or "sage" not in data:
+        return False
+    data.pop("sage", None)
+    if data:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    else:
+        path.unlink()
+    return True
+
+
 def _shell_path(path: Path) -> str:
     """Return a shell-friendly path for hook commands on Windows and POSIX."""
     return '"' + str(path).replace('"', '\\"') + '"'
@@ -359,6 +380,7 @@ def _install_claude_enforcement(root: Path) -> dict[str, bool]:
     results["claude_local_settings"] = _merge_json_file(local_settings_path, settings)
     results["claude_settings_repair"] = _repair_claude_settings(settings_path)
     results["claude_local_settings_repair"] = _repair_claude_settings(local_settings_path)
+    results["claude_mcp_file_repair"] = _remove_sage_mcp_server_file(claude_dir / "mcp-servers.json")
     return results
 
 

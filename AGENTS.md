@@ -78,6 +78,7 @@ Use native file/search/edit tools normally. SAGE MCP is optional and manual only
 - If SAGE MCP tools are visible and connected, they may be used.
 - If SAGE MCP tools are unavailable or disconnected, continue with native Read/Grep/Glob/Edit/Write tools.
 - The mandatory rule is for terminal commands: route shell commands through `sage run -- <command>` or `npx -y psycgod-sage run -- <command>`.
+- Multi-line file writes/appends should use native Write/Edit tools, not shell heredocs through `sage run`.
 
 Any spawned subagent must be given the same SAGE shell-wrapper requirement in its prompt. Do not require MCP tools unless the user manually enabled SAGE MCP and the tools are currently connected.
 

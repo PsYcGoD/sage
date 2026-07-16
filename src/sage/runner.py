@@ -116,6 +116,7 @@ def run_command(
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("SAGE_CALLER_CWD", str(Path.cwd()))
 
     if pty:
         return _run_interactive_passthrough(

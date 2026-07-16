@@ -111,6 +111,16 @@ def build_parser() -> argparse.ArgumentParser:
     ml_sub.add_parser("setup", help="Install ML V2 dependencies (torch, sentence-transformers, faiss-cpu).")
     setup_parser = sub.add_parser("setup", help="Run first-time SAGE onboarding.")
     setup_parser.add_argument("--force", action="store_true", help="Run onboarding even if it already completed.")
+    activate_parser = sub.add_parser(
+        "activate",
+        help="Activate SAGE for this machine and current project AI agents.",
+    )
+    activate_parser.add_argument("--force", action="store_true", help="Repair/re-run setup before activating.")
+    activate_parser.add_argument(
+        "--no-project",
+        action="store_true",
+        help="Only activate global/user AI-agent memory files, not the current project.",
+    )
 
     sub.add_parser("demo", help="Show a 15-second SAGE compression demo.")
 
@@ -397,7 +407,7 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
 
 def _ensure_system_enforcement(command_name: str | None) -> bool:
     """Auto-install mandatory local AI-agent instructions on first SAGE use."""
-    if command_name in {"install", "setup"} or os.environ.get("SAGE_SKIP_AUTO_INSTALL") == "1":
+    if command_name in {"install", "setup", "activate"} or os.environ.get("SAGE_SKIP_AUTO_INSTALL") == "1":
         return True
     if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SAGE_TEST_AUTO_INSTALL") != "1":
         return True
@@ -534,6 +544,63 @@ def setup_command(force: bool = False) -> int:
     print("ML daemon command, when needed: `sage serve start`; it sleeps after 10 seconds idle.")
     return 0
 
+
+def _format_activation_results(results: dict[str, bool]) -> None:
+    if not results:
+        print("No activation targets reported.")
+        return
+    changed = [name for name, did_change in results.items() if did_change]
+    verified = [name for name, did_change in results.items() if not did_change]
+    if changed:
+        print("Updated:")
+        for name in sorted(changed):
+            print(f"  - {name}")
+    if verified:
+        print("Verified/unchanged:")
+        for name in sorted(verified):
+            print(f"  - {name}")
+
+
+def activate_command(*, force: bool = False, project: bool = True) -> int:
+    """Explicit activation bridge for AI-agent memory files and hooks."""
+    print("SAGE activation")
+    print("This writes/repairs local AI-agent instructions so supported agents use SAGE automatically.")
+    print()
+
+    setup_rc = setup_command(force=force) if (force or not _read_setup_state().get("completed")) else 0
+    if setup_rc != 0:
+        return setup_rc
+
+    try:
+        from .install import install_sage_project, install_sage_system_wide
+    except Exception as exc:
+        print(f"Activation failed: could not load installer: {exc}")
+        return 1
+
+    print()
+    print("Global AI-agent memory/hooks:")
+    global_results = install_sage_system_wide(verbose=False)
+    _format_activation_results(global_results)
+
+    project_root = Path(os.environ.get("SAGE_CALLER_CWD") or Path.cwd()).resolve()
+    if project:
+        print()
+        print(f"Project AI-agent memory/hooks: {project_root}")
+        project_results = install_sage_project(project_root)
+        _format_activation_results(project_results)
+    else:
+        print()
+        print("Project activation skipped (--no-project).")
+
+    print()
+    print("Activation complete.")
+    print("IMPORTANT: restart any open Claude/Codex/Cursor/Windsurf/OpenCode/Cline sessions now.")
+    print("After restart, normal prompts should make supported agents start with SAGE MCP/file tools")
+    print("and route terminal commands through `sage run -- <command>` or `npx -y psycgod-sage run -- <command>`.")
+    print()
+    print("Verification:")
+    return _activation_doctor()
+
 def _ensure_first_run_setup(command_name: str | None) -> int:
     """Run zero-prompt setup before the first real SAGE command.
 
@@ -544,7 +611,7 @@ def _ensure_first_run_setup(command_name: str | None) -> int:
     """
     if os.environ.get("SAGE_SKIP_SETUP") == "1":
         return 0
-    if command_name in {"setup", "install", "connect", "login", "logout"}:
+    if command_name in {"setup", "activate", "install", "connect", "login", "logout"}:
         return 0
     if _read_setup_state().get("completed"):
         return 0
@@ -563,6 +630,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "setup":
         return setup_command(force=bool(getattr(args, "force", False)))
+
+    if args.command_name == "activate":
+        return activate_command(
+            force=bool(getattr(args, "force", False)),
+            project=not bool(getattr(args, "no_project", False)),
+        )
 
     setup_rc = _ensure_first_run_setup(args.command_name)
     if setup_rc != 0:
@@ -2201,7 +2274,9 @@ def _activation_doctor() -> int:
     print("  - each `sage run -- ...` queues telemetry locally and syncs when connected.")
     print("  - proof snapshots sync every 10th command.")
 
-    ok = bool(status.get("connected")) and api_verified and status.get("effective_level", 0) > 0
+    ok = bool(setup_state.get("completed")) and enforced
+    if status.get("connected") and not api_verified:
+        ok = False
     return 0 if ok else 1
 
 

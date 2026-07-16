@@ -6,12 +6,12 @@
     "url": "https://github.com/PsYcGoD/sage",
     "source": "github"
   },
-  "version": "1.0.21",
+  "version": "1.0.22",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "psycgod-sage",
-      "version": "1.0.21",
+      "version": "1.0.22",
       "transport": {
         "type": "stdio"
       }

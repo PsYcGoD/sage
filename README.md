@@ -20,12 +20,15 @@ Official landing and install:
 
 ## Start Here: Install, Activate, Then Use Any AI Agent
 
-Package install is intentionally passive for PyPI/npm safety. After install, run one SAGE command to activate SAGE, connect when reachable, and inject local AI-agent instructions/hooks.
+Package install is intentionally passive for PyPI/npm safety. **Activation is compulsory before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically.**
+
+Run `sage activate` once after install. It connects when reachable, writes/repairs global and project AI-agent memory files, registers supported hooks/MCP config, and prints a verification report.
 
 ### PyPI / pip
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
+sage activate
 sage run -- python -m pytest
 ```
 
@@ -33,14 +36,17 @@ sage run -- python -m pytest
 
 ```bash
 npm install -g psycgod-sage
+npx -y psycgod-sage activate
 npx -y psycgod-sage run -- npm test
 ```
 
-If you do not want to run a project command yet, activate/check setup with:
+If you only want to verify activation later:
 
 ```bash
+sage activate
 sage doctor --activation
 # or from npm/npx
+npx -y psycgod-sage activate
 npx -y psycgod-sage doctor --activation
 ```
 
@@ -102,19 +108,22 @@ Recommended install:
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
+sage activate
 ```
 
-That command installs the `sage` CLI. Package installation stays passive for package-index safety; activation/injection happens when the user explicitly runs a SAGE command.
+The install command installs the `sage` CLI. Package installation stays passive for package-index safety; activation/injection happens when the user explicitly runs `sage activate` or another SAGE command.
 
-Activation happens on the first explicit SAGE command the user runs:
+Recommended activation and first wrapped command:
 
 ```powershell
+sage activate
 sage run -- python -m pytest
 ```
 
-That first run connects to the SAGE API when reachable and installs AI-agent enforcement before running the wrapped command. To check activation without wrapping a project command:
+`sage activate` connects to the SAGE API when reachable and installs AI-agent memory/hook enforcement before users expect their agents to use SAGE. To check activation without wrapping a project command:
 
 ```powershell
+sage activate
 sage doctor --activation
 ```
 
@@ -125,9 +134,11 @@ Package names:
 - npm: `psycgod-sage`
 
 Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. The first explicit `sage` command activates/connects safely:
+For best agent adoption, run `sage activate` immediately after install:
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
+sage activate
 sage run -- python -m pytest
 ```
 
@@ -156,6 +167,7 @@ npx -y psycgod-sage ml setup
 ```
 
 After install, activation is explicit and visible on first SAGE use. A new user should not have to run `sage login` or `sage connect`; `sage`, `sage setup`, `sage doctor --activation`, or `sage run -- ...` handles connection and prints status.
+For the clearest flow, use `sage activate`; it exists specifically to repair the clone/install/use gap by updating AI-agent memory files before the user opens a coding agent.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 

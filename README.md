@@ -24,7 +24,7 @@ Package install is intentionally passive for PyPI/npm safety. **Run `sage instal
 
 `sage install` connects this machine when reachable, writes/repairs global and project AI-agent memory files, installs shell-wrapper hooks where supported, and prints a verification report. It does **not** auto-enable the SAGE MCP server.
 
-### PyPI / pip
+### PyPI / pip install
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
@@ -32,13 +32,21 @@ sage install
 sage run -- python -m pytest
 ```
 
-### npm / npx
+![PyPI install flow](docs/assets/sage-install-pypi.gif)
+
+### npm / npx install
 
 ```bash
 npm install -g psycgod-sage
 npx -y psycgod-sage install
 npx -y psycgod-sage run -- npm test
 ```
+
+![npm install flow](docs/assets/sage-install-npm.gif)
+
+### What install does
+
+![SAGE install flow diagram](docs/assets/sage-install-flow-diagram.png)
 
 If you only want to verify activation later:
 
@@ -56,18 +64,22 @@ After install, restart any open AI-agent sessions. Then a normal prompt like:
 Please help me with my general book in this folder.
 ```
 
-should make supported agents start with SAGE file/search tools and use `sage run -- <command>` or `npx -y psycgod-sage run -- <command>` for terminal work. The user should not need to keep typing SAGE commands manually.
+should make supported agents use normal file/search/edit tools and route terminal work through `sage run -- <command>` or `npx -y psycgod-sage run -- <command>`. The user should not need to keep typing SAGE commands manually.
 
 ## Live Proof
 
 | Metric | Value |
 |--------|------:|
-| Commands processed | 16,604 |
-| Tokens processed | 499.9M |
-| Tokens saved | 488.9M |
-| Compression rate | 97.79% |
-| Estimated savings | $10,144.24 |
-| Success rate | 91.69% |
+| Commands processed | 20,048 |
+| Tokens processed | 632.2M |
+| Tokens saved | 620.2M |
+| Compression rate | 98.10% |
+| Estimated savings | $12,869.40 |
+| Success rate | 90.45% |
+| Connected users | 37 |
+| Active users, 24h | 6 |
+| Public dashboard visitors | 190 |
+| Public dashboard page views | 566 |
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)  
 Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
@@ -108,22 +120,22 @@ Recommended install:
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
-sage activate
+sage install
 ```
 
-The install command installs the `sage` CLI. Package installation stays passive for package-index safety; activation/injection happens when the user explicitly runs `sage activate` or another SAGE command.
+The package install only installs the `sage` CLI. Package installation stays passive for package-index safety; activation/injection happens when the user explicitly runs `sage install`.
 
-Recommended activation and first wrapped command:
+Recommended install and first wrapped command:
 
 ```powershell
-sage activate
+sage install
 sage run -- python -m pytest
 ```
 
-`sage activate` connects to the SAGE API when reachable and installs AI-agent memory plus shell-wrapper hook enforcement before users expect their agents to use SAGE. It does not auto-register MCP. To check activation without wrapping a project command:
+`sage install` connects to the SAGE API when reachable and installs AI-agent memory plus shell-wrapper hook enforcement before users expect their agents to use SAGE. It does not auto-register MCP. To check activation without wrapping a project command:
 
 ```powershell
-sage activate
+sage install
 sage doctor --activation
 ```
 
@@ -134,17 +146,18 @@ Package names:
 - npm: `psycgod-sage`
 
 Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. The first explicit `sage` command activates/connects safely:
-For best agent adoption, run `sage activate` immediately after install:
+For best agent adoption, run `sage install` immediately after install:
 
 ```powershell
 python -m pip install --upgrade psycgod-sage
-sage activate
+sage install
 sage run -- python -m pytest
 ```
 
 One-shot `npx` usage without global install:
 
 ```bash
+npx -y psycgod-sage install
 npx -y psycgod-sage run -- npm test
 npx -y psycgod-sage run -- python -m pytest
 npx -y psycgod-sage history
@@ -167,7 +180,7 @@ npx -y psycgod-sage ml setup
 ```
 
 After install, activation is explicit and visible on first SAGE use. A new user should not have to run `sage login` or `sage connect`; `sage`, `sage setup`, `sage doctor --activation`, or `sage run -- ...` handles connection and prints status.
-For the clearest flow, use `sage activate`; it exists specifically to repair the clone/install/use gap by updating AI-agent memory files before the user opens a coding agent.
+For the clearest flow, use `sage install`; it exists specifically to repair the clone/install/use gap by updating AI-agent memory files before the user opens a coding agent.
 
 Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
 

@@ -1,10 +1,10 @@
--- 🔒 Security Hardening: Add key expiration, rate limiting, and GitHub OAuth
+-- 🔒 Security Hardening: Add key expiration, rate limiting, and legacy GitHub identity columns
 -- Run this migration to add new security columns to api_keys table
 
 -- Add expires_at column (ISO 8601 timestamp when key expires)
 ALTER TABLE api_keys ADD COLUMN expires_at TEXT DEFAULT '';
 
--- Add GitHub OAuth columns
+-- Add legacy GitHub identity columns
 ALTER TABLE api_keys ADD COLUMN github_id TEXT DEFAULT '';
 ALTER TABLE api_keys ADD COLUMN github_username TEXT DEFAULT '';
 

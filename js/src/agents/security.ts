@@ -22,7 +22,7 @@ export class SecurityAgent implements Agent {
     const secretPatterns = [
       { pattern: /sk-[a-zA-Z0-9]{20,}/g, type: 'OpenAI API key', severity: 'HIGH' },
       { pattern: /ghp_[a-zA-Z0-9]{36}/g, type: 'GitHub personal access token', severity: 'HIGH' },
-      { pattern: /gho_[a-zA-Z0-9]{36}/g, type: 'GitHub OAuth token', severity: 'HIGH' },
+      { pattern: /gho_[a-zA-Z0-9]{36}/g, type: 'GitHub access token', severity: 'HIGH' },
       { pattern: /github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}/g, type: 'GitHub fine-grained token', severity: 'HIGH' },
       { pattern: /AKIA[A-Z0-9]{16}/g, type: 'AWS Access Key ID', severity: 'CRITICAL' },
       { pattern: /[a-zA-Z0-9/+=]{40}/g, type: 'Possible AWS Secret Key', severity: 'HIGH' },

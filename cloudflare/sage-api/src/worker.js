@@ -78,7 +78,7 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
     "url": "https://sage.api.marketingstudios.in/",
     "downloadUrl": "https://pypi.org/project/psycgod-sage/",
     "installUrl": "https://sage.api.marketingstudios.in/install",
-    "softwareVersion": "2.4.22",
+    "softwareVersion": "2.4.23",
     "author": {
       "@type": "Organization",
       "name": "Marketing Studios",
@@ -2185,168 +2185,6 @@ async function handleMachineLogin(env, request) {
   }, existingKey ? 200 : 201);
 }
 
-async function handleGitHubLogin(env, request) {
-  // GitHub OAuth login. One GitHub account has one active SAGE API key.
-  let body;
-  try {
-    body = await readJson(request);
-  } catch (exc) {
-    return error("Invalid JSON", 400, String(exc.message || exc));
-  }
-
-  const authCode = textValue(body.github_auth_code, 200);
-  const suppliedToken = textValue(body.github_access_token, 4000);
-  if (!authCode && !suppliedToken) {
-    return error("Missing github_auth_code or github_access_token", 400);
-  }
-  const redirectUri = textValue(body.redirect_uri, 200);
-
-  // Exchange auth code for GitHub access token, or validate a token supplied
-  // by GitHub CLI fallback. The token is never stored.
-  let githubToken = suppliedToken;
-  if (!githubToken) {
-    try {
-      const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: "Ov23libLspfxbzmPhMSv",
-          client_secret: env.GITHUB_CLIENT_SECRET,
-          code: authCode,
-          ...(redirectUri ? { redirect_uri: redirectUri } : {}),
-        }),
-      });
-
-      const tokenData = await tokenResponse.json();
-      githubToken = tokenData.access_token;
-
-      if (!githubToken) {
-        return error(
-          "GitHub OAuth failed - invalid auth code",
-          401,
-          tokenData.error_description || tokenData.error || ""
-        );
-      }
-    } catch (exc) {
-      return error("GitHub OAuth exchange failed", 500, String(exc.message || exc));
-    }
-  }
-
-  // Get GitHub user info
-  let githubUser;
-  try {
-    const userResponse = await fetch("https://api.github.com/user", {
-      headers: {
-        "Authorization": `Bearer ${githubToken}`,
-        "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "SAGE-API/1.0",
-      },
-    });
-
-    githubUser = await userResponse.json();
-
-    if (!githubUser.id || !githubUser.login) {
-      return error("Failed to fetch GitHub user info", 500);
-    }
-  } catch (exc) {
-    return error("GitHub user info fetch failed", 500, String(exc.message || exc));
-  }
-
-  const githubId = String(githubUser.id);
-  const githubUsername = githubUser.login;
-  const displayName = textValue(body.display_name || githubUser.name || githubUsername, 80);
-  const createdAt = nowIso();
-
-  // Check if this GitHub user already has a key. Because full API keys are
-  // stored only as hashes, reconnecting must rotate/reissue instead of trying
-  // to return the old secret.
-  const existingKey = await env.DB.prepare(
-    "SELECT * FROM api_keys WHERE github_id = ? AND revoked_at = ''"
-  ).bind(githubId).first();
-
-  if (existingKey) {
-    await env.DB.prepare(
-      "UPDATE api_keys SET revoked_at = ? WHERE key_id = ? AND revoked_at = ''"
-    ).bind(createdAt, existingKey.key_id).run();
-  }
-
-  // Generate new API key
-  const keyId = newId("key");
-  const secret = randomHex(32);
-  const token = `sage_live_${keyId}_${secret}`;
-
-  // Key expiration
-  const expiryDays = clampInt(body.expiry_days, 1, 365, 30);
-  const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
-
-  // Rate limiting
-  const rateLimitPerHour = 10000; // Default for GitHub users and telemetry backfills
-
-  const publicProfile = body.public_profile === true || body.public_profile === 1 ? 1 : 0;
-  const installationId = textValue(body.installation_id, 120);
-  const clientVersion = textValue(body.client_version, 80);
-  const platform = textValue(body.platform, 80);
-
-  const statements = [env.DB.prepare(
-    `INSERT INTO api_keys
-      (key_id, secret_hash, prefix, scope, display_name, username, github_id, github_username,
-       public_profile, privacy_max, expires_at, rate_limit_per_hour, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      keyId,
-      await sha256(token),
-      "sage_live",
-      "personal",
-      displayName,
-      githubUsername,
-      githubId,
-      githubUsername,
-      publicProfile,
-      1,
-      expiresAt,
-      rateLimitPerHour,
-      createdAt
-    )
-  ];
-  if (installationId) {
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO installations (installation_id, key_id, first_seen_at, last_seen_at, client_version, platform)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(installation_id) DO UPDATE SET
-          key_id = excluded.key_id,
-          last_seen_at = excluded.last_seen_at,
-          client_version = excluded.client_version,
-          platform = excluded.platform`
-      ).bind(installationId, keyId, createdAt, createdAt, clientVersion, platform)
-    );
-  }
-  await env.DB.batch(statements);
-
-  return json({
-    ok: true,
-    key_id: keyId,
-    api_key: token,
-    github_username: githubUsername,
-    github_id: parseInt(githubId, 10),
-    display_name: displayName,
-    created_at: createdAt,
-    expires_at: expiresAt,
-    rate_limit_per_hour: rateLimitPerHour,
-    profile: {
-      display_name: displayName,
-      username: githubUsername,
-      public_profile: !!publicProfile,
-    },
-    rotated_from: existingKey ? existingKey.key_id : "",
-    warning: "This key is shown once. Store it locally; SAGE stores only the hash.",
-  }, existingKey ? 200 : 201);
-}
-
 async function handleCreateKey(env, request) {
   // Key creation is restricted to trusted clients.
   const masterKey = request.headers.get("X-SAGE-Master-Key");
@@ -3048,7 +2886,6 @@ async function route(request, env) {
   if (request.method === "POST" && url.pathname === "/v1/keys") return handleCreateKey(env, request);
   if (request.method === "GET" && url.pathname === "/v1/whoami") return handleWhoami(env, request);
   if (request.method === "POST" && url.pathname === "/v1/machine-login") return handleMachineLogin(env, request);
-  if (request.method === "POST" && url.pathname === "/v1/github-login") return handleGitHubLogin(env, request);
   if (request.method === "POST" && url.pathname === "/v1/dashboard-click") return handleDashboardClick(env, request);
   if (request.method === "POST" && url.pathname === "/v1/telemetry") return handleTelemetry(env, request);
   if (request.method === "POST" && url.pathname === "/v1/proof-snapshot") return handleProofSnapshot(env, request);

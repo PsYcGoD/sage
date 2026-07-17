@@ -17,20 +17,19 @@ SAGE_MANDATORY_BODY = """## SAGE Integration - MANDATORY
 When a user asks for any coding, repo, file, debugging, documentation, or project task, start through SAGE automatically. The user should not need to type `sage`.
 
 First actions for normal repo work:
-- Route every terminal command through a SAGE wrapper
-- Use native file/search/edit tools normally unless the user has manually installed and enabled the optional SAGE MCP server.
+- Use native file/search/edit tools normally.
+- Route every terminal command through the PyPI SAGE wrapper: `sage run -- <command>`.
 - For multi-line file writes/appends, use native Write/Edit tools. Do not use shell heredocs through `sage run`; heredocs are shell-specific and can fail through wrappers/monitors.
 
 Route every shell command through SAGE. Do not run bare terminal commands.
 
-Allowed wrappers:
-- PyPI/pip install: `sage run -- <command>`
-- npm/npx install: `npx -y psycgod-sage run -- <command>`
+Allowed wrapper:
+- `sage run -- <command>`
 
 Rules:
-- Python: `sage run -- python script.py` or `npx -y psycgod-sage run -- python script.py`
-- Packages: `sage run -- npm install` or `npx -y psycgod-sage run -- npm install`
-- Tests: `sage run -- pytest` or `npx -y psycgod-sage run -- pytest`
+- Python: `sage run -- python script.py`
+- Packages: `sage run -- npm install`
+- Tests: `sage run -- pytest`
 - If the wrapper fails before the target command starts, stop and report the wrapper failure.
 
 Why:
@@ -42,22 +41,15 @@ Why:
 Examples:
 - Wrong: `python test.py`
 - Correct: `sage run -- python test.py`
-- Correct with npm/npx: `npx -y psycgod-sage run -- python test.py`
 - Wrong: `git status`
 - Correct: `sage run -- git status`
-
-Optional MCP:
-- SAGE MCP is not auto-enabled because MCP stdio sessions can disconnect in long-running AI-agent sessions.
-- If SAGE MCP tools are manually installed and visible, you may use them.
-- If SAGE MCP tools are unavailable or disconnected, keep working with native file/search/edit tools and continue wrapping terminal commands through SAGE.
-- Multi-line file writes should use native Write/Edit tools, not shell heredocs through `sage run`.
 
 Example user request:
 - User: "Please help me with my general book in this folder"
 - Correct agent start: inspect/read/edit files with available native tools, then use `sage run -- <command>` only when a terminal command is needed.
 - Wrong agent start: bare `python`, `git`, `npm`, `ls`, or other terminal commands without SAGE.
 
-Any spawned subagent must be given the same SAGE shell-wrapper requirement in its prompt. Do not require MCP tools unless the user manually enabled SAGE MCP and the tools are currently connected.
+Any spawned subagent must be given the same SAGE shell-wrapper requirement in its prompt.
 """
 
 SAGE_MANDATORY_INSTRUCTION = (
@@ -67,8 +59,7 @@ SAGE_MANDATORY_INSTRUCTION = (
 CURSOR_SAGE_INSTRUCTION = (
     f"{SAGE_BLOCK_START}\n"
     "# SAGE Integration - MANDATORY\n\n"
-    "Route every terminal command through `sage run -- <command>` or "
-    "`npx -y psycgod-sage run -- <command>`. "
+    "Route every terminal command through `sage run -- <command>`. "
     "Do not run bare shell commands when SAGE is available.\n"
     f"{SAGE_BLOCK_END}\n"
 )
@@ -77,31 +68,30 @@ AIDER_SAGE_INSTRUCTION = (
     f"\n{SAGE_BLOCK_START}\n"
     "# SAGE Integration - MANDATORY\n"
     "# Route all shell commands through: sage run -- <command>\n"
-    "# Or with npm/npx: npx -y psycgod-sage run -- <command>\n"
     f"{SAGE_BLOCK_END}\n"
 )
 
 CLINE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
-    "Examples: sage run -- npm install, npx -y psycgod-sage run -- python script.py\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+    "Example: sage run -- npm install\n"
 )
 
 CONTINUE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
-    "Examples: sage run -- npm install, npx -y psycgod-sage run -- python script.py\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+    "Example: sage run -- npm install\n"
 )
 
 JETBRAINS_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
-    "Examples: sage run -- npm install, npx -y psycgod-sage run -- python script.py\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
+    "Example: sage run -- npm install\n"
 )
 
 OPENCODE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command> or npx -y psycgod-sage run -- <command>\n"
+    "All terminal commands MUST use: sage run -- <command>\n"
 )
 CLAUDE_HOOK_SCRIPT = dedent(
     r'''
@@ -112,7 +102,7 @@ CLAUDE_HOOK_SCRIPT = dedent(
     from typing import Any
 
 
-    SAGE_PREFIXES = ("sage run --", "npx -y psycgod-sage run --")
+    SAGE_PREFIX = "sage run --"
 
 
     def _payload() -> dict[str, Any]:
@@ -134,19 +124,19 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
         if tool_name in {"Bash", "Shell", "PowerShell"}:
             command = str(tool_input.get("command") or "").strip()
-            if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
+            if not command.startswith(SAGE_PREFIX):
                 return _deny(
                     "SAGE enforcement: shell commands must start with "
-                    "'sage run --' or 'npx -y psycgod-sage run --'. "
+                    "'sage run --'. "
                     "The blocked command is intentionally not printed to avoid leaking secrets."
                 )
 
         if tool_name == "Agent":
             prompt = str(tool_input.get("prompt") or "")
-            if not any(prefix in prompt.lower() for prefix in SAGE_PREFIXES):
+            if SAGE_PREFIX not in prompt.lower():
                 return _deny(
                     "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                    "to route terminal commands through a SAGE wrapper."
+                    "to route terminal commands through 'sage run --'."
                 )
 
         return 0
@@ -161,9 +151,7 @@ CLAUDE_SETTINGS = {
     "permissions": {
         "allow": [
             "Bash(sage run -- *)",
-            "Bash(npx -y psycgod-sage run -- *)",
             "PowerShell(sage run -- *)",
-            "PowerShell(npx -y psycgod-sage run -- *)",
         ],
         "deny": [
             "Bash(*)",
@@ -290,7 +278,7 @@ def _merge_json_file(path: Path, patch: dict) -> bool:
 
 
 def _repair_claude_settings(path: Path) -> bool:
-    """Remove stale auto-MCP and native-tool denies from old SAGE injections."""
+    """Remove stale auto-MCP, npm-wrapper, and native-tool hook entries."""
     if not path.exists():
         return False
     try:
@@ -319,7 +307,10 @@ def _repair_claude_settings(path: Path) -> bool:
         if isinstance(allow, list):
             permissions["allow"] = [
                 item for item in allow
-                if not (isinstance(item, str) and item.startswith("mcp__sage__"))
+                if not (
+                    isinstance(item, str)
+                    and (item.startswith("mcp__sage__") or "npx -y psycgod-sage" in item)
+                )
             ]
 
     mcp_servers = data.get("mcpServers")
@@ -327,6 +318,30 @@ def _repair_claude_settings(path: Path) -> bool:
         mcp_servers.pop("sage", None)
         if not mcp_servers:
             data.pop("mcpServers", None)
+
+    hooks = data.get("hooks")
+    if isinstance(hooks, dict):
+        pre_tool = hooks.get("PreToolUse")
+        if isinstance(pre_tool, list):
+            cleaned = []
+            for item in pre_tool:
+                if not isinstance(item, dict):
+                    cleaned.append(item)
+                    continue
+                matcher = str(item.get("matcher") or "")
+                if any(tool in matcher.split("|") for tool in [
+                    "Read",
+                    "Grep",
+                    "Glob",
+                    "Write",
+                    "Edit",
+                    "MultiEdit",
+                    "NotebookRead",
+                    "NotebookEdit",
+                ]):
+                    continue
+                cleaned.append(item)
+            hooks["PreToolUse"] = cleaned
 
     if json.dumps(data, sort_keys=True) == original:
         return False
@@ -390,7 +405,7 @@ def install_sage_system_wide(*, verbose: bool = True) -> dict[str, bool]:
 
     Modifies:
     - ~/.claude/CLAUDE.md
-    - ~/.claude/settings.json (shell-wrapper hook only; MCP is manual)
+    - ~/.claude/settings.json (shell-wrapper hook only)
     - ~/.codex/AGENTS.md
     - ~/.cursorrules
     - ~/.windsurfrules

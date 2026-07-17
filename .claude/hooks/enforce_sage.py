@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 
-SAGE_PREFIXES = ("sage run --", "npx -y psycgod-sage run --")
+SAGE_PREFIX = "sage run --"
 
 
 def _payload() -> dict[str, Any]:
@@ -27,19 +27,19 @@ def main() -> int:
 
     if tool_name in {"Bash", "Shell", "PowerShell"}:
         command = str(tool_input.get("command") or "").strip()
-        if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
+        if not command.startswith(SAGE_PREFIX):
             return _deny(
                 "SAGE enforcement: shell commands must start with "
-                "'sage run --' or 'npx -y psycgod-sage run --'. "
+                "'sage run --'. "
                 "The blocked command is intentionally not printed to avoid leaking secrets."
             )
 
     if tool_name == "Agent":
         prompt = str(tool_input.get("prompt") or "")
-        if not any(prefix in prompt.lower() for prefix in SAGE_PREFIXES):
+        if SAGE_PREFIX not in prompt.lower():
             return _deny(
                 "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                "to route terminal commands through a SAGE wrapper."
+                "to route terminal commands through 'sage run --'."
             )
 
     return 0

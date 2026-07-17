@@ -189,10 +189,11 @@ class TestAgentInstall:
         assert claude_hook.exists()
         content = codex_agents.read_text(encoding="utf-8")
         assert "sage run -- <command>" in content
-        assert "npx -y psycgod-sage run -- <command>" in content
+        assert "npx -y psycgod-sage run -- <command>" not in content
         assert "start through SAGE automatically" in content
         assert "Use native file/search/edit tools normally" in content
-        assert "SAGE MCP tools are unavailable" in content
+        assert "SAGE MCP tools are unavailable" not in content
+        assert "MCP" not in content
         assert "Please help me with my general book in this folder" in content
         assert "ð" not in content
         assert "â" not in content
@@ -200,7 +201,7 @@ class TestAgentInstall:
         settings = claude_settings.read_text(encoding="utf-8")
         assert "PreToolUse" in settings
         assert "Bash(sage run -- *)" in settings
-        assert "Bash(npx -y psycgod-sage run -- *)" in settings
+        assert "Bash(npx -y psycgod-sage run -- *)" not in settings
         assert "Read(*)" not in settings
         assert "mcpServers" not in settings
         parsed_settings = json.loads(settings)
@@ -210,7 +211,7 @@ class TestAgentInstall:
 
         hook = claude_hook.read_text(encoding="utf-8")
         assert "PowerShell" in hook
-        assert "npx -y psycgod-sage run --" in hook
+        assert "npx -y psycgod-sage run --" not in hook
 
     def test_project_install_adds_local_claude_and_agents_files(self, tmp_path):
         from sage.install import install_sage_project

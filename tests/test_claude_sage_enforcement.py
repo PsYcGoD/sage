@@ -24,7 +24,7 @@ def test_blocks_bare_shell_command():
 
     assert result.returncode == 2
     assert "sage run --" in result.stderr
-    assert "npx -y psycgod-sage run --" in result.stderr
+    assert "npx -y psycgod-sage run --" not in result.stderr
 
 
 def test_blocked_shell_command_does_not_echo_secret_text():
@@ -43,11 +43,11 @@ def test_allows_sage_wrapped_shell_command():
     assert result.stderr == ""
 
 
-def test_allows_npx_sage_wrapped_shell_command():
+def test_blocks_npx_sage_wrapped_shell_command():
     result = run_hook({"tool_name": "Bash", "tool_input": {"command": "npx -y psycgod-sage run -- git status"}})
 
-    assert result.returncode == 0
-    assert result.stderr == ""
+    assert result.returncode == 2
+    assert "sage run --" in result.stderr
 
 
 def test_allows_direct_file_tool():
@@ -71,8 +71,7 @@ def test_allows_subagent_with_sage_instructions():
             "tool_input": {
                 "prompt": (
                     "Use SAGE for every shell command: sage run -- <command>. "
-                    "Use SAGE MCP tools such as mcp__sage__sage_read_file and "
-                    "mcp__sage__sage_grep for file/search/edit work."
+                    "Use native file/search/edit tools normally."
                 )
             },
         }

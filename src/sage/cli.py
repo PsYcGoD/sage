@@ -611,7 +611,7 @@ def activate_command(*, force: bool = False, project: bool = True) -> int:
     print("Activation complete.")
     print("IMPORTANT: restart any open Claude/Codex/Cursor/Windsurf/OpenCode/Cline sessions now.")
     print("After restart, normal prompts should make supported agents use their normal file/search/edit tools")
-    print("and route terminal commands through `sage run -- <command>` or `npx -y psycgod-sage run -- <command>`.")
+    print("and route terminal commands through `sage run -- <command>`.")
     print()
     print("Verification:")
     return _activation_doctor()
@@ -2289,7 +2289,7 @@ def _activation_doctor() -> int:
     print()
     print("Safe activation model:")
     print("  - pip/npm install stays passive for package-policy safety.")
-    print("  - first explicit `sage` or `npx -y psycgod-sage ...` command runs setup/connect.")
+    print("  - first explicit `sage` command runs setup/connect.")
     print("  - each `sage run -- ...` queues telemetry locally and syncs when connected.")
     print("  - proof snapshots sync every 10th command.")
 

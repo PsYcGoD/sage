@@ -64,7 +64,7 @@ After install, restart any open AI-agent sessions. Then a normal prompt like:
 Please help me with my general book in this folder.
 ```
 
-should make supported agents use normal file/search/edit tools and route terminal work through `sage run -- <command>` or `npx -y psycgod-sage run -- <command>`. The user should not need to keep typing SAGE commands manually.
+should make supported agents use normal file/search/edit tools and route terminal work through `sage run -- <command>`. The user should not need to keep typing SAGE commands manually.
 
 ## Live Proof
 

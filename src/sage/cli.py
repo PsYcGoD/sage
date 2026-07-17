@@ -264,6 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
     api_sub.add_parser("visitors", help="Show private public-dashboard visitor stats.")
     api_users = api_sub.add_parser("users", help="Show private connected-user stats.")
     api_users.add_argument("--raw", action="store_true", help="Show raw admin identity fields.")
+    api_users.add_argument("--include-junk", action="store_true", help="Include quarantined junk/test identities for audit.")
     api_users.add_argument("--cleanup", action="store_true", help="Revoke obvious junk/test identity keys before listing users.")
     api_users.add_argument("--dry-run", action="store_true", help="Preview --cleanup candidates without revoking keys.")
     api_rotate = api_sub.add_parser("rotate", help="Rotate API key (generates new key, revokes old one).")
@@ -1593,6 +1594,7 @@ def api_users_command(args=None) -> int:
     from . import telemetry
 
     raw = bool(getattr(args, "raw", False))
+    include_junk = bool(getattr(args, "include_junk", False))
     cleanup = bool(getattr(args, "cleanup", False))
     dry_run = bool(getattr(args, "dry_run", False))
     if cleanup:
@@ -1619,7 +1621,7 @@ def api_users_command(args=None) -> int:
                 print(f"... {len(candidates) - 25} more hidden")
         print()
     try:
-        data = telemetry.get_admin_users(raw=raw)
+        data = telemetry.get_admin_users(raw=raw, include_junk=include_junk)
     except Exception as exc:
         print(f"SAGE API users failed: {exc}")
         return 1
@@ -1627,6 +1629,10 @@ def api_users_command(args=None) -> int:
     users = data.get("users") or []
     print("SAGE connected users")
     print(f"Generated: {data.get('generated_at')}")
+    filtered = data.get("filtered") or {}
+    excluded = int(filtered.get("junk_identities_excluded") or 0)
+    if excluded and not include_junk:
+        print(f"Filtered out {excluded} junk/test identities. Use --include-junk --raw to audit them.")
     if not users:
         print("No users found.")
         return 0

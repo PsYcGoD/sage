@@ -1,3 +1,5 @@
+import { BRAND_BANNER_BASE64, BRAND_ICON_BASE64 } from "./brand-assets.js";
+
 // Restrict browser access to the dashboard and local SAGE UI.
 const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
@@ -42,6 +44,10 @@ const AGENT_ALIASES = {
 
 const HIDDEN_PUBLIC_SAVINGS_IDS = new Set(["ollama"]);
 
+function decodeBase64(base64) {
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
 function getCorsHeaders(origin) {
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "null";
   return {
@@ -61,11 +67,15 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
   <meta name="description" content="SAGE is a local-first CLI and MCP server for Claude Code, Codex CLI, Cursor, Aider, OpenCode, Windsurf, and other AI coding agents. View live token compression, command telemetry, and install links.">
   <meta name="keywords" content="SAGE, psycgod-sage, AI coding agent, Claude Code, Codex CLI, MCP server, token compression, command telemetry, Marketing Studios, marketingstudios.in">
   <link rel="canonical" href="https://sage.api.marketingstudios.in/">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
   <meta property="og:title" content="SAGE - Live AI Agent Command Router and Token Compression Proof">
   <meta property="og:description" content="Install SAGE, route AI-agent commands through a local-first CLI/MCP layer, and verify aggregate token savings on the live dashboard.">
   <meta property="og:url" content="https://sage.api.marketingstudios.in/">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://sage.api.marketingstudios.in/assets/sage-brand.webp">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://sage.api.marketingstudios.in/assets/sage-brand.webp">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -108,6 +118,25 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
       border-radius: 18px;
       background: rgba(15,23,42,.72);
       box-shadow: 0 24px 80px rgba(2,6,23,.35);
+    }
+    .brand-banner {
+      display: block;
+      width: min(845px, 100%);
+      height: auto;
+      margin: 0 0 24px;
+      border-radius: 14px;
+      box-shadow: 0 18px 55px rgba(0,0,0,.34), 0 0 42px rgba(34,211,238,.08);
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     h1 { font-size: clamp(2.2rem, 5vw, 4.4rem); line-height: 1; margin-bottom: 14px; }
     .subtitle { color: #cbd5e1; font-size: 1.12rem; line-height: 1.6; max-width: 900px; }
@@ -261,7 +290,8 @@ const PUBLIC_PROOF_DASHBOARD_HTML = `<!DOCTYPE html>
 <body>
   <div class="container">
     <header>
-      <h1>&#129504; S.A.G.E Public Proof</h1>
+      <img class="brand-banner" src="/assets/sage-brand.webp" alt="SAGE by PsYc+GoD AI and ML">
+      <h1 class="sr-only">SAGE Public Proof</h1>
       <p class="subtitle">Live proof of token savings, context compression, ML prediction, and active AI agent orchestration from S.A.G.E - Smart Agent Guidance Engine.</p>
       <div class="badges">
         <span class="badge green">&#9679; Live Data</span>
@@ -593,10 +623,13 @@ const SAGE_FEATURES_HTML = `<!DOCTYPE html>
   <meta name="description" content="Install SAGE with pip or npm. SAGE is a local-first CLI and MCP server for Claude Code, Codex CLI, Cursor, Aider, OpenCode, Windsurf, and other AI coding agents.">
   <meta name="keywords" content="install SAGE, psycgod-sage, pip install psycgod-sage, npm install psycgod-sage, Claude Code SAGE, Codex CLI SAGE, MCP server, Marketing Studios">
   <link rel="canonical" href="https://sage.api.marketingstudios.in/install">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
   <meta property="og:title" content="Install SAGE - Local-first CLI and MCP Server for AI Coding Agents">
   <meta property="og:description" content="Install SAGE, route AI-agent commands through one local wrapper, and view live aggregate token-savings proof.">
   <meta property="og:url" content="https://sage.api.marketingstudios.in/install">
   <meta property="og:type" content="article">
+  <meta property="og:image" content="https://sage.api.marketingstudios.in/assets/sage-brand.webp">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -663,7 +696,9 @@ const SAGE_FEATURES_HTML = `<!DOCTYPE html>
       align-items: center;
       margin-bottom: 18px;
     }
-    .brand { font-weight: 900; letter-spacing: .08em; color: var(--green); }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: .08em; color: var(--green); }
+    .brand img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; }
+    .hero-brand { display: block; width: min(520px, 100%); height: auto; margin-bottom: 22px; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.3); }
     .nav { display: flex; flex-wrap: wrap; gap: 10px; }
     .pill, .button {
       display: inline-flex;
@@ -934,7 +969,7 @@ const SAGE_FEATURES_HTML = `<!DOCTYPE html>
 <body>
   <div class="shell">
     <div class="topbar">
-      <div class="brand">S.A.G.E</div>
+      <div class="brand"><img src="/favicon.png" alt=""><span>SAGE</span></div>
       <nav class="nav" aria-label="SAGE pages">
         <a class="pill" href="/dashboard">Live Dashboard</a>
         <a class="pill" href="/llms.txt">llms.txt</a>
@@ -945,6 +980,7 @@ const SAGE_FEATURES_HTML = `<!DOCTYPE html>
 
     <section class="hero">
       <div>
+        <img class="hero-brand" src="/assets/sage-brand.webp" alt="SAGE by PsYc+GoD AI and ML">
         <div class="eyebrow">Smart Agent Guidance Engine</div>
         <h1>Install SAGE. Make AI agents use one safer command path.</h1>
         <p class="lead">
@@ -1493,6 +1529,53 @@ function firstUsefulText(...values) {
   return "";
 }
 
+function junkAdminIdentityReason(value) {
+  const text = String(value || "").trim();
+  const lower = text.toLowerCase();
+  if (!text) return "blank identity";
+  if (/^\d+$/.test(text)) return "numeric identity";
+  if (text === "[object Object]") return "serialized object identity";
+  if (lower === "enotfound" || lower === "aborterror") return "error name identity";
+  if (lower === "message" || lower === "connect" || lower === "init" || lower === "data" || lower === "request" || lower === "ready" || lower === "event") {
+    return "event field identity";
+  }
+  if (lower === "test" || lower === "devuser" || lower === "analyst" || lower === "scan" || lower.startsWith("test machine")) {
+    return "test identity";
+  }
+  if (lower === "user" || lower === "admin" || lower === "ubuntu") {
+    return "generic local username identity";
+  }
+  if (lower.startsWith("runnervm") || /^pb-py\d+-/.test(lower)) {
+    return "ci runner identity";
+  }
+  if (text.includes("$env:") || /^remove-item\b/i.test(text)) return "command text identity";
+  if (/^0{2}:0{2}:0{2}:0{2}:0{2}:0{2}$/i.test(text)) return "empty MAC address identity";
+  return "";
+}
+
+function junkIdentitySql(column = "user_identity") {
+  const value = `TRIM(COALESCE(${column}, ''))`;
+  const lower = `LOWER(${value})`;
+  return `(
+    ${value} = ''
+    OR (${value} GLOB '[0-9]*' AND ${value} NOT GLOB '*[^0-9]*')
+    OR ${value} = '[object Object]'
+    OR ${lower} IN ('enotfound', 'aborterror', 'message', 'connect', 'init', 'data', 'request', 'ready', 'event')
+    OR ${lower} IN ('test', 'devuser', 'analyst', 'scan', 'user', 'admin', 'ubuntu')
+    OR ${lower} LIKE 'test machine%'
+    OR ${lower} LIKE 'runnervm%'
+    OR ${lower} LIKE 'pb-py%-%'
+    OR ${value} LIKE '%$env:%'
+    OR ${lower} LIKE 'remove-item%'
+    OR ${lower} = '00:00:00:00:00:00'
+  )`;
+}
+
+function cleanIdentityText(value, fallback = "") {
+  const text = textValue(value, 80).trim();
+  return junkAdminIdentityReason(text) ? fallback : text;
+}
+
 function sanitizeSavingsByModel(rows, savedTokens) {
   const fallback = buildSavingsByModel(savedTokens);
   if (!Array.isArray(rows) || rows.length === 0) return fallback;
@@ -1723,6 +1806,7 @@ async function handleVisitorStats(env, request) {
   const today = nowIso().slice(0, 10);
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const junkUserIdentitySql = junkIdentitySql("user_identity");
   const totals = await env.DB.prepare(
     `SELECT
       COUNT(*) AS unique_visitors,
@@ -1782,13 +1866,26 @@ async function handleVisitorStats(env, request) {
         revoked_at,
         expires_at
       FROM api_keys
+     ),
+     classified_users AS (
+      SELECT *, CASE WHEN ${junkUserIdentitySql} THEN 1 ELSE 0 END AS is_junk_identity
+      FROM keyed_users
+     ),
+     active_users AS (
+      SELECT
+        c.*,
+        CASE WHEN EXISTS (SELECT 1 FROM installations i WHERE i.key_id = c.key_id)
+          OR EXISTS (SELECT 1 FROM telemetry_events t WHERE t.key_id = c.key_id)
+        THEN 1 ELSE 0 END AS has_activity
+      FROM classified_users c
      )
      SELECT
-      COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN user_identity END) AS connected_users,
-      COUNT(DISTINCT CASE WHEN created_at >= ? THEN user_identity END) AS new_logins_today,
-      COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN user_identity END) AS live_api_users_15m,
-      COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN user_identity END) AS active_api_users_24h
-     FROM keyed_users`
+      COUNT(DISTINCT CASE WHEN is_junk_identity = 0 AND has_activity = 1 AND revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN user_identity END) AS connected_users,
+      COUNT(DISTINCT CASE WHEN is_junk_identity = 0 AND has_activity = 1 AND created_at >= ? THEN user_identity END) AS new_logins_today,
+      COUNT(DISTINCT CASE WHEN is_junk_identity = 0 AND has_activity = 1 AND revoked_at = '' AND last_used_at >= ? THEN user_identity END) AS live_api_users_15m,
+      COUNT(DISTINCT CASE WHEN is_junk_identity = 0 AND has_activity = 1 AND revoked_at = '' AND last_used_at >= ? THEN user_identity END) AS active_api_users_24h,
+      COUNT(DISTINCT CASE WHEN is_junk_identity = 1 THEN user_identity END) AS excluded_junk_identities
+     FROM active_users`
   ).bind(nowIso(), `${today}T00:00:00.000Z`, fifteenMinutesAgo, dayAgo).first();
   const clickTotals = await env.DB.prepare(
     `SELECT
@@ -1835,6 +1932,7 @@ async function handleVisitorStats(env, request) {
       new_logins_today: Number(userTotals?.new_logins_today || 0),
       live_api_users_15m: Number(userTotals?.live_api_users_15m || 0),
       active_api_users_24h: Number(userTotals?.active_api_users_24h || 0),
+      excluded_junk_identities: Number(userTotals?.excluded_junk_identities || 0),
     },
     clicks: {
       total_clicks: Number(clickTotals?.total_clicks || 0),
@@ -1856,7 +1954,10 @@ async function handleAdminUsers(env, request) {
   const auth = await requireAdminKey(env, request);
   if (auth.error) return auth.error;
   const now = nowIso();
-  const raw = new URL(request.url).searchParams.get("raw") === "1";
+  const params = new URL(request.url).searchParams;
+  const raw = params.get("raw") === "1";
+  const includeJunk = params.get("include_junk") === "1";
+  const junkUserIdentitySql = junkIdentitySql("user_identity");
   const rows = await env.DB.prepare(
     `WITH keyed_users AS (
       SELECT
@@ -1870,6 +1971,10 @@ async function handleAdminUsers(env, request) {
         k.*
       FROM api_keys k
      ),
+     classified_users AS (
+      SELECT *, CASE WHEN ${junkUserIdentitySql} THEN 1 ELSE 0 END AS is_junk_identity
+      FROM keyed_users
+     ),
      user_summary AS (
       SELECT
         user_identity,
@@ -1880,8 +1985,9 @@ async function handleAdminUsers(env, request) {
         MIN(created_at) AS first_connected_at,
         MAX(last_used_at) AS last_used_at,
         COUNT(*) AS key_count,
+        MAX(is_junk_identity) AS is_junk_identity,
         SUM(CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN 1 ELSE 0 END) AS active_key_count
-      FROM keyed_users
+      FROM classified_users
       GROUP BY user_identity
      ),
      install_summary AS (
@@ -1889,7 +1995,7 @@ async function handleAdminUsers(env, request) {
         k.user_identity,
         COUNT(DISTINCT installation_id) AS install_count,
         GROUP_CONCAT(DISTINCT SUBSTR(installation_id, 1, 8)) AS machine_ids
-      FROM keyed_users k
+      FROM classified_users k
       JOIN installations i ON i.key_id = k.key_id
       GROUP BY k.user_identity
      ),
@@ -1898,7 +2004,7 @@ async function handleAdminUsers(env, request) {
         k.user_identity,
         COUNT(*) AS run_count,
         COUNT(DISTINCT t.installation_id) AS telemetry_install_count
-      FROM keyed_users k
+      FROM classified_users k
       JOIN telemetry_events t ON t.key_id = k.key_id
       GROUP BY k.user_identity
      )
@@ -1912,6 +2018,7 @@ async function handleAdminUsers(env, request) {
       MAX(u.last_used_at) AS last_used_at,
       MAX(u.key_count) AS key_count,
       MAX(u.active_key_count) AS active_key_count,
+      MAX(u.is_junk_identity) AS is_junk_identity,
       COALESCE(SUM(i.install_count), 0) AS install_count,
       MAX(i.machine_ids) AS machine_ids,
       COALESCE(SUM(r.telemetry_install_count), 0) AS telemetry_install_count,
@@ -1919,17 +2026,38 @@ async function handleAdminUsers(env, request) {
      FROM user_summary u
      LEFT JOIN install_summary i ON i.user_identity = u.user_identity
      LEFT JOIN run_summary r ON r.user_identity = u.user_identity
+     WHERE ? = 1 OR (u.is_junk_identity = 0 AND (COALESCE(i.install_count, 0) > 0 OR COALESCE(r.run_count, 0) > 0))
      GROUP BY u.user_identity
      ORDER BY last_used_at DESC, first_connected_at DESC
      LIMIT 100`
-  ).bind(now).all();
+  ).bind(now, includeJunk ? 1 : 0).all();
+  const excluded = await env.DB.prepare(
+    `WITH keyed_users AS (
+      SELECT
+        COALESCE(
+          NULLIF(github_username, ''),
+          NULLIF(github_id, ''),
+          NULLIF(display_name, ''),
+          NULLIF(username, ''),
+          key_id
+        ) AS user_identity
+      FROM api_keys
+     )
+     SELECT COUNT(DISTINCT CASE WHEN ${junkUserIdentitySql} THEN user_identity END) AS excluded_junk_identities
+     FROM keyed_users`
+  ).first();
   return json({
     ok: true,
     generated_at: nowIso(),
+    filtered: {
+      junk_identities_excluded: includeJunk ? 0 : Number(excluded?.excluded_junk_identities || 0),
+      include_junk: includeJunk,
+    },
     users: (rows.results || []).map((row, index) => {
+      const label = firstUsefulText(row.display_name, row.github_username, row.username)
+        || `Machine ${String(row.machine_ids || "").split(",")[0] || index + 1}`;
       const base = {
-        label: firstUsefulText(row.display_name, row.github_username, row.username)
-          || `Machine ${String(row.machine_ids || "").split(",")[0] || index + 1}`,
+        label,
         machine_ids: String(row.machine_ids || "")
           .split(",")
           .map((value) => value.trim())
@@ -1946,6 +2074,8 @@ async function handleAdminUsers(env, request) {
       if (!raw) return base;
       return {
         ...base,
+        user_identity: row.user_identity || "",
+        junk_identity_reason: Number(row.is_junk_identity || 0) ? junkAdminIdentityReason(label || row.user_identity) : "",
         display_name: row.display_name || "",
         username: row.github_username || row.username || "",
         github_id: row.github_id || "",
@@ -1953,21 +2083,6 @@ async function handleAdminUsers(env, request) {
       };
     }),
   });
-}
-
-function junkAdminIdentityReason(value) {
-  const text = String(value || "").trim();
-  const lower = text.toLowerCase();
-  if (!text) return "blank identity";
-  if (/^\d+$/.test(text)) return "numeric identity";
-  if (text === "[object Object]") return "serialized object identity";
-  if (lower === "enotfound" || lower === "aborterror") return "error name identity";
-  if (lower === "message" || lower === "connect" || lower === "init" || lower === "data" || lower === "request" || lower === "ready" || lower === "event") {
-    return "event field identity";
-  }
-  if (text.includes("$env:") || /^remove-item\b/i.test(text)) return "command text identity";
-  if (/^0{2}:0{2}:0{2}:0{2}:0{2}:0{2}$/i.test(text)) return "empty MAC address identity";
-  return "";
 }
 
 async function handleAdminUsersCleanup(env, request) {
@@ -2107,7 +2222,10 @@ async function handleMachineLogin(env, request) {
 
   const fingerprint = textValue(body.fingerprint, 128);
   const hostname = textValue(body.hostname, 120);
-  const displayName = textValue(body.display_name || body.hostname, 80);
+  const displayName = cleanIdentityText(
+    body.display_name || body.hostname,
+    `Machine-${String(fingerprint).slice(0, 8)}`,
+  );
   const platform = textValue(body.platform, 80);
   const installationId = textValue(body.installation_id, 120);
   const clientVersion = textValue(body.client_version, 80);
@@ -2209,8 +2327,8 @@ async function handleCreateKey(env, request) {
 
   const rateLimitPerHour = clampInt(body.rate_limit_per_hour, 100, 10000, 10000);
 
-  const displayName = textValue(body.display_name || body.profile_name || body.name, 80);
-  const username = textValue(body.username || body.handle, 80);
+  const username = cleanIdentityText(body.username || body.handle, "");
+  const displayName = cleanIdentityText(body.display_name || body.profile_name || body.name, username);
   const publicProfile = body.public_profile === true || body.public_profile === 1 ? 1 : 0;
   const privacyMax = clampInt(body.privacy_max ?? 1, 0, 4, 1);
   const scope = textValue(body.scope || "personal", 40);
@@ -2806,6 +2924,26 @@ async function route(request, env) {
   const origin = request.headers.get("Origin");
   const corsHeaders = origin ? getCorsHeaders(origin) : {};
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+
+  if (request.method === "GET" && url.pathname === "/favicon.png") {
+    return new Response(decodeBase64(BRAND_ICON_BASE64), {
+      status: 200,
+      headers: {
+        "Content-Type": "image/png",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      },
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/assets/sage-brand.webp") {
+    return new Response(decodeBase64(BRAND_BANNER_BASE64), {
+      status: 200,
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      },
+    });
+  }
 
   // Serve public proof dashboard HTML on the custom domain root and dashboard path.
   if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/dashboard")) {

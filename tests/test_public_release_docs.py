@@ -97,7 +97,13 @@ def test_public_worker_dashboard_exposes_aggregate_savings():
 def test_admin_users_endpoint_defaults_to_sanitized_rows():
     worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
 
-    assert 'searchParams.get("raw") === "1"' in worker
+    assert 'params.get("raw") === "1"' in worker
+    assert 'params.get("include_junk") === "1"' in worker
+    assert "junkIdentitySql" in worker
+    assert "excluded_junk_identities" in worker
+    assert "junk_identities_excluded" in worker
+    assert "cleanIdentityText" in worker
+    assert "Machine-${String(fingerprint).slice(0, 8)}" in worker
     assert "looksLikeHash" in worker
     assert "firstUsefulText" in worker
     assert "machine_ids" in worker

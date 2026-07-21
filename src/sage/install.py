@@ -17,20 +17,28 @@ SAGE_MANDATORY_BODY = """## SAGE Integration - MANDATORY
 When a user asks for any coding, repo, file, debugging, documentation, or project task, start through SAGE automatically. The user should not need to type `sage`.
 
 First actions for normal repo work:
-- Use native file/search/edit tools normally.
-- Route every terminal command through the PyPI SAGE wrapper: `sage run -- <command>`.
+- Use native file/search/edit tools normally for repository files. Do not use shell commands just to read, list, search, or edit files when native tools are available.
+- Route every terminal command through SAGE in this priority order:
+  1. PyPI/git-clone: `python -m sage run -- <command>`
+  2. npm/npx fallback: `npx -y psycgod-sage run -- <command>`
+  3. Optional MCP tools only if the user manually installed/enabled SAGE MCP and the tools are visible.
 - For multi-line file writes/appends, use native Write/Edit tools. Do not use shell heredocs through `sage run`; heredocs are shell-specific and can fail through wrappers/monitors.
+- If a shell/terminal tool is unavailable or blocked by the host AI environment, do not treat that as a file-access failure. Continue with native file/search/edit tools for file work and report only that shell commands are unavailable.
 
 Route every shell command through SAGE. Do not run bare terminal commands.
 
-Allowed wrapper:
-- `sage run -- <command>`
+Allowed wrappers:
+- First: `python -m sage run -- <command>`
+- If Python/PyPI is unavailable: `npx -y psycgod-sage run -- <command>`
+- Console-script shortcut, only when already available in that shell: `sage run -- <command>`
 
 Rules:
-- Python: `sage run -- python script.py`
-- Packages: `sage run -- npm install`
-- Tests: `sage run -- pytest`
-- If the wrapper fails before the target command starts, stop and report the wrapper failure.
+- Python: `python -m sage run -- python script.py`
+- PowerShell cmdlets: `python -m sage run -- powershell -Command "<cmdlet ...>"`
+- Packages: `python -m sage run -- npm install`
+- Tests: `python -m sage run -- pytest`
+- If Python/PyPI wrapper is unavailable before the command starts, retry once with npm/npx: `npx -y psycgod-sage run -- <command>`.
+- If the wrapper fails before the target shell command starts, stop that shell command and report the wrapper failure. Do not stop the whole task when native file/search/edit tools can still complete it.
 
 Why:
 - Tracks local command history for the user
@@ -40,16 +48,22 @@ Why:
 
 Examples:
 - Wrong: `python test.py`
-- Correct: `sage run -- python test.py`
+- Correct: `python -m sage run -- python test.py`
 - Wrong: `git status`
-- Correct: `sage run -- git status`
+- Correct: `python -m sage run -- git status`
 
 Example user request:
 - User: "Please help me with my general book in this folder"
-- Correct agent start: inspect/read/edit files with available native tools, then use `sage run -- <command>` only when a terminal command is needed.
+- Correct agent start: inspect/read/edit files with available native tools. Use `python -m sage run -- <command>` only when a terminal command is actually needed.
+- Correct fallback when Python/PyPI is unavailable: `npx -y psycgod-sage run -- <command>`.
 - Wrong agent start: bare `python`, `git`, `npm`, `ls`, or other terminal commands without SAGE.
+- Wrong file-audit start: `python -m sage run -- rg --files` when native file/search tools are available and no terminal command is required.
 
-Any spawned subagent must be given the same SAGE shell-wrapper requirement in its prompt.
+Optional MCP:
+- Do not require MCP. Use MCP only if the user manually installed/enabled SAGE MCP and the tools are currently connected.
+- If MCP is unavailable or disconnected, keep using file/search/edit tools normally and route terminal commands through Python first, npm/npx second.
+
+Any spawned subagent must be given the same SAGE shell-wrapper priority in its prompt.
 """
 
 SAGE_MANDATORY_INSTRUCTION = (
@@ -59,7 +73,9 @@ SAGE_MANDATORY_INSTRUCTION = (
 CURSOR_SAGE_INSTRUCTION = (
     f"{SAGE_BLOCK_START}\n"
     "# SAGE Integration - MANDATORY\n\n"
-    "Route every terminal command through `sage run -- <command>`. "
+    "Route every terminal command through SAGE: first `python -m sage run -- <command>`, "
+    "then fallback to `npx -y psycgod-sage run -- <command>` if Python/PyPI is unavailable. "
+    "Use MCP only if manually enabled and connected. "
     "Do not run bare shell commands when SAGE is available.\n"
     f"{SAGE_BLOCK_END}\n"
 )
@@ -67,31 +83,32 @@ CURSOR_SAGE_INSTRUCTION = (
 AIDER_SAGE_INSTRUCTION = (
     f"\n{SAGE_BLOCK_START}\n"
     "# SAGE Integration - MANDATORY\n"
-    "# Route all shell commands through: sage run -- <command>\n"
+    "# Route all shell commands through: python -m sage run -- <command>\n"
+    "# Fallback if Python/PyPI is unavailable: npx -y psycgod-sage run -- <command>\n"
     f"{SAGE_BLOCK_END}\n"
 )
 
 CLINE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
-    "Example: sage run -- npm install\n"
+    "All terminal commands MUST use SAGE: first python -m sage run -- <command>, then npx -y psycgod-sage run -- <command> if Python/PyPI is unavailable.\n"
+    "Example: python -m sage run -- npm install\n"
 )
 
 CONTINUE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
-    "Example: sage run -- npm install\n"
+    "All terminal commands MUST use SAGE: first python -m sage run -- <command>, then npx -y psycgod-sage run -- <command> if Python/PyPI is unavailable.\n"
+    "Example: python -m sage run -- npm install\n"
 )
 
 JETBRAINS_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
-    "Example: sage run -- npm install\n"
+    "All terminal commands MUST use SAGE: first python -m sage run -- <command>, then npx -y psycgod-sage run -- <command> if Python/PyPI is unavailable.\n"
+    "Example: python -m sage run -- npm install\n"
 )
 
 OPENCODE_SAGE_INSTRUCTION = (
     "# SAGE Integration - MANDATORY\n"
-    "All terminal commands MUST use: sage run -- <command>\n"
+    "All terminal commands MUST use SAGE: first python -m sage run -- <command>, then npx -y psycgod-sage run -- <command> if Python/PyPI is unavailable.\n"
 )
 CLAUDE_HOOK_SCRIPT = dedent(
     r'''
@@ -102,7 +119,12 @@ CLAUDE_HOOK_SCRIPT = dedent(
     from typing import Any
 
 
-    SAGE_PREFIX = "sage run --"
+    SAGE_PREFIXES = (
+        "python -m sage run --",
+        "py -m sage run --",
+        "sage run --",
+        "npx -y psycgod-sage run --",
+    )
 
 
     def _payload() -> dict[str, Any]:
@@ -124,19 +146,20 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
         if tool_name in {"Bash", "Shell", "PowerShell"}:
             command = str(tool_input.get("command") or "").strip()
-            if not command.startswith(SAGE_PREFIX):
+            if not any(command.startswith(prefix) for prefix in SAGE_PREFIXES):
                 return _deny(
                     "SAGE enforcement: shell commands must start with "
-                    "'sage run --'. "
+                    "'python -m sage run --' first, or 'npx -y psycgod-sage run --' if Python/PyPI is unavailable. "
                     "The blocked command is intentionally not printed to avoid leaking secrets."
                 )
 
         if tool_name == "Agent":
             prompt = str(tool_input.get("prompt") or "")
-            if SAGE_PREFIX not in prompt.lower():
+            prompt_lower = prompt.lower()
+            if not any(prefix in prompt_lower for prefix in SAGE_PREFIXES):
                 return _deny(
                     "SAGE enforcement: subagent prompts must explicitly tell the agent "
-                    "to route terminal commands through 'sage run --'."
+                    "to route terminal commands through Python/PyPI first, npm/npx second."
                 )
 
         return 0
@@ -152,10 +175,12 @@ CLAUDE_SETTINGS = {
         "allow": [
             "Bash(sage run -- *)",
             "PowerShell(sage run -- *)",
-        ],
-        "deny": [
-            "Bash(*)",
-            "PowerShell(*)",
+            "Bash(python -m sage run -- *)",
+            "PowerShell(python -m sage run -- *)",
+            "Bash(py -m sage run -- *)",
+            "PowerShell(py -m sage run -- *)",
+            "Bash(npx -y psycgod-sage run -- *)",
+            "PowerShell(npx -y psycgod-sage run -- *)",
         ],
     },
     "hooks": {
@@ -204,15 +229,33 @@ def _has_sage_instruction(content: str) -> bool:
 
 
 def is_sage_installed_system_wide() -> bool:
-    """Return True only when the main agent configs already contain SAGE."""
-    required = [target for target in _targets() if target.name in {"claude", "codex", "cursor", "cline", "jetbrains", "opencode"}]
-    for target in required:
-        if not target.path.exists():
-            return False
-        content = target.path.read_text(encoding="utf-8", errors="ignore")
-        if not _has_sage_instruction(content):
-            return False
-    return True
+    """Return True if SAGE is installed in at least one major agent config.
+
+    Previously required ALL configs to exist, which failed for users who don't
+    have every AI tool installed. Now checks if at least one target has SAGE.
+    """
+    primary_targets = [target for target in _targets() if target.name in {"claude", "codex", "cursor"}]
+
+    # Check if any primary target has SAGE installed
+    for target in primary_targets:
+        if target.path.exists():
+            content = target.path.read_text(encoding="utf-8", errors="ignore")
+            if _has_sage_instruction(content):
+                return True
+
+    # Also check the setup state - if setup completed, consider it installed
+    try:
+        from .store import data_dir
+        setup_path = data_dir() / "setup.json"
+        if setup_path.exists():
+            import json
+            state = json.loads(setup_path.read_text(encoding="utf-8"))
+            if state.get("completed"):
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 def inject_sage_requirement(config_path: Path, instruction_text: str, *, create_if_missing: bool = True) -> bool:
@@ -278,7 +321,7 @@ def _merge_json_file(path: Path, patch: dict) -> bool:
 
 
 def _repair_claude_settings(path: Path) -> bool:
-    """Remove stale auto-MCP, npm-wrapper, and native-tool hook entries."""
+    """Remove stale auto-MCP and native-tool hook entries."""
     if not path.exists():
         return False
     try:
@@ -299,17 +342,23 @@ def _repair_claude_settings(path: Path) -> bool:
             "MultiEdit(*)",
             "NotebookRead(*)",
             "NotebookEdit(*)",
+            "Bash(*)",
+            "PowerShell(*)",
         }
         deny = permissions.get("deny")
         if isinstance(deny, list):
-            permissions["deny"] = [item for item in deny if item not in stale_denies]
+            filtered_deny = [item for item in deny if item not in stale_denies]
+            if filtered_deny:
+                permissions["deny"] = filtered_deny
+            else:
+                permissions.pop("deny", None)
         allow = permissions.get("allow")
         if isinstance(allow, list):
             permissions["allow"] = [
                 item for item in allow
                 if not (
                     isinstance(item, str)
-                    and (item.startswith("mcp__sage__") or "npx -y psycgod-sage" in item)
+                    and item.startswith("mcp__sage__")
                 )
             ]
 

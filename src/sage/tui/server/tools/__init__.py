@@ -9,6 +9,9 @@ from .write_file import WriteFileTool
 from .edit_file import EditFileTool
 from .glob import GlobTool
 from .grep import GrepTool
+from .validate import ValidateTool
+from .analyze_context import AnalyzeContextTool
+from .rollback import RollbackTool
 
 
 class ToolRegistry:
@@ -27,6 +30,9 @@ class ToolRegistry:
             EditFileTool(),
             GlobTool(),
             GrepTool(),
+            ValidateTool(),
+            AnalyzeContextTool(),
+            RollbackTool(),
         ]:
             self._tools[tool.name] = tool
 

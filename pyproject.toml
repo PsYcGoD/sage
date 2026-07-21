@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psycgod-sage"
-version = "2.4.27"
+version = "2.5.0"
 description = "Local-first command wrapper for AI coding agents with compressed terminal output and privacy-safe proof metrics."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -77,7 +77,8 @@ Dashboard = "https://sage.api.marketingstudios.in/dashboard"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"sage.dashboard" = ["static/*.html"]
+"sage.dashboard" = ["static/*.html", "static/*.png", "static/*.webp"]
+"sage.gui" = ["assets/*.png", "assets/*.ico"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

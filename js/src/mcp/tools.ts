@@ -134,12 +134,69 @@ export const TOOLS = [
       properties: {
         agent_type: {
           type: 'string',
-          enum: ['code', 'debug', 'test', 'security'],
+          enum: ['code', 'debug', 'test', 'security', 'performance'],
           description: 'Agent type to spawn'
         },
         task: { type: 'string', description: 'Task description' }
       },
       required: ['agent_type', 'task']
+    }
+  },
+  {
+    name: 'sage_validate',
+    description: 'Deep validation: AST errors, security issues (hardcoded secrets), code quality (TODO/debug code).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File path to validate' },
+        content: { type: 'string', description: 'Optional content to validate instead of reading file' }
+      },
+      required: ['path']
+    }
+  },
+  {
+    name: 'sage_analyze_context',
+    description: 'Analyze codebase patterns (naming, error handling, testing), style (indent, quotes), file structure.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File or directory to analyze' },
+        sample_size: { type: 'number', description: 'Number of files to sample for pattern detection' }
+      }
+    }
+  },
+  {
+    name: 'sage_rollback',
+    description: 'Rollback a file to its state before the last write/edit. Uses snapshot system.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        snapshot_id: { type: 'string', description: 'Snapshot ID from previous write/edit result' }
+      },
+      required: ['snapshot_id']
+    }
+  },
+  {
+    name: 'sage_agentic_run',
+    description: 'Run command with automatic failure recovery. Diagnoses errors and retries with fixes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'Command to execute' },
+        max_retries: { type: 'number', description: 'Max recovery attempts (default 3)' },
+        autonomy: { type: 'string', enum: ['suggest', 'ask', 'auto'], description: 'Fix autonomy level' }
+      },
+      required: ['command']
+    }
+  },
+  {
+    name: 'sage_agentic_fix',
+    description: 'Get the best fix candidate for a failed command.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        command_id: { type: 'number', description: 'Run ID of failed command (default: most recent)' }
+      }
     }
   }
 ];
@@ -301,7 +358,7 @@ export async function handleToolCall(name: string, args: Record<string, unknown>
       const task = args.task as string;
       const agents = selectAgents(task);
       const matched = agents.find(a => a.type === agentType);
-      
+
       if (!matched) {
         return { success: false, error: `Unknown agent type: ${agentType}` };
       }
@@ -314,9 +371,319 @@ export async function handleToolCall(name: string, args: Record<string, unknown>
       };
     }
 
+    case 'sage_validate': {
+      const { existsSync, readFileSync } = await import('fs');
+      const path = args.path as string;
+      const content = (args.content as string) || (existsSync(path) ? readFileSync(path, 'utf-8') : null);
+
+      if (!content) {
+        return { success: false, error: `File not found: ${path}` };
+      }
+
+      const issues = validateCode(path, content);
+      const errors = issues.filter(i => i.severity === 'error');
+      const warnings = issues.filter(i => i.severity === 'warning');
+
+      return {
+        success: true,
+        valid: errors.length === 0,
+        summary: `${errors.length} error(s), ${warnings.length} warning(s)`,
+        issues: issues.slice(0, 15)
+      };
+    }
+
+    case 'sage_analyze_context': {
+      const { existsSync, readdirSync, readFileSync, statSync } = await import('fs');
+      const { join, extname } = await import('path');
+      const targetPath = (args.path as string) || '.';
+      const sampleSize = (args.sample_size as number) || 15;
+
+      if (!existsSync(targetPath)) {
+        return { success: false, error: `Path not found: ${targetPath}` };
+      }
+
+      const patterns = detectPatterns(targetPath, sampleSize);
+      const style = detectStyle(targetPath, sampleSize);
+
+      return {
+        success: true,
+        patterns,
+        style,
+        summary: `Detected ${patterns.length} patterns. Style: ${style.indent_type} (${style.indent_size}), ${style.quote_style} quotes`
+      };
+    }
+
+    case 'sage_rollback': {
+      const snapshotId = args.snapshot_id as string;
+      const snapshot = snapshotStore.get(snapshotId);
+
+      if (!snapshot) {
+        return { success: false, error: `Snapshot not found: ${snapshotId}` };
+      }
+
+      const { writeFileSync, unlinkSync } = await import('fs');
+      if (snapshot.content === null) {
+        // File was created, delete it
+        try { unlinkSync(snapshot.path); } catch {}
+      } else {
+        writeFileSync(snapshot.path, snapshot.content, 'utf-8');
+      }
+
+      snapshotStore.delete(snapshotId);
+      return { success: true, restored: snapshot.path };
+    }
+
+    case 'sage_agentic_run': {
+      const command = args.command as string;
+      const maxRetries = (args.max_retries as number) || 3;
+      const autonomy = (args.autonomy as string) || 'auto';
+
+      const { command: cmd, args: cmdArgs } = parseCommand(command);
+      let result = await runCommand(cmd, cmdArgs);
+      let attempts = 1;
+
+      while (result.exitCode !== 0 && attempts < maxRetries && autonomy !== 'suggest') {
+        const suggestions = generateSuggestions(command, result.compression.compressed);
+        if (suggestions.length === 0 || suggestions[0].includes('Review')) break;
+
+        // Try the first suggestion
+        const fixCmd = suggestions[0];
+        const { command: fixCmdParsed, args: fixArgs } = parseCommand(fixCmd);
+        await runCommand(fixCmdParsed, fixArgs);
+
+        // Retry original
+        result = await runCommand(cmd, cmdArgs);
+        attempts++;
+      }
+
+      return {
+        success: result.exitCode === 0,
+        exit_code: result.exitCode,
+        attempts,
+        output: result.compression.compressed
+      };
+    }
+
+    case 'sage_agentic_fix': {
+      const id = args.command_id as number | undefined;
+      const run = id ? db.getRunById(id) : db.getLatestFailedRun();
+
+      if (!run) {
+        return { success: false, error: 'No failed command found' };
+      }
+
+      const suggestions = generateSuggestions(run.command, run.compressed || run.stderr);
+      const explanation = analyzeError(run.compressed || run.stderr);
+
+      return {
+        success: true,
+        command: run.command,
+        fix_command: suggestions[0] || null,
+        explanation,
+        confidence: suggestions.length > 0 && !suggestions[0].includes('Review') ? 0.8 : 0.3
+      };
+    }
+
     default:
       return { success: false, error: `Unknown tool: ${name}` };
   }
+}
+
+// Snapshot store for rollback
+const snapshotStore = new Map<string, { path: string; content: string | null }>();
+let snapshotCounter = 0;
+
+function createSnapshot(path: string, content: string | null): string {
+  const id = `snap_${++snapshotCounter}_${Date.now()}`;
+  snapshotStore.set(id, { path, content });
+  return id;
+}
+
+// Code validation
+interface ValidationIssue {
+  line: number;
+  severity: 'error' | 'warning' | 'info';
+  category: string;
+  message: string;
+}
+
+function validateCode(path: string, content: string): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const lines = content.split('\n');
+  const ext = path.split('.').pop()?.toLowerCase();
+
+  // Python-specific validation
+  if (ext === 'py') {
+    lines.forEach((line, i) => {
+      const lineNo = i + 1;
+
+      // Empty function
+      if (/def\s+\w+\([^)]*\):\s*$/.test(line) && lines[i + 1]?.trim() === 'pass') {
+        issues.push({ line: lineNo, severity: 'warning', category: 'empty_function', message: 'Empty function body' });
+      }
+
+      // Bare except
+      if (/except\s*:/.test(line) && !/except\s+\w+/.test(line)) {
+        issues.push({ line: lineNo, severity: 'warning', category: 'bare_except', message: 'Bare except catches all exceptions' });
+      }
+
+      // Hardcoded secrets
+      if (/(?:api[_-]?key|password|secret|token)\s*[=:]\s*["'][^"']{8,}["']/i.test(line)) {
+        if (!/["']<[^>]+>["']|["']your[_-]|["']xxx|["']example|["']test|["']dummy|os\.environ|getenv/i.test(line)) {
+          issues.push({ line: lineNo, severity: 'error', category: 'hardcoded_secret', message: 'Possible hardcoded secret' });
+        }
+      }
+
+      // TODO/FIXME
+      if (/#\s*(TODO|FIXME|HACK|XXX|BUG)\b/i.test(line)) {
+        issues.push({ line: lineNo, severity: 'info', category: 'todo_comment', message: 'TODO/FIXME comment found' });
+      }
+
+      // Debug code
+      if (/\bprint\s*\(/.test(line) && !path.includes('test')) {
+        issues.push({ line: lineNo, severity: 'warning', category: 'debug_code', message: 'Debug print statement' });
+      }
+    });
+  }
+
+  // JavaScript/TypeScript validation
+  if (ext === 'js' || ext === 'ts' || ext === 'jsx' || ext === 'tsx') {
+    lines.forEach((line, i) => {
+      const lineNo = i + 1;
+
+      if (/console\.log\s*\(/.test(line) && !path.includes('test')) {
+        issues.push({ line: lineNo, severity: 'warning', category: 'debug_code', message: 'console.log statement' });
+      }
+
+      if (/\bdebugger\b/.test(line)) {
+        issues.push({ line: lineNo, severity: 'warning', category: 'debug_code', message: 'debugger statement' });
+      }
+
+      if (/(?:api[_-]?key|password|secret|token)\s*[=:]\s*["'][^"']{8,}["']/i.test(line)) {
+        if (!/["']<[^>]+>["']|["']your[_-]|process\.env/i.test(line)) {
+          issues.push({ line: lineNo, severity: 'error', category: 'hardcoded_secret', message: 'Possible hardcoded secret' });
+        }
+      }
+    });
+  }
+
+  return issues;
+}
+
+// Pattern detection
+interface DetectedPattern {
+  category: string;
+  pattern: string;
+  confidence: number;
+}
+
+function detectPatterns(rootPath: string, sampleSize: number): DetectedPattern[] {
+  const { readdirSync, readFileSync, statSync } = require('fs');
+  const { join, extname } = require('path');
+  const patterns: DetectedPattern[] = [];
+
+  // Collect Python files
+  const pyFiles: string[] = [];
+  function collectFiles(dir: string, depth = 0) {
+    if (depth > 3) return;
+    try {
+      for (const entry of readdirSync(dir)) {
+        if (entry.startsWith('.') || entry === 'node_modules' || entry === '__pycache__') continue;
+        const full = join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) collectFiles(full, depth + 1);
+        else if (extname(entry) === '.py') pyFiles.push(full);
+      }
+    } catch {}
+  }
+  collectFiles(rootPath);
+
+  let snakeCount = 0, camelCount = 0;
+  let specificExcept = 0, bareExcept = 0;
+
+  for (const file of pyFiles.slice(0, sampleSize)) {
+    try {
+      const content = readFileSync(file, 'utf-8');
+
+      // Count naming styles
+      const funcs = content.match(/def\s+([a-z_][a-z0-9_]*)\s*\(/gi) || [];
+      for (const m of funcs) {
+        if (/_/.test(m)) snakeCount++;
+        else if (/[a-z][A-Z]/.test(m)) camelCount++;
+      }
+
+      // Count exception handling
+      specificExcept += (content.match(/except\s+\w+/g) || []).length;
+      bareExcept += (content.match(/except\s*:/g) || []).length;
+    } catch {}
+  }
+
+  if (snakeCount > camelCount && snakeCount > 5) {
+    patterns.push({ category: 'naming', pattern: 'Functions use snake_case', confidence: snakeCount / (snakeCount + camelCount) });
+  }
+
+  if (specificExcept > bareExcept * 2) {
+    patterns.push({ category: 'error_handling', pattern: 'Uses specific exception types', confidence: 0.8 });
+  }
+
+  return patterns;
+}
+
+// Style detection
+interface StyleProfile {
+  indent_type: string;
+  indent_size: number;
+  quote_style: string;
+}
+
+function detectStyle(rootPath: string, sampleSize: number): StyleProfile {
+  const { readdirSync, readFileSync, statSync } = require('fs');
+  const { join, extname } = require('path');
+
+  let spaces = 0, tabs = 0;
+  let singleQuotes = 0, doubleQuotes = 0;
+  const indentSizes: number[] = [];
+
+  const pyFiles: string[] = [];
+  function collectFiles(dir: string, depth = 0) {
+    if (depth > 3) return;
+    try {
+      for (const entry of readdirSync(dir)) {
+        if (entry.startsWith('.') || entry === 'node_modules') continue;
+        const full = join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) collectFiles(full, depth + 1);
+        else if (extname(entry) === '.py') pyFiles.push(full);
+      }
+    } catch {}
+  }
+  collectFiles(rootPath);
+
+  for (const file of pyFiles.slice(0, sampleSize)) {
+    try {
+      const content = readFileSync(file, 'utf-8');
+
+      for (const line of content.split('\n')) {
+        const match = line.match(/^(\s+)/);
+        if (match) {
+          if (match[1].includes('\t')) tabs++;
+          else {
+            spaces++;
+            if (match[1].length <= 8) indentSizes.push(match[1].length);
+          }
+        }
+      }
+
+      singleQuotes += (content.match(/'/g) || []).length;
+      doubleQuotes += (content.match(/"/g) || []).length;
+    } catch {}
+  }
+
+  return {
+    indent_type: tabs > spaces ? 'tabs' : 'spaces',
+    indent_size: indentSizes.length ? Math.round(indentSizes.reduce((a, b) => a + b, 0) / indentSizes.length) : 4,
+    quote_style: singleQuotes > doubleQuotes ? 'single' : 'double'
+  };
 }
 
 function analyzeError(output: string): string {

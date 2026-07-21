@@ -243,18 +243,6 @@ def is_sage_installed_system_wide() -> bool:
             if _has_sage_instruction(content):
                 return True
 
-    # Also check the setup state - if setup completed, consider it installed
-    try:
-        from .store import data_dir
-        setup_path = data_dir() / "setup.json"
-        if setup_path.exists():
-            import json
-            state = json.loads(setup_path.read_text(encoding="utf-8"))
-            if state.get("completed"):
-                return True
-    except Exception:
-        pass
-
     return False
 
 

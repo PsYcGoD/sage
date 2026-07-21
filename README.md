@@ -9,6 +9,8 @@
 
 A local-first CLI wrapper for Claude Code, Codex, Cursor, and other AI coding agents.
 
+IF YOU DONOT USE SAGE RUN PYTEST. SAGE WILL NOT ACTIVATE IN YOUR LOCAL ENVIORMENT.
+
 SAGE routes terminal commands through `sage run --`, compresses noisy output before it enters the agent context, keeps raw logs on your machine, and proves token savings with privacy-safe metrics.
 
 Official landing and install:

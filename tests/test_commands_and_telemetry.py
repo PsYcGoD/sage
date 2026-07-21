@@ -398,7 +398,7 @@ def test_send_without_endpoint_is_noop(isolated_telemetry):
 def test_api_users_default_output_shows_labels_without_raw_hashes(monkeypatch, capsys):
     from sage import cli, telemetry
 
-    def fake_get_admin_users(raw=False):
+    def fake_get_admin_users(raw=False, include_junk=False):
         assert raw is False
         return {
             "generated_at": "2026-07-08T09:55:39Z",
@@ -433,7 +433,7 @@ def test_api_users_default_output_shows_labels_without_raw_hashes(monkeypatch, c
 def test_api_users_raw_output_requires_explicit_flag(monkeypatch, capsys):
     from sage import cli, telemetry
 
-    def fake_get_admin_users(raw=False):
+    def fake_get_admin_users(raw=False, include_junk=False):
         assert raw is True
         return {
             "generated_at": "2026-07-08T09:55:39Z",

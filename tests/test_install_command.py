@@ -25,3 +25,26 @@ def test_install_parser_supports_script_safe_flags():
     assert args.force is True
     assert args.no_project is True
     assert args.no_wait is True
+
+
+def test_unknown_first_token_runs_as_wrapped_command(monkeypatch):
+    seen = {}
+
+    monkeypatch.setattr(cli, "_ensure_first_run_setup", lambda command_name: 0)
+    monkeypatch.setattr(cli, "_ensure_system_enforcement", lambda command_name: True)
+
+    def fake_run_command(command, **kwargs):
+        seen["command"] = command
+        seen["kwargs"] = kwargs
+        return 0
+
+    monkeypatch.setattr(cli, "run_command", fake_run_command)
+
+    assert cli.main(["pytest", "-q"]) == 0
+    assert seen["command"] == ["pytest", "-q"]
+
+
+def test_known_command_still_parses_normally(monkeypatch):
+    monkeypatch.setattr(cli, "activate_command", lambda *, force=False, project=True: 0)
+
+    assert cli.main(["activate"]) == 0

@@ -1,6 +1,6 @@
 {
   "name": "psycgod-sage",
-  "version": "1.1.0",
+  "version": "2.5.6",
   "mcpName": "io.github.PsYcGoD/sage",
   "description": "npm/npx launcher for the canonical PyPI SAGE CLI wrapper for AI coding agents",
   "author": "PsYcGoD",
@@ -20,6 +20,7 @@
     "dev": "tsc --watch",
     "test": "vitest",
     "lint": "eslint src",
+    "postinstall": "node ./dist/cli/postinstall.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {},

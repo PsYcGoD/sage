@@ -19,6 +19,55 @@ from .autofix import AutoFixEngine
 
 log = logging.getLogger(__name__)
 
+KNOWN_COMMANDS = {
+    "account",
+    "activate",
+    "agents",
+    "api",
+    "artifacts",
+    "call",
+    "connect",
+    "context",
+    "dashboard",
+    "db",
+    "demo",
+    "doctor",
+    "edit",
+    "explain",
+    "firewall",
+    "fix",
+    "github-bot",
+    "glob",
+    "grep",
+    "gui",
+    "history",
+    "init",
+    "install",
+    "login",
+    "logout",
+    "lsp",
+    "mcp",
+    "ml",
+    "predict",
+    "privacy",
+    "psycgod_gui",
+    "read",
+    "redact",
+    "restore-file",
+    "run",
+    "savings",
+    "serve",
+    "setup",
+    "show",
+    "stats",
+    "telemetry",
+    "tree",
+    "tui",
+    "whoami",
+    "workflow",
+    "write",
+}
+
 ASSISTANT_INSTRUCTIONS = """# S.A.G.E Instructions
 
 When working in this project, prefer running noisy terminal commands through S.A.G.E.
@@ -633,8 +682,24 @@ def _ensure_first_run_setup(command_name: str | None) -> int:
         return 0
     return setup_command(force=False)
 
+def _normalize_argv(argv: list[str] | None) -> list[str]:
+    """Treat `sage pytest` as the friendly shortcut `sage run -- pytest`.
+
+    People naturally type the command they want after `sage`. Losing those
+    users to an argparse "unknown command" error breaks activation, telemetry,
+    and the whole install funnel.
+    """
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if not raw:
+        return raw
+    first = raw[0]
+    if first.startswith("-") or first in KNOWN_COMMANDS:
+        return raw
+    return ["run", "--", *raw]
+
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
+    argv = _normalize_argv(argv)
     parser = build_parser()
     args = parser.parse_args(argv)
 

@@ -79,24 +79,11 @@ Latest pulled stats as of 2026-07-22:
 | Tokens saved | 736.1M |
 | Compression rate | 98.14% |
 | Estimated savings | $15,273.07 |
-| Success rate | 89.7% |
-| Commands today | 173 |
-| Live command events, last 15m | 12 |
-| Connected API users/keys | 20 |
-| Machines sending telemetry | 6 |
-| Active API users, 24h | 2 |
-| Active telemetry machines, 24h | 2 |
-| Public dashboard unique visitors | 252 |
-| Public dashboard page views | 662 |
+| Command success rate | 89.7% |
+| PyPI downloads, last 7 days | 885 |
+| npm downloads, last 7 days | 1,268 |
 | GitHub clones, last 14 days | 1,635 |
 | GitHub unique cloners, last 14 days | 383 |
-| GitHub views, last 14 days | 278 |
-| GitHub unique viewers, last 14 days | 65 |
-| GitHub stars | 10 |
-| GitHub forks | 6 |
-| npm downloads, last week | 1,837 |
-
-Important: downloads, clones, and connected keys are not the same thing as active users. SAGE counts real use when a machine actually runs SAGE and sends telemetry or local proof.
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
@@ -165,7 +152,7 @@ SAGE is designed to keep prompts, source code, credentials, raw command output, 
 | Locked-down host apps can disable shell tools | SAGE cannot enable tools the host application has blocked |
 | npm/PyPI installs cannot safely auto-run activation | Run `sage install` once after package install |
 | MCP can disconnect in some stdio agent sessions | Use normal `sage run -- <command>` by default; enable MCP manually only if needed |
-| Downloads and clones are not active users | Real usage starts when SAGE runs and records local/cloud proof |
+| Package installs are passive by design | Real activation starts with `sage install` |
 
 ## Demos
 

@@ -83,7 +83,6 @@ Latest pulled stats as of 2026-07-22:
 | PyPI downloads, last 7 days | 885 |
 | npm downloads, last 7 days | 1,268 |
 | GitHub clones, last 14 days | 1,635 |
-| GitHub unique cloners, last 14 days | 383 |
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)

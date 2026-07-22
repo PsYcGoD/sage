@@ -1,42 +1,30 @@
-# SAGE - Stop AI Coding Agents From Burning Tokens
+# SAGE - Smart Agent Guidance Engine
 
 [![CI](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml/badge.svg)](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/PsYcGoD/sage/blob/main/pyproject.toml)
+[![PyPI](https://img.shields.io/pypi/v/psycgod-sage.svg)](https://pypi.org/project/psycgod-sage/)
+[![npm](https://img.shields.io/npm/v/psycgod-sage.svg)](https://www.npmjs.com/package/psycgod-sage)
 [![License](https://img.shields.io/github/license/PsYcGoD/sage.svg)](https://github.com/PsYcGoD/sage/blob/main/LICENSE)
-[![Release](https://img.shields.io/github/v/release/PsYcGoD/sage?include_prereleases)](https://github.com/PsYcGoD/sage/releases)
-[![sage MCP server](https://glama.ai/mcp/servers/PsYcGoD/sage/badges/score.svg)](https://glama.ai/mcp/servers/PsYcGoD/sage)
-[![sage MCP server](https://glama.ai/mcp/servers/PsYcGoD/sage/badges/card.svg)](https://glama.ai/mcp/servers/PsYcGoD/sage)
 
-A local-first CLI wrapper for Claude Code, Codex, Cursor, and other AI coding agents.
+SAGE is a local-first command wrapper for AI coding agents. It keeps full terminal output on your machine, sends agents a clean compressed summary, and tracks proof metrics without uploading your raw logs.
 
-IF YOU DONOT USE SAGE RUN PYTEST. SAGE WILL NOT ACTIVATE IN YOUR LOCAL ENVIORMENT.
-
-SAGE routes terminal commands through `sage run --`, compresses noisy output before it enters the agent context, keeps raw logs on your machine, and proves token savings with privacy-safe metrics.
-
-Official landing and install:
-
-- Live landing/dashboard: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
-- Install guide: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
-- Marketing Studios: [marketingstudios.in](https://marketingstudios.in/)
-- AI answer-engine context: [llms.txt](https://sage.api.marketingstudios.in/llms.txt)
+Use it with Claude Code, Codex, Cursor, Windsurf, OpenCode, Cline, custom agents, CI scripts, and normal terminal workflows.
 
 ## Start Here: Install SAGE, Then Use Any AI Agent
 
-Package install is intentionally passive for PyPI/npm safety. **Run `sage install` once before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically.**
+Package installation is passive for package-registry safety. After installing, run `sage install` once to connect this machine and activate SAGE for supported local AI agents.
 
-`sage install` connects this machine when reachable, writes/repairs global and project AI-agent memory files, installs shell-wrapper hooks where supported, and prints a verification report. It does **not** auto-enable the SAGE MCP server.
-
-### PyPI / pip install
+### PyPI / pip
 
 ```powershell
+pip install psycgod-sage
+# or
 python -m pip install --upgrade psycgod-sage
 sage install
 sage run -- python -m pytest
 ```
 
-![PyPI install flow](docs/assets/sage-install-pypi.gif)
-
-### npm / npx install
+### npm / npx
 
 ```bash
 npm install -g psycgod-sage
@@ -44,359 +32,164 @@ npx -y psycgod-sage install
 npx -y psycgod-sage run -- npm test
 ```
 
-![npm install flow](docs/assets/sage-install-npm.gif)
+After install, restart any open AI-agent sessions. New sessions should read the SAGE instructions automatically and route terminal commands through SAGE.
 
-### What install does
-
-![SAGE install flow diagram](docs/assets/sage-install-flow-diagram.png)
-
-If you only want to verify activation later:
-
-```bash
-sage install
-sage doctor --activation
-# or from npm/npx
-npx -y psycgod-sage install
-npx -y psycgod-sage doctor --activation
-```
-
-After install, restart any open AI-agent sessions. Then a normal prompt like:
+Example prompt after restarting your AI agent:
 
 ```text
 Please help me with my general book in this folder.
 ```
 
-should make supported agents use normal file/search/edit tools and route terminal work through `sage run -- <command>`. The user should not need to keep typing SAGE commands manually.
+Natural shortcuts also work:
+
+```bash
+sage pytest
+sage npm test
+sage git status
+```
+
+These are treated as:
+
+```bash
+sage run -- pytest
+sage run -- npm test
+sage run -- git status
+```
+
+## What SAGE Does
+
+| Step | Result |
+|---|---|
+| `sage install` | Connects the machine, repairs global/project agent instructions, and verifies activation |
+| `sage run -- <command>` | Runs the command, stores raw output locally, and returns a compact useful summary |
+| Agent memory/hooks | Tell supported AI agents to use SAGE for noisy terminal work |
+| Local database | Keeps command history, compression proof, and retry context on the user's machine |
+| Optional cloud proof | Sends aggregate metrics only when connected proof mode is enabled |
+
+SAGE does not auto-enable MCP. MCP is optional and manual for users who want it.
 
 ## Live Proof
 
-| Metric | Value |
-|--------|------:|
-| Commands processed | 20,048 |
-| Tokens processed | 632.2M |
-| Tokens saved | 620.2M |
-| Compression rate | 98.10% |
-| Estimated savings | $12,869.40 |
-| Success rate | 90.45% |
-| Connected users | 37 |
-| Active users, 24h | 6 |
-| Public dashboard visitors | 190 |
-| Public dashboard page views | 566 |
+Latest pulled stats as of 2026-07-22:
 
-Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)  
+| Metric | Value |
+|---|---:|
+| SAGE telemetry command events | 23,081 |
+| Tokens processed | 750.0M |
+| Tokens saved | 736.1M |
+| Compression rate | 98.14% |
+| Estimated savings | $15,273.07 |
+| Success rate | 89.7% |
+| Commands today | 173 |
+| Live command events, last 15m | 12 |
+| Connected API users/keys | 20 |
+| Machines sending telemetry | 6 |
+| Active API users, 24h | 2 |
+| Active telemetry machines, 24h | 2 |
+| Public dashboard unique visitors | 252 |
+| Public dashboard page views | 662 |
+| GitHub clones, last 14 days | 1,635 |
+| GitHub unique cloners, last 14 days | 383 |
+| GitHub views, last 14 days | 278 |
+| GitHub unique viewers, last 14 days | 65 |
+| GitHub stars | 10 |
+| GitHub forks | 6 |
+| npm downloads, last week | 1,837 |
+
+Important: downloads, clones, and connected keys are not the same thing as active users. SAGE counts real use when a machine actually runs SAGE and sends telemetry or local proof.
+
+Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
 
 ![SAGE public proof dashboard](docs/assets/sage-live-dashboard.png)
 
-## Distribution Status
+## Why It Helps
 
-SAGE is available through both Python and npm entry points. The npm package delegates to the canonical Python implementation so the CLI behavior, local database, ML V1 behavior, and telemetry queue stay consistent.
-
-| Channel | Package | Current status |
-|---|---|---|
-| PyPI | [`psycgod-sage`](https://pypi.org/project/psycgod-sage/) | Canonical Python package |
-| npm / npx | [`psycgod-sage`](https://www.npmjs.com/package/psycgod-sage) | Published npm launcher |
-| MCP Registry | [`io.github.PsYcGoD/sage`](https://registry.modelcontextprotocol.io/) | Optional/manual MCP entry |
-| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Optional/manual hosted MCP server |
-
-MCP is optional and manual. SAGE no longer auto-injects its MCP server during pip/npm/git activation because MCP stdio sessions can disconnect mid-agent session and leave agents without tools. The safe default is memory/hook activation plus `sage run -- <command>` for shell commands. If you want MCP tools, install them manually with `sage mcp install`, or use the public MCP listings on [Glama](https://glama.ai/mcp/servers/PsYcGoD/sage) / [MCP Registry](https://registry.modelcontextprotocol.io/).
-
-### Proof at Full Context
-
-SAGE is built for the moment when an AI agent is already near the edge of its context window. In a real Claude Desktop session, SAGE was still routing commands while the agent showed a full `200.0k / 200.0k (100%)` context window.
-
-![SAGE running at a full 200k context window](docs/assets/sage-200k-context-proof.png)
-
-Provider-confirmed A/B tests show why this matters:
-
-| Proof run | Raw input | SAGE input | Tokens saved | Reduction |
-|---|---:|---:|---:|---:|
-| Claude provider A/B | 64,833 | 91 | 64,742 | 99.86% |
-| Codex provider A/B | 65,204 | 14,850 | 50,354 | 77.23% |
-
-Even when context is already maxed out, SAGE keeps raw logs local and sends the agent a smaller, useful version instead of flooding the conversation with full terminal noise.
-
-## Install Details
-
-Recommended install:
-
-```powershell
-python -m pip install --upgrade psycgod-sage
-sage install
-```
-
-The package install only installs the `sage` CLI. Package installation stays passive for package-index safety; activation/injection happens when the user explicitly runs `sage install`.
-
-Recommended install and first wrapped command:
-
-```powershell
-sage install
-sage run -- python -m pytest
-```
-
-`sage install` connects to the SAGE API when reachable and installs AI-agent memory plus shell-wrapper hook enforcement before users expect their agents to use SAGE. It does not auto-register MCP. To check activation without wrapping a project command:
-
-```powershell
-sage install
-sage doctor --activation
-```
-
-Package names:
-
-- PyPI: `psycgod-sage`
-- CLI command after install: `sage`
-- npm: `psycgod-sage`
-
-Python/pip note: `pip install psycgod-sage` installs the package and the `sage` command. The first explicit `sage` command activates/connects safely:
-For best agent adoption, run `sage install` immediately after install:
-
-```powershell
-python -m pip install --upgrade psycgod-sage
-sage install
-sage run -- python -m pytest
-```
-
-One-shot `npx` usage without global install:
-
-```bash
-npx -y psycgod-sage install
-npx -y psycgod-sage run -- npm test
-npx -y psycgod-sage run -- python -m pytest
-npx -y psycgod-sage history
-```
-
-AI-agent command rule depends on how SAGE was installed:
-
-| Install path | Agents must use |
-|---|---|
-| PyPI / pip | `sage run -- <command>` |
-| npm / npx | `npx -y psycgod-sage run -- <command>` |
-
-Both paths use the same PyPI SAGE implementation, same DB, same ML V1, same telemetry rules,
-and the same optional ML V2 path. ML V2 can be installed later with:
-
-```bash
-sage ml setup
-# or, from npm/npx:
-npx -y psycgod-sage ml setup
-```
-
-After install, activation is explicit and visible on first SAGE use. A new user should not have to run `sage login` or `sage connect`; `sage`, `sage setup`, `sage doctor --activation`, or `sage run -- ...` handles connection and prints status.
-For the clearest flow, use `sage install`; it exists specifically to repair the clone/install/use gap by updating AI-agent memory files before the user opens a coding agent.
-
-Run `sage init` inside a project to add project-local `AGENTS.md`, `CLAUDE.md`, `SAGE.md`, and Claude hook files.
-
-```bash
-sage init
-```
-
-### First Run
-
-On first use, SAGE configures itself without prompts:
-
-```
-1. Enable ML V1 by default
-2. Connect to SAGE cloud API automatically when reachable
-3. Install local AI-agent enforcement
-4. Keeps the DB Local
-```
-
-- ML V1: included, light, local scikit-learn/heuristic prediction, learns from your usage over time
-- ML V2: optional neural embeddings with torch + sentence-transformers + faiss
-- You can install ML V2 later with `pip install psycgod-sage[ml]` or `sage ml setup`
-- Safe telemetry stays queued locally if offline and syncs when the API is reachable; SAGE attempts proof sync every 10th command.
-
-## Quick Start
-
-```bash
-sage run -- python -m pytest
-sage run -- npm test
-sage run -- git status
-sage init
-sage context report
-```
-
-## 15-Second Demo
-
-![SAGE CLI demo](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/demo-sage-run.gif)
-
-```text
-$ sage run -- python -m pytest
-[sage] saved run #42 exit=0 time=1180ms
-[sage] context: saved 8,214 tokens (91.2% compression)
-[sage] summary:
-144 passed
-
-$ sage context report
-SAGE context compression report
-Original tokens: 120,450
-Compressed tokens: 12,831
-Saved tokens: 107,619 (89.3%)
-```
-
-## Why SAGE Exists
-
-AI coding agents waste context and money by reading huge terminal logs, repeated failures, stack traces, test noise, build noise, and dependency output.
-
-SAGE sits between your terminal and your AI coding workflow. It keeps full raw logs locally but sends only compressed, useful output to the agent context.
+AI coding agents burn context on repeated logs, failed test output, install noise, stack traces, and build spam. SAGE sits between the command and the agent.
 
 | Without SAGE | With SAGE |
 |---|---|
-| Agent sees full noisy terminal logs | Agent sees compressed useful output |
-| Context gets wasted fast | Context lasts longer |
-| Repeated failures burn tokens | Failures are summarized clearly |
-| Hard to prove AI-agent savings | Dashboard shows proof metrics |
-| Raw logs may be copied into prompts | Raw logs stay local |
+| Agent sees full noisy terminal output | Agent sees the useful summary |
+| Context disappears fast | Context lasts longer |
+| Repeated failures waste tokens | Errors are grouped and explained |
+| Raw logs may enter prompts | Raw logs stay local |
+| Hard to prove savings | SAGE records proof metrics |
 
-## Connection and Local-Only Mode
+## Distribution
 
-SAGE attempts connected proof mode automatically during first setup using a machine identity/hardware login. If the cloud is unreachable, commands still work locally and safe telemetry stays queued for a later retry.
+| Channel | Package | Status |
+|---|---|---|
+| PyPI | [`psycgod-sage`](https://pypi.org/project/psycgod-sage/) | Canonical Python package |
+| npm / npx | [`psycgod-sage`](https://www.npmjs.com/package/psycgod-sage) | Node launcher for the Python core |
+| MCP Registry | `io.github.PsYcGoD/sage` | Optional/manual MCP entry |
+| Glama | [`PsYcGoD/sage`](https://glama.ai/mcp/servers/PsYcGoD/sage) | Optional/manual hosted MCP listing |
 
-Local-only mode is the opt-out/offline mode. It does not require any account login and does not send data.
+The npm package delegates to the Python implementation so both install paths use the same local database, telemetry rules, compression, and command behavior.
+
+## Common Commands
+
+```bash
+sage install                       # Activate this machine and AI-agent instructions
+sage doctor --activation           # Verify activation
+npx -y psycgod-sage doctor --activation
+sage run -- <command>              # Wrap any command
+sage pytest                        # Shortcut for: sage run -- pytest
+sage npm test                      # Shortcut for: sage run -- npm test
+sage git status                    # Shortcut for: sage run -- git status
+sage context stats                 # Token savings summary
+sage context report                # Full compression report
+sage history --limit 10            # Recent command history
+sage explain --failed              # Explain the latest failed command
+sage suggest --failed              # Suggest the next fix
+sage fix --apply                   # Try an automatic fix
+sage ml setup                      # Optional ML V2 dependencies
+sage mcp install                   # Optional/manual MCP config
+sage dashboard start               # Local dashboard
+```
+
+## Privacy Modes
 
 | Mode | Requires login? | Sends data? | What leaves the machine? |
 |---|---:|---:|---|
 | Local-only | No | No | Nothing |
-| Connected proof | SAGE machine auth | Yes | Aggregate counters only |
-| Debug telemetry | Optional | Opt-in only | Redacted diagnostic summaries only |
+| Connected proof | Machine auth | Yes | Aggregate counters and proof metrics |
+| Debug telemetry | Optional | Opt-in only | Redacted diagnostic summaries |
 
-Manual connection commands are for repair, rotation, or advanced users — not required onboarding:
-
-```bash
-sage setup --force
-# or
-sage connect
-```
-
-## CLI Commands
-
-```bash
-sage run -- <command>              # Wrap any command
-sage context stats                # Token savings summary
-sage context report               # Full compression report
-sage history --limit 10           # Recent command history
-sage explain                      # Explain last error
-sage suggest                      # Get fix suggestions
-sage fix --apply                  # Auto-fix errors
-sage savings --agent claude-sonnet # Savings by provider
-sage firewall status              # Safety policy status
-sage firewall rules list          # View blocked patterns
-sage ml setup                     # Install ML V2 (optional)
-sage ml train                     # Retrain on your history
-sage install                      # Repair/re-apply system-wide AI agent enforcement
-sage init                         # Per-project AGENTS.md/CLAUDE.md/hooks
-sage mcp install                  # Optional/manual MCP config for users who want MCP tools
-sage dashboard start              # Local proof dashboard
-```
-
-## Screenshots
-
-| Command | Preview |
-|---|---|
-| `sage run --` | ![sage run](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-run.svg) |
-| `sage context report` | ![context report](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-context-report.svg) |
-| `sage mcp install` | ![mcp install](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-mcp-install.svg) |
-| Dashboard | ![dashboard](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-live-dashboard.png) |
-
-## Team View Preview - Enterprise Only
-
-Team View is an Enterprise-only SAGE workspace dashboard for organizations that need shared proof, safety monitoring, and team-level AI savings visibility.
-
-![SAGE Team View Preview](docs/assets/team-dashboard-preview.png)
-
-Planned Enterprise Team View features:
-
-- Workspace-level tokens saved, compression rate, and estimated AI savings
-- Team command success rate and failure trends
-- Agent and ML activity across connected machines
-- Safety events, blocked risky commands, and protected secret signals
-- Per-machine and per-user aggregate usage without exposing raw command text
-- Privacy-safe proof only: no source code, `.env` values, raw logs, private paths, or model output
-
-Team View is not part of the free public CLI package. It is reserved for Enterprise access.
-
-## ML - Learns From Your Usage
-
-SAGE ML trains on your local command history. More commands = better predictions.
-
-### ML V1 (included)
-
-Scikit-learn based failure prediction. Trains with `sage ml train`. Improves as your command history grows. Lightweight, no GPU needed.
-
-### ML V2 - Neural Command Center (optional)
-
-> Install: `pip install psycgod-sage[ml]` or `sage ml setup`
-
-Adds semantic embedding-based prediction using `all-MiniLM-L6-v2` (384-dim vectors, 90 MB model, Apache 2.0). Specialized predictors for syntax, dependency, auth, timeout, permission, context, compression, and agent-ranking.
-
-| Metric | V1 (sklearn) | V2 (embeddings) |
-|--------|:---:|:---:|
-| Accuracy | 58% | 76% |
-| Precision | n/a | 87% |
-| Recall | n/a | 85% |
-| F1 Score | n/a | 86% |
-
-ML signals are experimental guidance, not guarantees. See [docs/ML_V2.md](https://github.com/PsYcGoD/sage/blob/main/docs/ML_V2.md) for architecture.
-
-## Agent Firewall
-
-SAGE blocks destructive commands, detects secret exposure, and prevents infinite retry loops.
-
-```bash
-sage firewall status
-sage firewall enable
-sage firewall rules list
-sage firewall allow "npm install"
-sage firewall block "rm -rf"
-sage firewall audit
-```
-
-## LSP Server + Agentic Loop
-
-```bash
-sage lsp                    # Start LSP server (stdio for editors)
-sage lsp --tcp --port 19473 # Start LSP server (TCP for AI agents)
-```
-
-When a command fails, SAGE automatically analyzes the error, suggests or applies a fix, and verifies by re-running. Circuit breaker stops infinite loops.
-
-Configure in `sage.toml`:
-```toml
-[agentic]
-autonomy = "suggest"  # suggest | ask | auto
-max_retries = 3
-
-[lsp]
-transport = "stdio"
-tcp_port = 19473
-```
-
-## Privacy and Security
-
-- Raw commands and full outputs stay local by default.
-- Public dashboard data is aggregate proof only.
-- No source code, `.env`, secrets, or raw logs are uploaded.
-- API keys are stored in the OS keyring when available.
-- Higher telemetry is opt-in and policy-constrained.
-
-See [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md) | [CONTRIBUTING.md](CONTRIBUTING.md) | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+SAGE is designed to keep prompts, source code, credentials, raw command output, and project files local unless the user deliberately enables a feature that requires sending data.
 
 ## Known Limitations
 
-- The desktop GUI is not public yet.
-- Connected proof/dashboard sync uses SAGE machine authentication.
-- ML V2 requires `pip install psycgod-sage[ml]` (~2 GB for torch).
-- ML accuracy improves with usage; fresh installs have minimal training data.
-- The public dashboard is aggregate-only.
+| Limitation | What To Do |
+|---|---|
+| Already-open AI-agent sessions may not reload new instructions | Restart Claude/Codex/Cursor/Windsurf/OpenCode after `sage install` |
+| Locked-down host apps can disable shell tools | SAGE cannot enable tools the host application has blocked |
+| npm/PyPI installs cannot safely auto-run activation | Run `sage install` once after package install |
+| MCP can disconnect in some stdio agent sessions | Use normal `sage run -- <command>` by default; enable MCP manually only if needed |
+| Downloads and clones are not active users | Real usage starts when SAGE runs and records local/cloud proof |
 
-## Development
+## Demos
 
-```bash
-git clone https://github.com/PsYcGoD/sage.git
-cd sage
-pip install -e .[all]
-python -m compileall -q src/sage
-python -m pytest -q
-```
+| Flow | Preview |
+|---|---|
+| PyPI install | ![PyPI install flow](docs/assets/sage-install-pypi.gif) |
+| npm install | ![npm install flow](docs/assets/sage-install-npm.gif) |
+| `sage run --` | ![sage run](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-run.svg) |
+| CLI run | ![SAGE CLI demo](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/demo-sage-run.gif) |
 
-The public package is CLI-first. GUI source is not shipped in this repo.
+## Team View Preview - Enterprise Only
+
+Team View is not part of the free public CLI package. It is a future enterprise dashboard concept for organizations that need shared usage proof, team-level savings, and admin reporting.
+
+![SAGE Team View preview](docs/assets/team-dashboard-preview.png)
+
+## Links
+
+- Landing: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
+- Dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
+- Install guide: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
+- PyPI: [pypi.org/project/psycgod-sage](https://pypi.org/project/psycgod-sage/)
+- npm: [npmjs.com/package/psycgod-sage](https://www.npmjs.com/package/psycgod-sage)
+
+## License
+
+MIT. See [LICENSE](LICENSE).

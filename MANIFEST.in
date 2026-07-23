@@ -1,0 +1,7 @@
+# Keep GUI and dashboard code out of the sdist; the published package is the
+# command wrapper only.
+prune electron
+prune src/sage/gui
+prune src/sage/dashboard
+exclude src/sage/gui_server.py
+exclude tests/test_dashboard_render.py

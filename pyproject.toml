@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psycgod-sage"
-version = "2.5.7"
+version = "2.5.8"
 description = "Local-first command wrapper for AI coding agents with compressed terminal output and privacy-safe proof metrics."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -73,12 +73,12 @@ Repository = "https://github.com/PsYcGoD/sage"
 Issues = "https://github.com/PsYcGoD/sage/issues"
 Dashboard = "https://sage.api.marketingstudios.in/dashboard"
 
+# The published package is the command wrapper only. GUI code (sage.gui,
+# gui_server) is enterprise-only and the local dashboard UI is repo-only;
+# neither may ship to PyPI/npm.
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-"sage.dashboard" = ["static/*.html", "static/*.png", "static/*.webp"]
-"sage.gui" = ["assets/*.png", "assets/*.ico"]
+exclude = ["sage.gui", "sage.gui.*", "sage.dashboard", "sage.dashboard.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

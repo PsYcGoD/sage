@@ -3061,7 +3061,12 @@ def workflow_command(args) -> int:
 
 def dashboard_command(args) -> int:
     """Manage dashboard."""
-    from .dashboard import DashboardServer
+    try:
+        from .dashboard import DashboardServer
+    except ImportError:
+        print("[sage] The local dashboard is not included in the public package.")
+        print("       Savings stats are available via: sage stats / sage savings")
+        return 1
 
     if not hasattr(args, "dashboard_command") or args.dashboard_command is None:
         print("Usage: sage dashboard <start|stop>")
@@ -3452,9 +3457,8 @@ def gui_command() -> int:
         app = SAGEApp()
         app.mainloop()
         return 0
-    except ImportError as e:
-        print(f"[sage] GUI requires extra dependencies: pip install psycgod-sage[gui]")
-        print(f"       Error: {e}")
+    except ImportError:
+        print("[sage] The SAGE desktop GUI is not included in the public package.")
         return 1
 
 def tui_command() -> int:

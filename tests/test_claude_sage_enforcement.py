@@ -24,7 +24,6 @@ def test_blocks_bare_shell_command():
 
     assert result.returncode == 2
     assert "sage run --" in result.stderr
-    assert "npx -y psycgod-sage run --" not in result.stderr
 
 
 def test_blocked_shell_command_does_not_echo_secret_text():
@@ -43,11 +42,18 @@ def test_allows_sage_wrapped_shell_command():
     assert result.stderr == ""
 
 
-def test_blocks_npx_sage_wrapped_shell_command():
-    result = run_hook({"tool_name": "Bash", "tool_input": {"command": "npx -y psycgod-sage run -- git status"}})
+def test_allows_documented_fallback_wrappers():
+    # Every wrapper form promised by CLAUDE.md and the settings allowlist must
+    # pass the hook, otherwise the fallback chain dead-ends when `sage` breaks.
+    for command in (
+        "npx -y psycgod-sage run -- git status",
+        "python -m sage run -- git status",
+        "py -3 -m sage run -- git status",
+    ):
+        result = run_hook({"tool_name": "Bash", "tool_input": {"command": command}})
 
-    assert result.returncode == 2
-    assert "sage run --" in result.stderr
+        assert result.returncode == 0, command
+        assert result.stderr == ""
 
 
 def test_allows_direct_file_tool():

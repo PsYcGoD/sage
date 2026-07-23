@@ -33,8 +33,11 @@ def test_mcp_run_command_is_opt_in(monkeypatch):
 
 
 def test_mcp_idle_timeout_is_configurable_and_clamped(monkeypatch):
+    # Default is 0 (disabled): clients like Claude Code hold one stdio server
+    # for the whole session and never restart it, so idle self-exit strands
+    # them with a dead server. Lifecycle is governed by stdin EOF instead.
     monkeypatch.delenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", raising=False)
-    assert _mcp_idle_timeout() == 300
+    assert _mcp_idle_timeout() == 0
 
     monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "0")
     assert _mcp_idle_timeout() == 0
@@ -46,7 +49,7 @@ def test_mcp_idle_timeout_is_configurable_and_clamped(monkeypatch):
     assert _mcp_idle_timeout() == 45
 
     monkeypatch.setenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "bad")
-    assert _mcp_idle_timeout() == 300
+    assert _mcp_idle_timeout() == 0
 
 
 def test_external_mcp_missing_command_fails_fast():

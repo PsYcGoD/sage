@@ -40,7 +40,11 @@ log = logging.getLogger(__name__)
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_INFO = {"name": "sage", "version": "2.0.4"}
 COMMAND_TOOL_NAMES = {"sage_run_command"}
-DEFAULT_IDLE_TIMEOUT_SECONDS = 300
+# 0 disables the idle watchdog. Clients like Claude Code hold one stdio server
+# for the whole session and only call tools intermittently; a short idle exit
+# makes the server look "disconnected" for the rest of the session because the
+# client does not restart it mid-session. Lifecycle is governed by stdin EOF.
+DEFAULT_IDLE_TIMEOUT_SECONDS = 0
 MIN_IDLE_TIMEOUT_SECONDS = 10
 
 
@@ -49,14 +53,13 @@ def _verbose_stderr_enabled() -> bool:
 
 
 def _mcp_idle_timeout() -> int:
-    """Return the MCP stdio idle timeout.
+    """Return the MCP stdio idle timeout (0 = disabled, the default).
 
-    MCP clients usually restart stdio servers on demand, so idle MCP servers
-    should not sit around forever when an AI client crashes or forgets to close
-    stdin. MCP clients such as Claude Code often keep a stdio server open
-    between tool calls, so the default must be long enough not to look like a
-    flaky server while still cleaning truly abandoned processes. Set
-    SAGE_MCP_IDLE_TIMEOUT_SECONDS for stricter or longer local policy.
+    Claude Code and similar clients keep one stdio server attached for the
+    whole session and do not restart it after it exits, so self-exiting on
+    idle strands the client with a dead server. The server already exits
+    cleanly when the client closes stdin. Set SAGE_MCP_IDLE_TIMEOUT_SECONDS
+    to a positive value only if abandoned processes are a real problem.
     """
     raw = os.getenv("SAGE_MCP_IDLE_TIMEOUT_SECONDS", "").strip()
     if not raw:

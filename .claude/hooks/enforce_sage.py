@@ -7,6 +7,19 @@ from typing import Any
 
 SAGE_PREFIX = "sage run --"
 
+# Every wrapper form documented in CLAUDE.md and allowed in settings.json.
+# The hook must accept the whole fallback chain, otherwise the agent has no
+# permitted path when the primary `sage` script is unavailable.
+SAGE_WRAPPER_PREFIXES = (
+    "sage run --",
+    "python -m sage run --",
+    "python3 -m sage run --",
+    "py -m sage run --",
+    "py -3 -m sage run --",
+    "npx -y psycgod-sage run --",
+    "npx psycgod-sage run --",
+)
+
 
 def _payload() -> dict[str, Any]:
     try:
@@ -20,6 +33,11 @@ def _deny(message: str) -> int:
     return 2
 
 
+def _is_sage_wrapped(command: str) -> bool:
+    lowered = command.strip().lower()
+    return any(lowered.startswith(prefix) for prefix in SAGE_WRAPPER_PREFIXES)
+
+
 def main() -> int:
     payload = _payload()
     tool_name = str(payload.get("tool_name") or "")
@@ -27,10 +45,11 @@ def main() -> int:
 
     if tool_name in {"Bash", "Shell", "PowerShell"}:
         command = str(tool_input.get("command") or "").strip()
-        if not command.startswith(SAGE_PREFIX):
+        if not _is_sage_wrapped(command):
             return _deny(
-                "SAGE enforcement: shell commands must start with "
-                "'sage run --'. "
+                "SAGE enforcement: prefix the exact same command with "
+                "'sage run -- ' and retry once (fallbacks: 'python -m sage run -- ' "
+                "or 'npx -y psycgod-sage run -- '). "
                 "The blocked command is intentionally not printed to avoid leaking secrets."
             )
 

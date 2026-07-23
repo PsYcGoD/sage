@@ -201,7 +201,12 @@ class TestAgentInstall:
         settings = claude_settings.read_text(encoding="utf-8")
         assert "PreToolUse" in settings
         assert "Bash(sage run -- *)" in settings
-        assert "Bash(npx -y psycgod-sage run -- *)" not in settings
+        # The full documented fallback chain must be allowed, and deny rules
+        # must never be written: deny beats allow in Claude Code, so a
+        # Bash(*) deny blocks the SAGE wrapper itself.
+        assert "Bash(npx -y psycgod-sage run -- *)" in settings
+        assert "Bash(python -m sage run -- *)" in settings
+        assert '"deny"' not in settings
         assert "Read(*)" not in settings
         assert "mcpServers" not in settings
         parsed_settings = json.loads(settings)
@@ -211,7 +216,7 @@ class TestAgentInstall:
 
         hook = claude_hook.read_text(encoding="utf-8")
         assert "PowerShell" in hook
-        assert "npx -y psycgod-sage run --" not in hook
+        assert "npx -y psycgod-sage run --" in hook
 
     def test_project_install_adds_local_claude_and_agents_files(self, tmp_path):
         from sage.install import install_sage_project

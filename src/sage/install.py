@@ -104,6 +104,19 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
     SAGE_PREFIX = "sage run --"
 
+    # Every wrapper form documented in CLAUDE.md and allowed in settings.json.
+    # The hook must accept the whole fallback chain, otherwise the agent has no
+    # permitted path when the primary `sage` script is unavailable.
+    SAGE_WRAPPER_PREFIXES = (
+        "sage run --",
+        "python -m sage run --",
+        "python3 -m sage run --",
+        "py -m sage run --",
+        "py -3 -m sage run --",
+        "npx -y psycgod-sage run --",
+        "npx psycgod-sage run --",
+    )
+
 
     def _payload() -> dict[str, Any]:
         try:
@@ -117,6 +130,11 @@ CLAUDE_HOOK_SCRIPT = dedent(
         return 2
 
 
+    def _is_sage_wrapped(command: str) -> bool:
+        lowered = command.strip().lower()
+        return any(lowered.startswith(prefix) for prefix in SAGE_WRAPPER_PREFIXES)
+
+
     def main() -> int:
         payload = _payload()
         tool_name = str(payload.get("tool_name") or "")
@@ -124,10 +142,11 @@ CLAUDE_HOOK_SCRIPT = dedent(
 
         if tool_name in {"Bash", "Shell", "PowerShell"}:
             command = str(tool_input.get("command") or "").strip()
-            if not command.startswith(SAGE_PREFIX):
+            if not _is_sage_wrapped(command):
                 return _deny(
-                    "SAGE enforcement: shell commands must start with "
-                    "'sage run --'. "
+                    "SAGE enforcement: prefix the exact same command with "
+                    "'sage run -- ' and retry once (fallbacks: 'python -m sage run -- ' "
+                    "or 'npx -y psycgod-sage run -- '). "
                     "The blocked command is intentionally not printed to avoid leaking secrets."
                 )
 
@@ -147,15 +166,21 @@ CLAUDE_HOOK_SCRIPT = dedent(
     '''
 ).lstrip()
 
+# NOTE: no permissions.deny entries. Claude Code gives deny rules precedence
+# over allow rules, so `deny: Bash(*)` blocks even `sage run --` commands and
+# bricks the agent's shell entirely. Enforcement is the PreToolUse hook plus
+# this allowlist; the hook alone rejects non-SAGE commands.
 CLAUDE_SETTINGS = {
     "permissions": {
         "allow": [
             "Bash(sage run -- *)",
             "PowerShell(sage run -- *)",
-        ],
-        "deny": [
-            "Bash(*)",
-            "PowerShell(*)",
+            "Bash(python -m sage run -- *)",
+            "PowerShell(python -m sage run -- *)",
+            "Bash(py -m sage run -- *)",
+            "PowerShell(py -m sage run -- *)",
+            "Bash(npx -y psycgod-sage run -- *)",
+            "PowerShell(npx -y psycgod-sage run -- *)",
         ],
     },
     "hooks": {
@@ -299,18 +324,21 @@ def _repair_claude_settings(path: Path) -> bool:
             "MultiEdit(*)",
             "NotebookRead(*)",
             "NotebookEdit(*)",
+            # Older releases wrote these; deny beats allow in Claude Code, so
+            # they blocked every shell command including the SAGE wrapper.
+            "Bash(*)",
+            "PowerShell(*)",
         }
         deny = permissions.get("deny")
         if isinstance(deny, list):
             permissions["deny"] = [item for item in deny if item not in stale_denies]
+            if not permissions["deny"]:
+                permissions.pop("deny", None)
         allow = permissions.get("allow")
         if isinstance(allow, list):
             permissions["allow"] = [
                 item for item in allow
-                if not (
-                    isinstance(item, str)
-                    and (item.startswith("mcp__sage__") or "npx -y psycgod-sage" in item)
-                )
+                if not (isinstance(item, str) and item.startswith("mcp__sage__"))
             ]
 
     mcp_servers = data.get("mcpServers")

@@ -424,9 +424,14 @@ def run_command(
     if suppress_footer:
         return returncode
 
+    # The live stream above already showed everything unless a cap fired.
+    # Printing the summary again would hand the AI agent the same lines twice,
+    # which costs tokens instead of saving them.
+    output_fully_shown = not (stdout_cap_reported or stderr_cap_reported)
+
     # Clean mode: minimal output
     if clean_mode:
-        if result['token_savings'] > 0:
+        if not output_fully_shown and result['token_savings'] > 0:
             print(f"\n[sage] Run #{run_id} | Saved {result['token_savings']} tokens ({result['compression_ratio']})")
         else:
             print(f"\n[sage] Run #{run_id}")
@@ -434,18 +439,11 @@ def run_command(
         print()
         print(f"[sage] saved run #{run_id} exit={returncode} time={duration_ms}ms")
 
-        # Show token savings
-        if result['token_savings'] > 0:
+        # Show token savings only when compression actually withheld output
+        if not output_fully_shown and result['token_savings'] > 0:
             print(f"[sage] context: saved {result['token_savings']} tokens ({result['compression_ratio']} compression)")
 
-        if agents_enabled:
-            from .agents.registry import select_agents_for_command
-            specs = select_agents_for_command(command_text)
-            if specs:
-                agent_names = ", ".join(s.name for s in specs)
-                print(f"[sage] agents: {len(specs)} queued ({agent_names})")
-
-    if not suppress_summary:
+    if not suppress_summary and not output_fully_shown:
         print("[sage] summary:")
         print(summary)
 

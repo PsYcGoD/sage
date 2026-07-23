@@ -27,6 +27,8 @@ electron/node_modules/
 electron/
 src/sage/gui/
 src/sage/gui_server.py
+src/sage/dashboard/
+tests/test_dashboard_render.py
 .vite/
 **/.vite/
 electron/release/

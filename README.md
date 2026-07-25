@@ -10,7 +10,7 @@ SAGE is a local-first command wrapper for AI coding agents. It keeps full termin
 
 Use it with Claude Code, Codex, Cursor, Windsurf, OpenCode, Cline, custom agents, CI scripts, and normal terminal workflows.
 
-## Start Here: Install SAGE, Then Use Any AI Agent
+## Start Here: Install SAGE, Use once sage run -- python -m pytest, Then Use Any AI Agent
 
 Package installation is passive for package-registry safety. After installing, run `sage install` once to connect this machine and activate SAGE for supported local AI agents.
 

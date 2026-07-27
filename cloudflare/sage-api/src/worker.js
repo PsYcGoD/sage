@@ -1,5 +1,7 @@
 import { BRAND_BANNER_BASE64, BRAND_ICON_BASE64 } from "./brand-assets.js";
 
+const GITHUB_CLIENT_ID_OAUTH = "Ov23libLspfxbzmPhMSv";
+
 // Restrict browser access to the dashboard and local SAGE UI.
 const ALLOWED_ORIGINS = [
   "http://localhost:8765",           // SAGE GUI local
@@ -2303,6 +2305,230 @@ async function handleMachineLogin(env, request) {
   }, existingKey ? 200 : 201);
 }
 
+// Session store for GitHub OAuth flows (in-memory KV, backed by D1)
+const OAUTH_SESSION_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+async function oauthSessionGet(env, sessionId) {
+  try {
+    const row = await env.DB.prepare(
+      "SELECT * FROM oauth_sessions WHERE session_id = ? AND expires_at > ?"
+    ).bind(sessionId, nowIso()).first();
+    return row || null;
+  } catch { return null; }
+}
+
+async function oauthSessionSet(env, sessionId, data, ttlMs = OAUTH_SESSION_TTL_MS) {
+  const now = nowIso();
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
+  await env.DB.prepare(
+    `INSERT INTO oauth_sessions (session_id, state, status, payload_json, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(session_id) DO UPDATE SET
+       state = excluded.state,
+       status = excluded.status,
+       payload_json = excluded.payload_json,
+       expires_at = excluded.expires_at`
+  ).bind(sessionId, data.state || "pending", data.status || "pending", JSON.stringify(data.payload || {}), now, expiresAt).run();
+}
+
+async function oauthSessionUpdate(env, sessionId, updates) {
+  const existing = await oauthSessionGet(env, sessionId);
+  if (!existing) return;
+  const payload = JSON.parse(existing.payload_json || "{}");
+  Object.assign(payload, updates.payload || {});
+  await env.DB.prepare(
+    `UPDATE oauth_sessions SET status = ?, payload_json = ? WHERE session_id = ?`
+  ).bind(updates.status || existing.state, JSON.stringify(payload), sessionId).run();
+}
+
+async function ensureOAuthSessionsTable(env) {
+  if (!env.DB) return;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS oauth_sessions (
+      session_id TEXT PRIMARY KEY,
+      state TEXT NOT NULL DEFAULT 'pending',
+      status TEXT NOT NULL DEFAULT 'pending',
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    )`
+  ).run();
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_oauth_sessions_state ON oauth_sessions(state)`
+  ).run().catch(() => {});
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_oauth_sessions_expires ON oauth_sessions(expires_at)`
+  ).run().catch(() => {});
+}
+
+async function handleGithubAuthStart(env, request) {
+  await ensureOAuthSessionsTable(env);
+  const sessionId = newId("oauth");
+  const state = randomHex(32); // Anti-CSRF
+  const baseUrl = "https://sage.api.marketingstudios.in";
+  const authorizeUrl =
+    "https://github.com/login/oauth/authorize" +
+    `?client_id=${GITHUB_CLIENT_ID_OAUTH}` +
+    `&redirect_uri=${encodeURIComponent(baseUrl + "/auth/github/callback")}` +
+    `&state=${state}` +
+    "&scope=user:email";
+
+  await oauthSessionSet(env, sessionId, { state, status: "pending", payload: { session_id: sessionId, created_at: nowIso() } });
+  return json({ ok: true, session_id: sessionId, authorize_url: authorizeUrl, state });
+}
+
+async function handleGithubAuthCallback(env, url) {
+  const authCode = url.searchParams.get("code") || "";
+  const returnedState = url.searchParams.get("state") || "";
+
+  if (!authCode) {
+    return new Response("Missing authorization code", { status: 400 });
+  }
+
+  // Find the session by state
+  let session = null;
+  try {
+    session = await env.DB.prepare(
+      "SELECT * FROM oauth_sessions WHERE state = ? AND status = 'pending' AND expires_at > ?"
+    ).bind(returnedState, nowIso()).first();
+  } catch {}
+  if (!session) {
+    // No session found — user started OAuth outside the CLI. Show a generic page.
+    return new Response(`<!DOCTYPE html><html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f3f4f6"><div style="background:white;padding:40px;border-radius:16px;text-align:center"><h2 style="color:#10b981">GitHub Connected</h2><p style="color:#6b7280">You can close this tab.</p></div></body></html>`, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+
+  // Exchange auth code for GitHub access token
+  let githubToken;
+  try {
+    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID_OAUTH,
+        client_secret: env.GITHUB_CLIENT_SECRET,
+        code: authCode,
+        redirect_uri: "https://sage.api.marketingstudios.in/auth/github/callback",
+      }),
+    });
+    const tokenData = await tokenResponse.json();
+    githubToken = tokenData.access_token;
+    if (!githubToken) {
+      await oauthSessionUpdate(env, session.session_id, { status: "error", payload: { error: tokenData.error_description || "GitHub OAuth failed" } });
+      return new Response("GitHub authorization failed. Please try again.", { status: 401 });
+    }
+  } catch (exc) {
+    return new Response("OAuth exchange failed", { status: 500 });
+  }
+
+  // Get GitHub user info
+  let githubUser;
+  try {
+    const userResponse = await fetch("https://api.github.com/user", {
+      headers: { "Authorization": `Bearer ${githubToken}`, "Accept": "application/vnd.github.v3+json", "User-Agent": "SAGE-API/1.0" },
+    });
+    githubUser = await userResponse.json();
+    if (!githubUser.id || !githubUser.login) {
+      await oauthSessionUpdate(env, session.session_id, { status: "error", payload: { error: "Failed to fetch GitHub user info" } });
+      return new Response("Failed to get GitHub user info", { status: 500 });
+    }
+  } catch (exc) {
+    return new Response("GitHub user info fetch failed", { status: 500 });
+  }
+
+  const githubId = String(githubUser.id);
+  const githubUsername = githubUser.login;
+  const createdAt = nowIso();
+
+  // Check if this GitHub user already has an active key
+  const existingKey = await env.DB.prepare(
+    "SELECT * FROM api_keys WHERE github_id = ? AND revoked_at = ''"
+  ).bind(githubId).first();
+  if (existingKey) {
+    await env.DB.prepare(
+      "UPDATE api_keys SET revoked_at = ? WHERE key_id = ? AND revoked_at = ''"
+    ).bind(createdAt, existingKey.key_id).run();
+  }
+
+  // Create new API key
+  const keyId = newId("key");
+  const secret = randomHex(32);
+  const token = `sage_live_${keyId}_${secret}`;
+  const expiryDays = 365;
+  const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const installationId = textValue(JSON.parse(session.payload_json || "{}").installation_id || "", 120);
+  const clientVersion = textValue(JSON.parse(session.payload_json || "{}").client_version || "", 80);
+  const platform = textValue(JSON.parse(session.payload_json || "{}").platform || "", 80);
+
+  const statements = [env.DB.prepare(
+    `INSERT INTO api_keys
+      (key_id, secret_hash, prefix, scope, display_name, username, github_id, github_username,
+       public_profile, privacy_max, expires_at, rate_limit_per_hour, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    keyId, await sha256(token), "sage_live", "personal",
+    githubUser.name || githubUsername, githubUsername,
+    githubId, githubUsername,
+    1, 1, expiresAt, 10000, createdAt
+  )];
+  if (installationId) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO installations (installation_id, key_id, first_seen_at, last_seen_at, client_version, platform)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(installation_id) DO UPDATE SET
+          key_id = excluded.key_id, last_seen_at = excluded.last_seen_at,
+          client_version = excluded.client_version, platform = excluded.platform`
+      ).bind(installationId, keyId, createdAt, createdAt, clientVersion, platform)
+    );
+  }
+  await env.DB.batch(statements);
+
+  // Store result in session
+  await oauthSessionUpdate(env, session.session_id, {
+    status: "completed",
+    payload: {
+      ok: true,
+      key_id: keyId,
+      api_key: token,
+      github_username: githubUsername,
+      github_id: parseInt(githubId, 10),
+      display_name: githubUser.name || githubUsername,
+      created_at: createdAt,
+      expires_at: expiresAt,
+      rotated_from: existingKey ? existingKey.key_id : "",
+    },
+  });
+
+  return new Response(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SAGE Connected</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,#667eea,#764ba2)}.container{background:white;padding:40px;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;max-width:420px}.icon{display:inline-flex;align-items:center;justify-content:center;width:88px;height:88px;border-radius:999px;background:#10b981;color:white;font-size:34px;font-weight:800;margin-bottom:22px}h1{color:#10b981;margin:0 0 18px 0}p{color:#4b5563;line-height:1.6}</style></head>
+<body><main class="container"><div class="icon">OK</div><h1>SAGE Connected!</h1><p>GitHub authentication successful.</p><p>You can close this window and return to SAGE.</p></main></body></html>`, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+async function handleGithubAuthStatus(env, request, url) {
+  const sessionId = url.searchParams.get("session") || "";
+  if (!sessionId) return error("Missing session parameter", 400);
+
+  const session = await oauthSessionGet(env, sessionId);
+  if (!session) return error("Session not found or expired", 404);
+
+  const payload = JSON.parse(session.payload_json || "{}");
+  if (session.status === "completed") {
+    return json({ ok: true, status: "completed", ...payload });
+  }
+  if (session.status === "error") {
+    return json({ ok: false, status: "error", error: payload.error || "OAuth failed" });
+  }
+  return json({ ok: true, status: "pending", session_id: sessionId });
+}
+
 async function handleCreateKey(env, request) {
   // Key creation is restricted to trusted clients.
   const masterKey = request.headers.get("X-SAGE-Master-Key");
@@ -3031,6 +3257,9 @@ async function route(request, env) {
   if (request.method === "GET" && url.pathname === "/v1/admin/users") return handleAdminUsers(env, request);
   if (request.method === "POST" && url.pathname === "/v1/admin/users/cleanup") return handleAdminUsersCleanup(env, request);
   if (request.method === "GET" && url.pathname === "/v1/proof") return handleProof(env);
+  if (request.method === "POST" && url.pathname === "/v1/github-auth/start") return handleGithubAuthStart(env, request);
+  if (request.method === "GET" && url.pathname === "/v1/github-auth/status") return handleGithubAuthStatus(env, request, url);
+  if (request.method === "GET" && url.pathname === "/auth/github/callback") return handleGithubAuthCallback(env, url);
   return error("Not found", 404);
 }
 

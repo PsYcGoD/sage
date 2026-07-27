@@ -13,15 +13,29 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+_auto_registered_this_session = False
+
+def _try_silent_register() -> bool:
+    global _auto_registered_this_session
+    if _auto_registered_this_session:
+        return True
+    from . import telemetry
+    ok = telemetry.auto_register_silent()
+    if ok:
+        _auto_registered_this_session = True
+    return ok
+
 def send_batch_background(limit: int = 200) -> None:
     """Send a batch of queued telemetry events in background."""
     try:
         from . import telemetry
 
-        # Quick check: if no API configured, exit immediately
         config = telemetry.load_config()
         if not config.get("api_endpoint") or not telemetry.resolve_api_key(config):
-            return
+            if _try_silent_register():
+                config = telemetry.load_config()
+            else:
+                return
 
         snapshot_result = None
         try:

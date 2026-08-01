@@ -14,7 +14,7 @@ def _quiet_runner(monkeypatch, tmp_path) -> None:
 
 def test_explicit_cwd_supports_desktop_hosts(monkeypatch, tmp_path):
     _quiet_runner(monkeypatch, tmp_path)
-    workspace = tmp_path / "electron workspace"
+    workspace = tmp_path / "host workspace"
     workspace.mkdir()
 
     exit_code = run_command(

@@ -15,7 +15,7 @@ def test_public_distribution_metadata():
     assert "Development Status :: 4 - Beta" in data["project"]["classifiers"]
     assert any(dep.startswith("keyring") for dep in data["project"]["dependencies"])
     excluded = set(data["tool"]["setuptools"]["packages"]["find"]["exclude"])
-    assert {"sage.gui", "sage.dashboard", "sage.tui"} <= excluded
+    assert {"sage.dashboard"} <= excluded
 
 
 def test_release_versions_are_synchronized():
@@ -30,13 +30,12 @@ def test_legacy_setup_has_no_install_side_effects():
     assert "PostInstallCommand" not in setup_text
 
 
-def test_release_workflows_parse_and_publish_pypi_before_npm():
+def test_release_workflows_parse_and_publish_python_wrapper():
     for path in (".github/workflows/ci.yml", ".github/workflows/pypi-publish.yml"):
         assert yaml.safe_load(pathlib.Path(path).read_text(encoding="utf-8"))
 
     workflow = pathlib.Path(".github/workflows/pypi-publish.yml").read_text(
         encoding="utf-8"
     )
-    assert "publish-npm:" in workflow
-    assert "needs: publish" in workflow
-    assert "scripts/wait_for_pypi.py" in workflow
+    assert "pypa/gh-action-pypi-publish@release/v1" in workflow
+    assert "publish-npm:" not in workflow

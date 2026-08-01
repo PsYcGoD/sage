@@ -119,7 +119,7 @@ sage install                       # Activate this machine and AI-agent instruct
 sage doctor --activation           # Verify activation
 npx -y psycgod-sage doctor --activation
 sage run -- <command>              # Wrap any command
-sage run --cwd /project -- <command> # Explicit workspace for desktop/Electron hosts
+sage run --cwd /project -- <command> # Explicit workspace for host integrations
 sage pytest                        # Shortcut for: sage run -- pytest
 sage npm test                      # Shortcut for: sage run -- npm test
 sage git status                    # Shortcut for: sage run -- git status
@@ -150,7 +150,7 @@ SAGE is designed to keep prompts, source code, credentials, raw command output, 
 |---|---|
 | Already-open AI-agent sessions may not reload new instructions | Restart Claude/Codex/Cursor/Windsurf/OpenCode after `sage install` |
 | Locked-down host apps can disable shell tools | SAGE cannot enable tools the host application has blocked |
-| A desktop/Electron host starts its shell in the wrong folder | Pass `sage run --cwd <project> -- <command>` or set `SAGE_WORKSPACE_CWD` |
+| A host starts its shell in the wrong folder | Pass `sage run --cwd <project> -- <command>` or set `SAGE_WORKSPACE_CWD` |
 | npm/PyPI installs cannot safely auto-run activation | Run `sage install` once after package install |
 | MCP can disconnect in some stdio agent sessions | Use normal `sage run -- <command>` by default; enable MCP manually only if needed |
 | Package installs are passive by design | Real activation starts with `sage install` |
@@ -163,12 +163,6 @@ SAGE is designed to keep prompts, source code, credentials, raw command output, 
 | npm install | ![npm install flow](docs/assets/sage-install-npm.gif) |
 | `sage run --` | ![sage run](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/sage-run.svg) |
 | CLI run | ![SAGE CLI demo](https://raw.githubusercontent.com/PsYcGoD/sage/main/docs/assets/demo-sage-run.gif) |
-
-## Team View Preview - Enterprise Only
-
-Team View is not part of the free public CLI package. It is a future enterprise dashboard concept for organizations that need shared usage proof, team-level savings, and admin reporting.
-
-![SAGE Team View preview](docs/assets/team-dashboard-preview.png)
 
 ## Links
 

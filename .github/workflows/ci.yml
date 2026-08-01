@@ -31,7 +31,7 @@ jobs:
           pip install pytest customtkinter
 
       - name: Run deterministic test suite
-        # gui/live tests are excluded by the pytest config in pyproject.toml
+        # live tests are excluded by the pytest config in pyproject.toml
         run: python -m pytest -q
 
   lint:

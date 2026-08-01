@@ -195,6 +195,130 @@ def api_machine_login(*, expiry_days: int = 30, display_name: str = "", base_url
     raise RuntimeError("Could not reach SAGE API server.")
 
 
+def api_github_login(
+    *,
+    display_name: str | None = None,
+    public_profile: bool = False,
+    expiry_days: int = 365,
+    base_url: str = "",
+) -> dict[str, Any]:
+    """Create SAGE API key using GitHub OAuth with server-side callback flow.
+
+    This opens the browser for GitHub OAuth. The API handles the entire
+    OAuth exchange server-side — no local server or client secret needed.
+    """
+    from .github_oauth import github_oauth_flow
+
+    config = load_config()
+    base = base_url or config.get("api_base_url") or DEFAULT_API_BASE_URL
+
+    result = github_oauth_flow(
+        api_base=base,
+        install_id=config.get("installation_id", ""),
+        client_version=_client_version(),
+        platform=_platform(),
+    )
+
+    api_key = str(result.get("api_key") or "")
+    key_id = str(result.get("key_id") or "")
+    github_username = str(result.get("github_username") or "")
+    github_id = int(result.get("github_id") or 0)
+
+    if not api_key or not key_id:
+        raise RuntimeError("SAGE API did not return an API key.")
+
+    config["api_base_url"] = base
+    config["api_endpoint"] = f"{base}/v1/telemetry"
+    config["api_key_id"] = key_id
+    storage = _store_api_key(config, api_key, key_id)
+    config["api_profile"] = {
+        "display_name": result.get("display_name", github_username),
+        "username": github_username,
+        "github_id": github_id,
+        "public_profile": bool(public_profile),
+        "scope": "personal",
+    }
+    config["telemetry_level"] = 1
+    save_config(config)
+
+    account_link(
+        github_username,
+        user_id=str(github_id),
+        api_key_ref=key_id,
+        key_max_level=1,
+    )
+    account_use(github_username)
+
+    return {
+        "ok": True,
+        "base_url": base,
+        "endpoint": f"{base}/v1/telemetry",
+        "api_key_redacted": _redact_key(api_key),
+        "key_id": key_id,
+        "username": github_username,
+        "github_id": github_id,
+        "display_name": result.get("display_name", github_username),
+        "expires_at": result.get("expires_at", ""),
+        "public_profile": bool(public_profile),
+        "effective_level": 1,
+        "effective_level_name": "Level 1 (safe metrics only)",
+        "api_key_storage": storage,
+    }
+
+
+def auto_register_silent() -> bool:
+    """Attempt machine login silently — no console output, no user prompt.
+    
+    Called automatically when telemetry has queued events but no endpoint is
+    configured. If the server is reachable this registers the machine, sets
+    telemetry level to 1, and unlocks the dashboard funnel. If it fails
+    (offline, server down, already registered) it's a silent no-op.
+    """
+    try:
+        cfg = load_config()
+        if cfg.get("api_endpoint") and resolve_api_key(cfg):
+            return True
+        from urllib import request as urllib_request, error as urllib_error
+        import json
+        fp = _machine_fingerprint()
+        payload = {
+            "fingerprint": fp["fingerprint"],
+            "hostname": fp["hostname"],
+            "platform": fp["platform"],
+            "installation_id": cfg["installation_id"],
+            "client_version": _client_version(),
+            "expiry_days": 365,
+        }
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib_request.Request(
+            f"{DEFAULT_API_BASE_URL}/v1/machine-login",
+            data=data,
+            headers={"Content-Type": "application/json", "User-Agent": "SAGE-CLI/0.1"},
+            method="POST",
+        )
+        with urllib_request.urlopen(req, timeout=10) as resp:
+            response = json.loads(resp.read().decode())
+        api_key = str(response.get("api_key") or "")
+        key_id = str(response.get("key_id") or "")
+        if not api_key or not key_id:
+            return False
+        cfg["api_base_url"] = DEFAULT_API_BASE_URL
+        cfg["api_endpoint"] = f"{DEFAULT_API_BASE_URL}/v1/telemetry"
+        cfg["api_key_id"] = key_id
+        storage = _store_api_key(cfg, api_key, key_id)
+        cfg["api_profile"] = {
+            "display_name": fp["hostname"],
+            "username": fp["hostname"],
+            "public_profile": False,
+            "scope": "machine",
+        }
+        cfg["telemetry_level"] = max(1, int(cfg.get("telemetry_level", 0)))
+        save_config(cfg)
+        return True
+    except Exception:
+        return False
+
+
 def _agent_client(command: str, caller: str = "") -> str:
     first = (str(command or "").strip().split(maxsplit=1) or [""])[0]
     name = Path(first).name.lower()
@@ -652,40 +776,30 @@ def maybe_sync_after_run(run_id: int, *, snapshot_every: int = 10) -> dict[str, 
         "snapshot_due": False,
         "snapshot": None,
     }
+    snapshot_every = max(1, int(snapshot_every or 10))
+    state = _read_sync_state()
+    last_snapshot_run_id = int(state.get("last_snapshot_run_id") or 0)
+    due = run_id >= snapshot_every and run_id - last_snapshot_run_id >= snapshot_every
+    result["snapshot_due"] = due
+    if due:
+        now = _now()
+        state["last_snapshot_run_id"] = int(run_id)
+        state["last_snapshot_scheduled_at"] = now
+        result["snapshot"] = {"scheduled": True}
+        try:
+            _write_sync_state(state)
+        except Exception:
+            pass
+
+    # The detached sender already publishes proof snapshots before and after
+    # draining its batch. Never perform network I/O on the coding command's
+    # foreground path.
     try:
         from .telemetry_sender import spawn_background_sender
 
         result["background_sender_spawned"] = bool(spawn_background_sender())
     except Exception as exc:
         result["background_sender_error"] = str(exc)
-
-    snapshot_every = max(1, int(snapshot_every or 10))
-    state = _read_sync_state()
-    last_snapshot_run_id = int(state.get("last_snapshot_run_id") or 0)
-    due = run_id >= snapshot_every and run_id - last_snapshot_run_id >= snapshot_every
-    result["snapshot_due"] = due
-    if not due:
-        return result
-
-    now = _now()
-    state["last_snapshot_attempt_run_id"] = int(run_id)
-    state["last_snapshot_attempt_at"] = now
-    try:
-        snapshot = send_proof_snapshot()
-        result["snapshot"] = snapshot
-        if snapshot.get("ok"):
-            state["last_snapshot_run_id"] = int(run_id)
-            state["last_snapshot_at"] = now
-            state["last_snapshot_error"] = ""
-        else:
-            state["last_snapshot_error"] = str(snapshot)
-    except Exception as exc:
-        result["snapshot"] = {"ok": False, "error": str(exc)}
-        state["last_snapshot_error"] = str(exc)
-    try:
-        _write_sync_state(state)
-    except Exception:
-        pass
     return result
 
 

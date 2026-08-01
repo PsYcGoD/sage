@@ -37,6 +37,7 @@ KNOWN_COMMANDS = {
     "firewall",
     "fix",
     "github-bot",
+    "github-login",
     "glob",
     "grep",
     "gui",
@@ -122,6 +123,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--pty",
         action="store_true",
         help="Run the command with inherited terminal stdin/stdout/stderr for interactive CLIs.",
+    )
+    run.add_argument(
+        "--cwd",
+        help=(
+            "Run from this working directory. Desktop/Electron hosts may also "
+            "set SAGE_WORKSPACE_CWD."
+        ),
     )
     run.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --")
 
@@ -325,6 +333,12 @@ def build_parser() -> argparse.ArgumentParser:
     connect_parser.add_argument("--display-name", help="Optional display name (defaults to GitHub name).")
     connect_parser.add_argument("--public-profile", action="store_true", help="Show your name on public proof.")
     connect_parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
+    connect_parser.add_argument("--github", action="store_true", help="Use GitHub OAuth instead of machine auth.")
+
+    github_login_parser = sub.add_parser("github-login", help="Authenticate with GitHub OAuth and create a SAGE API key.")
+    github_login_parser.add_argument("--display-name", help="Optional display name (defaults to GitHub name).")
+    github_login_parser.add_argument("--public-profile", action="store_true", help="Show your name on public proof.")
+    github_login_parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
 
     login_parser = sub.add_parser("login", help="Create and store a free SAGE API key.")
     _add_login_args(login_parser)
@@ -583,9 +597,17 @@ def setup_command(force: bool = False) -> int:
     cloud_connected = False
     print()
     print("Cloud connection: connecting automatically. If cloud is unreachable, SAGE stays local and retries later.")
+    print()
     try:
-        connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="", auto_only=True)
-        cloud_connected = connect_command(connect_args) == 0
+        from . import telemetry
+
+        config = telemetry.load_config()
+        if config.get("api_key_id"):
+            connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="", auto_only=True)
+            cloud_connected = connect_command(connect_args) == 0
+        else:
+            connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="", auto_only=True)
+            cloud_connected = connect_command(connect_args) == 0
     except Exception as exc:
         print(f"Cloud connection skipped: {exc}")
         print("Queued telemetry will send later after automatic setup reconnects.")
@@ -676,7 +698,7 @@ def _ensure_first_run_setup(command_name: str | None) -> int:
     """
     if os.environ.get("SAGE_SKIP_SETUP") == "1":
         return 0
-    if command_name in {"setup", "activate", "install", "connect", "login", "logout"}:
+    if command_name in {"setup", "activate", "install", "connect", "login", "logout", "github-login"}:
         return 0
     if _read_setup_state().get("completed"):
         return 0
@@ -747,6 +769,7 @@ def main(argv: list[str] | None = None) -> int:
             policy_mode=args.policy_mode,
             dry_run=args.dry_run,
             pty=args.pty,
+            cwd=args.cwd,
         )
 
     if args.command_name == "predict":
@@ -857,6 +880,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "connect":
         return connect_command(args)
+
+    if args.command_name == "github-login":
+        return github_login_command(args)
 
     if args.command_name == "login":
         return login_command(args)
@@ -1873,15 +1899,31 @@ def connect_command(args) -> int:
     result = None
     method = ""
 
-    print("Trying SAGE machine authentication...")
-    try:
-        result = telemetry.api_machine_login(expiry_days=expiry_days, display_name=display_name)
-        method = "hardware"
-        print("      Machine auth successful!")
-    except Exception as hw_exc:
-        print(f"      Machine auth unavailable: {hw_exc}")
-        print("SAGE remains usable locally. Automatic setup will retry on repair/force setup.")
-        return 1
+    use_github = getattr(args, "github", False)
+    if use_github:
+        print("Using GitHub OAuth...")
+        try:
+            result = telemetry.api_github_login(
+                display_name=display_name,
+                public_profile=bool(getattr(args, "public_profile", False)),
+                expiry_days=expiry_days,
+            )
+            method = "github"
+            print("      GitHub auth successful!")
+        except Exception as gh_exc:
+            print(f"      GitHub auth failed: {gh_exc}")
+            print("SAGE remains usable locally.")
+            return 1
+    else:
+        print("Trying SAGE machine authentication...")
+        try:
+            result = telemetry.api_machine_login(expiry_days=expiry_days, display_name=display_name)
+            method = "hardware"
+            print("      Machine auth successful!")
+        except Exception as hw_exc:
+            print(f"      Machine auth unavailable: {hw_exc}")
+            print("SAGE remains usable locally. Automatic setup will retry on repair/force setup.")
+            return 1
 
     # Verify with server
     print("\nVerifying with server...")
@@ -1936,6 +1978,65 @@ def connect_command(args) -> int:
     print("    sage run -- pytest")
     print()
     return 0
+
+def github_login_command(args) -> int:
+    """Authenticate using GitHub OAuth and create a SAGE API key."""
+    from . import telemetry
+
+    print("SAGE GitHub Login")
+    print("=" * 60)
+    print()
+
+    display_name = str(getattr(args, "display_name", "") or "").strip()
+    if not display_name:
+        display_name = _machine_display_name("")
+
+    try:
+        result = telemetry.api_github_login(
+            display_name=display_name,
+            public_profile=bool(getattr(args, "public_profile", False)),
+            expiry_days=getattr(args, "expiry_days", 365) or 365,
+        )
+    except Exception as exc:
+        print(f"GitHub login failed: {exc}")
+        print("SAGE remains usable locally.")
+        return 1
+
+    # Verify with server
+    print("\nVerifying with server...")
+    verified = False
+    for _ in range(3):
+        try:
+            whoami = telemetry.api_whoami()
+            if whoami.get("server_verified"):
+                verified = True
+                break
+        except Exception:
+            pass
+        import time
+        time.sleep(1)
+
+    from .install import install_sage_system_wide, is_sage_installed_system_wide
+    if not is_sage_installed_system_wide():
+        install_sage_system_wide()
+
+    key_storage = result.get("api_key_storage") or telemetry.load_config().get("api_key_storage", "file")
+    print()
+    print("=" * 60)
+    print("  SAGE CONNECTED WITH GITHUB")
+    print("=" * 60)
+    print(f"  Identity:  {result.get('username', 'unknown')}")
+    print(f"  Key ID:    {result.get('key_id')}")
+    print(f"  Storage:   {key_storage}")
+    print(f"  Expires:   {result.get('expires_at')}")
+    print(f"  Server:    {'VERIFIED' if verified else 'PENDING'}")
+    print(f"  Telemetry: ON (anonymous metrics only)")
+    print("=" * 60)
+    print()
+    print("  Every command your AI agents run is now tracked, compressed,")
+    print("  and protected.")
+    return 0
+
 
 def rotate_key_command(args) -> int:
     """Rotate API key through SAGE machine authentication."""

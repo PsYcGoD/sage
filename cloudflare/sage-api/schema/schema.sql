@@ -74,3 +74,15 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_workspace ON telemetry_events(workspace
 CREATE INDEX IF NOT EXISTS idx_telemetry_kind ON telemetry_events(command_kind, received_at);
 CREATE INDEX IF NOT EXISTS idx_aggregate_daily_key ON aggregate_daily(key_id, day);
 
+CREATE TABLE IF NOT EXISTS oauth_sessions (
+  session_id TEXT PRIMARY KEY,
+  state TEXT NOT NULL DEFAULT 'pending',
+  status TEXT NOT NULL DEFAULT 'pending',
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_oauth_sessions_state ON oauth_sessions(state);
+CREATE INDEX IF NOT EXISTS idx_oauth_sessions_expires ON oauth_sessions(expires_at);
+

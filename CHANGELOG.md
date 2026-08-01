@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.6.0
+
+### Fixed
+
+- Preserve quoted arguments on Windows by launching native executables without a second `cmd.exe` parsing pass.
+- Add `--cwd` and `SAGE_WORKSPACE_CWD` so Electron and other desktop hosts can supply the real project directory.
+- Make foreground telemetry sync non-blocking; proof snapshots remain handled by the detached sender.
+- Keep the npm launcher and PyPI core compatible by upgrading an older Python core before delegation.
+- Synchronize Python, npm, lockfile, exported, and MCP version metadata.
+
+### Packaging
+
+- Keep npm install passive and publish only the thin launcher/bridge files.
+- Publish PyPI first and npm second from one GitHub release workflow using trusted publishing.
+- Add release version checks, npm launcher CI, package dry-runs, and a PyPI-availability gate before npm publish.
+
 ## v2.4.3
 
 ### Fixed

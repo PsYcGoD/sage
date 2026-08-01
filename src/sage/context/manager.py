@@ -78,7 +78,13 @@ class ContextManager:
             'original_tokens': original_tokens,
             'compressed_tokens': compressed_tokens,
             'strategy': result.strategy,
-            'verified_tokenizer': self.compressor.get_stats().get("verified_tokenizer", "unknown"),
+            # Do not load the full tokenizer for commands that produced no
+            # output. This keeps silent wrapped commands fast.
+            'verified_tokenizer': (
+                "n/a"
+                if original_tokens == 0
+                else self.compressor.get_stats().get("verified_tokenizer", "unknown")
+            ),
         }
 
     def smart_file_read(

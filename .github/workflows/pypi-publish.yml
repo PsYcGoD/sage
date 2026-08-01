@@ -1,22 +1,27 @@
-name: Publish to PyPI
+name: Publish packages
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version or tag (for example 2.6.0 or v2.6.0)"
+        required: true
+        type: string
   release:
     types: [published]
 
 jobs:
   publish:
-    name: Build and publish package
+    name: Build and publish PyPI core
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -29,8 +34,51 @@ jobs:
       - name: Build distributions
         run: python -m build
 
+      - name: Verify synchronized release version
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name || inputs.version }}
+        run: python scripts/check_release_versions.py --tag "$RELEASE_VERSION"
+
       - name: Check distributions
         run: python -m twine check dist/*
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-npm:
+    name: Publish npm launcher after PyPI
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Verify synchronized release version
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name || inputs.version }}
+        run: python scripts/check_release_versions.py --tag "$RELEASE_VERSION"
+
+      - name: Wait for the matching PyPI core
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name || inputs.version }}
+        run: python scripts/wait_for_pypi.py --version "$RELEASE_VERSION"
+
+      - name: Test and publish wrapper-only npm package
+        working-directory: js
+        run: |
+          npm ci
+          npm test
+          npm publish

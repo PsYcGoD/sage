@@ -17,9 +17,9 @@ jobs:
         os: [windows-latest, ubuntu-latest]
         python-version: ["3.11", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -39,9 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -59,3 +59,27 @@ jobs:
 
       - name: Build package
         run: python -m build
+
+      - name: Verify release versions
+        run: python scripts/check_release_versions.py
+
+  npm-launcher:
+    name: npm wrapper-only launcher
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+
+      - name: Install, test, and build thin launcher
+        working-directory: js
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npm pack --dry-run

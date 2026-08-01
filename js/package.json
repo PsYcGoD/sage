@@ -1,6 +1,6 @@
 {
   "name": "psycgod-sage",
-  "version": "2.5.8",
+  "version": "2.6.0",
   "mcpName": "io.github.PsYcGoD/sage",
   "description": "npm/npx launcher for the canonical PyPI SAGE CLI wrapper for AI coding agents",
   "author": "PsYcGoD",
@@ -12,27 +12,31 @@
     "sage": "bin/sage.js"
   },
   "files": [
-    "dist",
-    "bin"
+    "bin",
+    "dist/index.*",
+    "dist/cli/index.*",
+    "dist/python/bridge.*"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
     "dev": "tsc --watch",
-    "test": "vitest",
+    "test": "vitest --run tests/launcher.test.ts",
     "lint": "eslint src",
-    "postinstall": "node ./dist/cli/postinstall.js",
-    "prepublishOnly": "npm run build"
+    "prepack": "npm run build"
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/node": "^22.0.0",
-    "@types/uuid": "^10.0.0",
-    "typescript": "^5.5.0",
-    "vitest": "^2.0.0"
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
   },
   "repository": {
     "type": "git",

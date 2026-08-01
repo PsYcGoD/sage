@@ -53,27 +53,28 @@ python -m build
 python -m twine check dist/*
 ```
 
-5. Publish from GitHub using PyPI Trusted Publishing:
+5. Publish from GitHub using trusted publishing for both registries:
 
 - Create a PyPI pending publisher for project `psycgod-sage`.
 - Use repository `PsYcGoD/sage`.
 - Use workflow `pypi-publish.yml`.
 - Use environment `pypi`.
-- Publish a GitHub release. The `.github/workflows/pypi-publish.yml` workflow builds and uploads to PyPI using OIDC.
+- Configure npm trusted publishing for `PsYcGoD/sage`, workflow `pypi-publish.yml`, environment `npm`, with `npm publish` allowed.
+- Publish a GitHub release. The workflow uploads PyPI first, waits until that exact core version is visible, and then publishes the thin npm launcher using OIDC.
 
 No PyPI API token is needed when Trusted Publishing is configured correctly.
 
-6. After the GitHub release workflow succeeds, install from PyPI in a clean environment and run:
+6. After the GitHub release workflow succeeds, install both entry points in clean environments and run:
 
 ```bash
 pip install psycgod-sage
 sage --version
-sage gui
 sage api status
+npx -y psycgod-sage@latest --version
 ```
 
 ## Not Done Yet
 
 Do not mark PyPI release complete until the package is visible on PyPI and install-tested with `pip install psycgod-sage`.
 
-Current blocker: PyPI rejected the GitHub Trusted Publisher claim because the pending publisher used the wrong repository casing/path. The GitHub claim is `repository: PsYcGoD/sage`, so PyPI must use exactly `PsYcGoD/sage`.
+Registry configuration is case-sensitive. Both trusted publishers must use `PsYcGoD/sage` and the exact workflow filename `pypi-publish.yml`; the environments are `pypi` and `npm` respectively.

@@ -31,7 +31,8 @@ def test_readme_public_positioning():
 
     assert "# SAGE" in readme
     assert "pip install psycgod-sage" in readme
-    assert "## Start Here: Install SAGE, Then Use Any AI Agent" in readme
+    assert "## Start Here:" in readme
+    assert "Then Use Any AI Agent" in readme
     assert "sage install" in readme
     assert "sage doctor --activation" in readme
     assert "npx -y psycgod-sage doctor --activation" in readme

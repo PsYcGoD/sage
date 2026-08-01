@@ -70,19 +70,19 @@ SAGE does not auto-enable MCP. MCP is optional and manual for users who want it.
 
 ## Live Proof
 
-Latest pulled stats as of 2026-07-22:
+Latest pulled stats as of 2026-08-01:
 
 | Metric | Value |
 |---|---:|
-| SAGE telemetry command events | 23,081 |
-| Tokens processed | 750.0M |
-| Tokens saved | 736.1M |
-| Compression rate | 98.14% |
-| Estimated savings | $15,273.07 |
-| Command success rate | 89.7% |
-| PyPI downloads, last 7 days | 885 |
-| npm downloads, last 7 days | 1,268 |
-| GitHub clones, last 14 days | 1,635 |
+| SAGE telemetry command events | 27,892 |
+| Tokens processed | 799.5M |
+| Tokens saved | 783.7M |
+| Compression rate | 98.02% |
+| Estimated savings | $16,261.90 |
+| Command success rate | 88.3% |
+| PyPI downloads, last 7 days | 632 |
+| npm downloads, last 7 days | 362 |
+| GitHub clones, last 14 days | 574 |
 
 Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
 Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
@@ -119,6 +119,7 @@ sage install                       # Activate this machine and AI-agent instruct
 sage doctor --activation           # Verify activation
 npx -y psycgod-sage doctor --activation
 sage run -- <command>              # Wrap any command
+sage run --cwd /project -- <command> # Explicit workspace for desktop/Electron hosts
 sage pytest                        # Shortcut for: sage run -- pytest
 sage npm test                      # Shortcut for: sage run -- npm test
 sage git status                    # Shortcut for: sage run -- git status
@@ -149,6 +150,7 @@ SAGE is designed to keep prompts, source code, credentials, raw command output, 
 |---|---|
 | Already-open AI-agent sessions may not reload new instructions | Restart Claude/Codex/Cursor/Windsurf/OpenCode after `sage install` |
 | Locked-down host apps can disable shell tools | SAGE cannot enable tools the host application has blocked |
+| A desktop/Electron host starts its shell in the wrong folder | Pass `sage run --cwd <project> -- <command>` or set `SAGE_WORKSPACE_CWD` |
 | npm/PyPI installs cannot safely auto-run activation | Run `sage install` once after package install |
 | MCP can disconnect in some stdio agent sessions | Use normal `sage run -- <command>` by default; enable MCP manually only if needed |
 | Package installs are passive by design | Real activation starts with `sage install` |

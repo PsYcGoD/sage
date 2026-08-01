@@ -74,12 +74,12 @@ Latest pulled stats as of 2026-08-01:
 
 | Metric | Value |
 |---|---:|
-| SAGE telemetry command events | 27,847 |
+| SAGE telemetry command events | 27,892 |
 | Tokens processed | 799.5M |
 | Tokens saved | 783.7M |
 | Compression rate | 98.02% |
-| Estimated savings | $16,261.10 |
-| Command success rate | 88.2% |
+| Estimated savings | $16,261.90 |
+| Command success rate | 88.3% |
 | PyPI downloads, last 7 days | 632 |
 | npm downloads, last 7 days | 362 |
 | GitHub clones, last 14 days | 574 |

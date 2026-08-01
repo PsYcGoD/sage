@@ -4,7 +4,7 @@
 
 The npm package `psycgod-sage` is intended to be a safe launcher for the canonical PyPI package `psycgod-sage`.
 
-As of npm package version `1.0.19`:
+As of npm package version `2.6.0`:
 
 - `npm install -g psycgod-sage` is passive.
 - There is no `preinstall`, `install`, or `postinstall` lifecycle script.
@@ -15,6 +15,9 @@ As of npm package version `1.0.19`:
 - Agent hook installation is best-effort and non-blocking for normal command execution.
 - Hook denials do not print the blocked command, to avoid leaking secrets from command lines into AI context or logs.
 - Hook installation merges with existing hook settings instead of replacing a user's existing hooks.
+- The package allowlist contains only the launcher, the Python bridge, and their declarations/source maps.
+- The launcher verifies that the installed PyPI core is at least the compatibility version declared by npm.
+- Desktop hosts can pass the workspace through `SAGE_WORKSPACE_CWD` without changing global process state.
 
 ## Why this changed
 

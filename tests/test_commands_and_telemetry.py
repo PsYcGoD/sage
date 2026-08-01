@@ -489,7 +489,9 @@ def test_sync_all_refreshes_snapshot_when_queue_remains(isolated_telemetry, monk
     assert result["snapshot"] == {"ok": True}
 
 
-def test_after_run_sync_publishes_snapshot_every_10_runs(isolated_telemetry, monkeypatch):
+def test_after_run_sync_schedules_snapshot_without_foreground_network(
+    isolated_telemetry, monkeypatch
+):
     t = isolated_telemetry
     calls = []
 
@@ -504,7 +506,7 @@ def test_after_run_sync_publishes_snapshot_every_10_runs(isolated_telemetry, mon
     assert t.maybe_sync_after_run(19)["snapshot_due"] is False
     assert t.maybe_sync_after_run(20)["snapshot_due"] is True
 
-    assert calls.count("snapshot") == 2
+    assert calls.count("snapshot") == 0
     assert calls.count("sender") == 4
 
 

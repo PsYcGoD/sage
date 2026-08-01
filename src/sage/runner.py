@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 
 import os
+import shutil
 import subprocess
 import sys
 import queue
@@ -26,7 +27,9 @@ def _build_popen_cmd(command_text: str, command_parts: list[str]) -> tuple:
 
     On non-Windows: returns (command_parts, False).
     On Windows + SAGE_SHELL set: uses that shell explicitly (e.g. pwsh, powershell).
-    On Windows default: cmd.exe via shell=True.
+    On Windows default: launch native executables directly and use cmd.exe only
+    for batch files and shell built-ins. Avoiding ``shell=True`` prevents a
+    second parsing pass from corrupting quoted PowerShell/Node arguments.
 
     To run PowerShell built-ins through SAGE, set SAGE_SHELL=pwsh (or powershell).
     """
@@ -37,7 +40,26 @@ def _build_popen_cmd(command_text: str, command_parts: list[str]) -> tuple:
     if shell_override:
         return [shell_override, "-NoProfile", "-Command", command_text], False
 
-    return command_text, True
+    resolved = shutil.which(command_parts[0]) if command_parts else None
+    if resolved and Path(resolved).suffix.lower() not in {".bat", ".cmd"}:
+        return command_parts, False
+
+    comspec = os.environ.get("COMSPEC", "cmd.exe")
+    return [comspec, "/d", "/s", "/c", command_text], False
+
+
+def _resolve_working_directory(cwd: str | os.PathLike[str] | None = None) -> Path:
+    """Resolve the project directory supplied by a CLI or desktop host."""
+    candidate = (
+        str(cwd).strip()
+        if cwd is not None
+        else os.environ.get("SAGE_WORKSPACE_CWD", "").strip()
+        or str(Path.cwd())
+    )
+    path = Path(candidate).expanduser().resolve()
+    if not path.is_dir():
+        raise NotADirectoryError(f"SAGE working directory does not exist: {path}")
+    return path
 
 
 def _configure_stdio() -> None:
@@ -72,10 +94,17 @@ def run_command(
     session_id: str = "",
     is_ai_session: int = 0,
     pty: bool = False,
+    cwd: str | os.PathLike[str] | None = None,
 ) -> int:
     _configure_stdio()
     if not command_parts:
         print("No command was provided. Example: sage run -- python --version")
+        return 2
+
+    try:
+        working_dir = _resolve_working_directory(cwd)
+    except (OSError, ValueError) as exc:
+        print(f"[sage] {exc}", file=sys.stderr)
         return 2
 
     command_text = subprocess.list2cmdline(command_parts)
@@ -116,7 +145,7 @@ def run_command(
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
-    env.setdefault("SAGE_CALLER_CWD", str(Path.cwd()))
+    env["SAGE_CALLER_CWD"] = str(working_dir)
 
     if pty:
         return _run_interactive_passthrough(
@@ -129,6 +158,7 @@ def run_command(
             kind_override=kind_override,
             session_id=session_id,
             is_ai_session=is_ai_session,
+            working_dir=working_dir,
         )
 
     popen_args, use_shell = _build_popen_cmd(command_text, command_parts)
@@ -142,6 +172,7 @@ def run_command(
         encoding="utf-8",
         errors="replace",
         env=env,
+        cwd=str(working_dir),
     )
     output_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
 
@@ -279,7 +310,7 @@ def run_command(
             os.environ["SAGE_SESSION_ID"] = session_id
 
     run_id = save_run(
-        project=str(Path.cwd()),
+        project=str(working_dir),
         command=command_text,
         exit_code=returncode,
         duration_ms=duration_ms,
@@ -298,7 +329,7 @@ def run_command(
         command_kind=kind_override or command_class.kind,
         command_family=command_class.family,
         caller=caller,
-        workspace_hash=workspace_hash(str(Path.cwd())),
+        workspace_hash=workspace_hash(str(working_dir)),
         session_id=session_id,
         is_ai_session=is_ai_session,
     )
@@ -372,7 +403,11 @@ def run_command(
         original_tokens = int(result.get("original_tokens", saved_tokens))
         compressed_tokens = int(result.get("compressed_tokens", max(0, original_tokens - saved_tokens)))
         strategy = str(result.get("strategy", "auto"))
-        tokenizer = "tiktoken" if is_real_tokenizer() else "fallback"
+        tokenizer = (
+            "n/a"
+            if original_tokens == 0
+            else ("tiktoken" if is_real_tokenizer() else "fallback")
+        )
 
         with connect() as conn:
             conn.execute(
@@ -461,6 +496,7 @@ def _run_interactive_passthrough(
     kind_override: str,
     session_id: str,
     is_ai_session: int,
+    working_dir: Path,
 ) -> int:
     """Run an interactive command without pipes so the child owns the TTY.
 
@@ -508,6 +544,7 @@ def _run_interactive_passthrough(
             popen_args,
             shell=use_shell,
             env=env,
+            cwd=str(working_dir),
         )
     except KeyboardInterrupt:
         returncode = 130
@@ -515,7 +552,7 @@ def _run_interactive_passthrough(
     duration_ms = int((time.perf_counter() - started) * 1000)
     summary = "Interactive PTY command; live output was not captured."
     run_id = save_run(
-        project=str(Path.cwd()),
+        project=str(working_dir),
         command=command_text,
         exit_code=returncode,
         duration_ms=duration_ms,
@@ -534,7 +571,7 @@ def _run_interactive_passthrough(
         command_kind=kind_override or command_class.kind,
         command_family=command_class.family,
         caller=caller,
-        workspace_hash=workspace_hash(str(Path.cwd())),
+        workspace_hash=workspace_hash(str(working_dir)),
         session_id=session_id,
         is_ai_session=is_ai_session,
     )

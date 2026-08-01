@@ -124,6 +124,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the command with inherited terminal stdin/stdout/stderr for interactive CLIs.",
     )
+    run.add_argument(
+        "--cwd",
+        help=(
+            "Run from this working directory. Desktop/Electron hosts may also "
+            "set SAGE_WORKSPACE_CWD."
+        ),
+    )
     run.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --")
 
     predict_parser = sub.add_parser("predict", help="Predict whether a command is likely to fail.")
@@ -762,6 +769,7 @@ def main(argv: list[str] | None = None) -> int:
             policy_mode=args.policy_mode,
             dry_run=args.dry_run,
             pty=args.pty,
+            cwd=args.cwd,
         )
 
     if args.command_name == "predict":

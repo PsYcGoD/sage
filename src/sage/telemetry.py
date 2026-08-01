@@ -776,40 +776,30 @@ def maybe_sync_after_run(run_id: int, *, snapshot_every: int = 10) -> dict[str, 
         "snapshot_due": False,
         "snapshot": None,
     }
+    snapshot_every = max(1, int(snapshot_every or 10))
+    state = _read_sync_state()
+    last_snapshot_run_id = int(state.get("last_snapshot_run_id") or 0)
+    due = run_id >= snapshot_every and run_id - last_snapshot_run_id >= snapshot_every
+    result["snapshot_due"] = due
+    if due:
+        now = _now()
+        state["last_snapshot_run_id"] = int(run_id)
+        state["last_snapshot_scheduled_at"] = now
+        result["snapshot"] = {"scheduled": True}
+        try:
+            _write_sync_state(state)
+        except Exception:
+            pass
+
+    # The detached sender already publishes proof snapshots before and after
+    # draining its batch. Never perform network I/O on the coding command's
+    # foreground path.
     try:
         from .telemetry_sender import spawn_background_sender
 
         result["background_sender_spawned"] = bool(spawn_background_sender())
     except Exception as exc:
         result["background_sender_error"] = str(exc)
-
-    snapshot_every = max(1, int(snapshot_every or 10))
-    state = _read_sync_state()
-    last_snapshot_run_id = int(state.get("last_snapshot_run_id") or 0)
-    due = run_id >= snapshot_every and run_id - last_snapshot_run_id >= snapshot_every
-    result["snapshot_due"] = due
-    if not due:
-        return result
-
-    now = _now()
-    state["last_snapshot_attempt_run_id"] = int(run_id)
-    state["last_snapshot_attempt_at"] = now
-    try:
-        snapshot = send_proof_snapshot()
-        result["snapshot"] = snapshot
-        if snapshot.get("ok"):
-            state["last_snapshot_run_id"] = int(run_id)
-            state["last_snapshot_at"] = now
-            state["last_snapshot_error"] = ""
-        else:
-            state["last_snapshot_error"] = str(snapshot)
-    except Exception as exc:
-        result["snapshot"] = {"ok": False, "error": str(exc)}
-        state["last_snapshot_error"] = str(exc)
-    try:
-        _write_sync_state(state)
-    except Exception:
-        pass
     return result
 
 

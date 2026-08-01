@@ -18,9 +18,6 @@
   "include": [
     "src/index.ts",
     "src/cli/index.ts",
-    "src/cli/postinstall.ts",
-    "src/cli/setup.ts",
-    "src/install/**/*",
     "src/python/**/*"
   ],
   "exclude": ["node_modules", "dist", "tests"]

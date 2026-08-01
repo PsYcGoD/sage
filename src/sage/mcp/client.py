@@ -26,10 +26,12 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import __version__
+
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2024-11-05"
-CLIENT_INFO = {"name": "psycgod-sage", "version": "2.0.4"}
+CLIENT_INFO = {"name": "psycgod-sage", "version": __version__}
 
 @dataclass
 class MCPConnectionResult:

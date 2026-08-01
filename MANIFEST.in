@@ -3,5 +3,6 @@
 prune electron
 prune src/sage/gui
 prune src/sage/dashboard
+prune src/sage/tui
 exclude src/sage/gui_server.py
 exclude tests/test_dashboard_render.py

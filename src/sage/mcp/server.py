@@ -12,6 +12,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
+from .. import __version__
+
 from .tools import (
 
     SAGE_TOOLS,
@@ -38,7 +40,7 @@ from .tools import (
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_INFO = {"name": "sage", "version": "2.0.4"}
+SERVER_INFO = {"name": "sage", "version": __version__}
 COMMAND_TOOL_NAMES = {"sage_run_command"}
 # 0 disables the idle watchdog. Clients like Claude Code hold one stdio server
 # for the whole session and only call tools intermittently; a short idle exit

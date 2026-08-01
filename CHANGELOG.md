@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.6.1
+
+- Public distributions contain only the Python wrapper and thin npm launcher.
+- Removed GUI, TUI, Electron, editor-extension, enterprise-preview, and legacy JavaScript code.
+- Added synchronized PyPI, npm, and official MCP Registry metadata.
+
 ## v2.6.0
 
 ### Fixed

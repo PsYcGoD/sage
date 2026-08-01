@@ -1,6 +1,7 @@
 {
   "name": "psycgod-sage",
-  "version": "2.6.0",
+  "version": "2.6.1",
+  "mcpName": "io.github.PsYcGoD/sage",
   "mcpName": "io.github.PsYcGoD/sage",
   "description": "npm/npx launcher for the canonical PyPI SAGE CLI wrapper for AI coding agents",
   "author": "PsYcGoD",

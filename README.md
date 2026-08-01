@@ -1,5 +1,7 @@
 # SAGE - Smart Agent Guidance Engine
 
+<!-- mcp-name: io.github.PsYcGoD/sage -->
+
 [![CI](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml/badge.svg)](https://github.com/PsYcGoD/sage/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/PsYcGoD/sage/blob/main/pyproject.toml)
 [![PyPI](https://img.shields.io/pypi/v/psycgod-sage.svg)](https://pypi.org/project/psycgod-sage/)

@@ -1,7 +1,7 @@
 import { spawnSync } from 'child_process';
 import { existsSync, statSync } from 'fs';
 
-export const EXPECTED_SAGE_VERSION = '2.6.0';
+export const EXPECTED_SAGE_VERSION = '2.6.1';
 
 interface PythonCommand {
   command: string;

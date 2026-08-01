@@ -25,6 +25,8 @@ def versions() -> dict[str, str]:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     package = json.loads((ROOT / "js" / "package.json").read_text(encoding="utf-8"))
     package_lock = json.loads((ROOT / "js" / "package-lock.json").read_text(encoding="utf-8"))
+    server = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
+    mcp_config = json.loads((ROOT / "sage-mcp.json").read_text(encoding="utf-8-sig"))
     return {
         "pyproject": str(pyproject["project"]["version"]),
         "python": _quoted_version(ROOT / "src" / "sage" / "__init__.py", "__version__"),
@@ -34,6 +36,10 @@ def versions() -> dict[str, str]:
         "npm_python_core": _quoted_version(
             ROOT / "js" / "src" / "python" / "bridge.ts", "EXPECTED_SAGE_VERSION"
         ),
+        "mcp_registry": str(server["version"]),
+        "mcp_pypi": str(server["packages"][0]["version"]),
+        "mcp_npm": str(server["packages"][1]["version"]),
+        "mcp_config": str(mcp_config["version"]),
     }
 
 

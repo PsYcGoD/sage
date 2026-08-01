@@ -40,7 +40,6 @@ KNOWN_COMMANDS = {
     "github-login",
     "glob",
     "grep",
-    "gui",
     "history",
     "init",
     "install",
@@ -51,7 +50,6 @@ KNOWN_COMMANDS = {
     "ml",
     "predict",
     "privacy",
-    "psycgod_gui",
     "read",
     "redact",
     "restore-file",
@@ -63,7 +61,6 @@ KNOWN_COMMANDS = {
     "stats",
     "telemetry",
     "tree",
-    "tui",
     "whoami",
     "workflow",
     "write",
@@ -127,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--cwd",
         help=(
-            "Run from this working directory. Desktop/Electron hosts may also "
+            "Run from this working directory. Host integrations may also "
             "set SAGE_WORKSPACE_CWD."
         ),
     )
@@ -469,10 +466,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub.add_parser("stats", help="Show SAGE token, ML, and agent statistics.")
     sub.add_parser("init", help="Create S.A.G.E instructions for developer tools.")
-    sub.add_parser("gui", help="Show GUI availability status.")
-    sub.add_parser("tui", help="Start the SAGE interactive TUI.")
-    sub.add_parser("psycgod_gui", help="Launch the SAGE PsYcGoD GUI desktop app.")
-
     return parser
 
 def _add_login_args(parser: argparse.ArgumentParser) -> None:
@@ -901,15 +894,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command_name == "init":
         return init_project()
-
-    if args.command_name == "gui":
-        return gui_command()
-
-    if args.command_name == "tui":
-        return tui_command()
-
-    if args.command_name == "psycgod_gui":
-        return electron_command()
 
     parser.print_help()
     return 2
@@ -3189,6 +3173,7 @@ def dashboard_command(args) -> int:
 
     return 1
 
+
 def mcp_command(args) -> int:
     """Manage MCP server."""
     import json
@@ -3551,49 +3536,3 @@ def install_command(*, force: bool = False, project: bool = True, wait: bool = T
         _wait_for_enter_if_interactive("Press Enter to finish.")
     return 0
 
-def gui_command() -> int:
-    """Launch the SAGE Desktop GUI."""
-    try:
-        from sage.gui.app import SAGEApp
-        app = SAGEApp()
-        app.mainloop()
-        return 0
-    except ImportError:
-        print("[sage] The SAGE desktop GUI is not included in the public package.")
-        return 1
-
-def tui_command() -> int:
-    """Launch the SAGE interactive TUI."""
-    try:
-        from sage.tui.app import SAGETUIApp
-        app = SAGETUIApp()
-        app.run()
-        return 0
-    except ImportError as e:
-        print(f"[sage] TUI requires extra dependencies: pip install psycgod-sage[tui]")
-        print(f"       Error: {e}")
-        return 1
-
-
-def electron_command() -> int:
-    """Launch the SAGE Electron desktop app."""
-    import subprocess
-    repo_root = Path(__file__).resolve().parent.parent.parent
-    electron_dir = repo_root / "electron"
-
-    if not electron_dir.exists():
-        print("[sage] Electron app directory not found.")
-        print(f"       Expected: {electron_dir}")
-        return 1
-
-    node_modules = electron_dir / "node_modules"
-    if not node_modules.exists():
-        print("[sage] Installing Electron dependencies...")
-        result = subprocess.run(["npm", "install"], cwd=str(electron_dir), shell=True)
-        if result.returncode != 0:
-            print("[sage] npm install failed.")
-            return 1
-
-    print("[sage] Launching SAGE Desktop...")
-    result = subprocess.run(["npm", "run", "start"], cwd=str(electron_dir), shell=True)
-    return result.returncode

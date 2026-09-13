@@ -3197,6 +3197,40 @@ async function route(request, env) {
   const corsHeaders = origin ? getCorsHeaders(origin) : {};
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
+  // The historical Sage telemetry D1 database has been retired to protect the
+  // shared Cloudflare account. Keep the public site and KV proof online while
+  // making former D1-only APIs fail explicitly instead of throwing at runtime.
+  if (!env.DB && request.method === "POST" && url.pathname === "/v1/proof-snapshot") {
+    return json({
+      ok: true,
+      accepted: false,
+      automatic_snapshot_paused: true,
+      reason: "Sage telemetry database retired",
+    }, 202);
+  }
+  const retiredD1Routes = new Set([
+    "/v1/keys",
+    "/v1/whoami",
+    "/v1/machine-login",
+    "/v1/admin/visitors",
+    "/v1/admin/users",
+    "/v1/admin/users/cleanup",
+    "/v1/github-auth/start",
+    "/v1/github-auth/status",
+    "/auth/github/callback",
+    "/api/workspace/validate",
+    "/api/team/roster",
+    "/api/team/sessions",
+    "/api/team/run",
+    "/api/team/analytics",
+  ]);
+  if (!env.DB && retiredD1Routes.has(url.pathname)) {
+    return json({
+      ok: false,
+      error: "This Sage telemetry-backed endpoint has been retired.",
+    }, 410);
+  }
+
   if (request.method === "GET" && url.pathname === "/favicon.png") {
     return new Response(decodeBase64(BRAND_ICON_BASE64), {
       status: 200,

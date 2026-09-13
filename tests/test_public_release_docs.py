@@ -111,10 +111,12 @@ def test_admin_users_endpoint_defaults_to_sanitized_rows():
     assert "if (!raw) return base;" in worker
 
 
-def test_public_proof_snapshot_uses_live_run_totals():
+def test_public_proof_uses_cached_daily_snapshot():
     worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
 
     assert "async function getAggregateRunTotals" in worker
-    assert "...aggregateRuns" in worker
+    assert "function publicProofJson" in worker
+    assert "s-maxage=43200" in worker
+    assert "return publicProofJson(parsed);" in worker
     assert "if (!seen.has(row.model)) sanitized.push(row);" in worker
     assert "if (!seen.has(row.agent)) sanitized.push(row);" in worker

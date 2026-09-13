@@ -446,7 +446,7 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
   </div>
 
   <script>
-    const API_ENDPOINT = window.location.origin + "/v1/proof";
+    const API_ENDPOINT = window.location.origin + "/v1/proof-v2";
     const CLICK_ENDPOINT = window.location.origin + "/v1/dashboard-click";
     function formatNumber(num) {
       num = Number(num || 0);
@@ -496,7 +496,12 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
       }
       return rows;
     }
+    const PROOF_REFRESH_MS = 24 * 60 * 60 * 1000;
+    let lastProofRefreshAt = 0;
+
     async function loadProofData() {
+      if (document.visibilityState === "hidden") return;
+      lastProofRefreshAt = Date.now();
       const loading = document.getElementById("loading-state");
       const error = document.getElementById("error-state");
       const content = document.getElementById("dashboard-content");
@@ -610,8 +615,14 @@ saved_usd = saved / 1_000_000 * 15.0</pre>
       if (event.key === "Escape") closeAbProof();
     });
     document.addEventListener("click", trackDashboardClick, { passive: true });
+    function refreshProofIfDue() {
+      if (document.visibilityState !== "hidden" && Date.now() - lastProofRefreshAt >= PROOF_REFRESH_MS) {
+        loadProofData();
+      }
+    }
     loadProofData();
-    setInterval(loadProofData, 10000);
+    setInterval(refreshProofIfDue, PROOF_REFRESH_MS);
+    document.addEventListener("visibilitychange", refreshProofIfDue);
   </script>
 </body>
 </html>`;
@@ -1237,7 +1248,7 @@ npx -y psycgod-sage run -- git status</pre>
       return String(value);
     };
     const money = (n) => "$" + Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
-    fetch("/v1/proof", { cache: "no-store" })
+    fetch("/v1/proof-v2", { cache: "default" })
       .then((res) => res.ok ? res.json() : null)
       .then((proof) => {
         const totals = proof && proof.totals ? proof.totals : {};
@@ -1364,6 +1375,16 @@ function json(payload, status = 200, origin = null) {
       "Pragma": "no-cache",
       "Expires": "0",
       ...corsHeaders,
+    },
+  });
+}
+
+function publicProofJson(payload) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "public, max-age=300, s-maxage=43200, stale-while-revalidate=86400",
     },
   });
 }
@@ -2727,10 +2748,6 @@ async function handleTelemetry(env, request) {
   }
   await env.DB.batch(statements);
 
-  if (env.TELEMETRY_QUEUE) {
-    await env.TELEMETRY_QUEUE.send({ event_id: eventId, key_id: auth.keyId, received_at: receivedAt });
-  }
-
   return json({ ok: true, event_id: eventId, duplicate: false });
 }
 
@@ -2904,27 +2921,11 @@ async function handleProof(env) {
     try {
       const parsed = normalizeProofPayload(JSON.parse(snapshot.payload_json));
       const responseGeneratedAt = nowIso();
-      const latestTelemetryAt = await getLatestTelemetryAt(env);
       const snapshotGeneratedAt = parsed.generated_at || snapshot.created_at || "";
-      parsed.generated_at = responseGeneratedAt;
       parsed.response_generated_at = responseGeneratedAt;
       parsed.snapshot_generated_at = snapshotGeneratedAt;
-      parsed.data_updated_at = maxIso(latestTelemetryAt, snapshot.created_at, snapshotGeneratedAt) || responseGeneratedAt;
-      const liveNow = responseGeneratedAt;
-      const liveCounts = await env.DB.prepare(
-        `SELECT
-          COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
-            COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS connected_users,
-          COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN
-            COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
-         FROM api_keys`
-      ).bind(liveNow, new Date(Date.now() - 86400000).toISOString()).first();
-      parsed.connected_users = Number(liveCounts?.connected_users || 0);
-      parsed.active_users_24h = Number(liveCounts?.active_users_24h || 0);
-      const aggregateTotals = await getAggregateRunTotals(env);
-      // Compatibility marker for release tests: the old merge used ...aggregateRuns.
-      parsed.totals = mergeSnapshotWithAggregateTotals(parsed.totals || {}, aggregateTotals);
-      return json(parsed);
+      parsed.data_updated_at = snapshotGeneratedAt || snapshot.created_at || responseGeneratedAt;
+      return publicProofJson(parsed);
     } catch (_exc) {
       // Fall back to event aggregates if the stored snapshot is invalid.
     }
@@ -3087,10 +3088,23 @@ async function handleProofSnapshot(env, request) {
     ml_training_examples: clampInt(totals.ml_training_examples, 0, 2147483647, 0),
     agent_quality_metrics: clampInt(totals.agent_quality_metrics, 0, 2147483647, 0),
   }, previousTotals);
-  const mergedSavingsByModel = sanitizeSavingsByModel(totals.savings_by_model, mergedTotals.tokens_saved);
+  // Do the heavier global merge only when a daily authenticated snapshot is
+  // published, never on public dashboard reads.
+  const aggregateTotals = await getAggregateRunTotals(env);
+  const finalTotals = mergeSnapshotWithAggregateTotals(mergedTotals, aggregateTotals);
+  const mergedSavingsByModel = sanitizeSavingsByModel(totals.savings_by_model, finalTotals.tokens_saved);
+  const snapshotNow = nowIso();
+  const userCounts = await env.DB.prepare(
+    `SELECT
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND (expires_at = '' OR expires_at > ?) THEN
+        COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS connected_users,
+      COUNT(DISTINCT CASE WHEN revoked_at = '' AND last_used_at >= ? THEN
+        COALESCE(NULLIF(github_username, ''), NULLIF(github_id, ''), NULLIF(display_name, ''), NULLIF(username, ''), key_id) END) AS active_users_24h
+     FROM api_keys`
+  ).bind(snapshotNow, new Date(Date.now() - 86400000).toISOString()).first();
   const snapshot = {
     ok: true,
-    generated_at: nowIso(),
+    generated_at: snapshotNow,
     source: "authenticated_local_snapshot",
     owner: {
       display_name: textValue(body.owner?.display_name || body.display_name || "PsYc+GoD AI & ML", 120),
@@ -3113,28 +3127,32 @@ async function handleProofSnapshot(env, request) {
       "agent_runs_completed",
       "ml_training_examples",
       "agent_quality_metrics",
+      "connected_users",
+      "active_users_24h",
     ],
+    connected_users: Number(userCounts?.connected_users || 0),
+    active_users_24h: Number(userCounts?.active_users_24h || 0),
     totals: {
-      total_runs: mergedTotals.total_runs,
-      successful_runs: mergedTotals.successful_runs,
-      failed_runs: mergedTotals.failed_runs,
-      tokens_processed: mergedTotals.tokens_processed,
-      tokens_compressed: mergedTotals.tokens_compressed,
-      tokens_saved: mergedTotals.tokens_saved,
+      total_runs: finalTotals.total_runs,
+      successful_runs: finalTotals.successful_runs,
+      failed_runs: finalTotals.failed_runs,
+      tokens_processed: finalTotals.tokens_processed,
+      tokens_compressed: finalTotals.tokens_compressed,
+      tokens_saved: finalTotals.tokens_saved,
       estimated_savings_usd: totalModelSavings(mergedSavingsByModel),
       savings_by_model: mergedSavingsByModel,
       savings_by_agent: savingsByAgent,
-      compression_percent: mergedTotals.tokens_processed
-        ? Number(((mergedTotals.tokens_saved / mergedTotals.tokens_processed) * 100).toFixed(2))
+      compression_percent: finalTotals.tokens_processed
+        ? Number(((finalTotals.tokens_saved / finalTotals.tokens_processed) * 100).toFixed(2))
         : 0,
-      success_rate: mergedTotals.total_runs
-        ? Number(((mergedTotals.successful_runs / mergedTotals.total_runs) * 100).toFixed(2))
+      success_rate: finalTotals.total_runs
+        ? Number(((finalTotals.successful_runs / finalTotals.total_runs) * 100).toFixed(2))
         : 0,
-      failure_prediction_stats: mergedTotals.failure_prediction_stats,
-      total_agents: mergedTotals.total_agents,
-      agent_runs_completed: mergedTotals.agent_runs_completed,
-      ml_training_examples: mergedTotals.ml_training_examples,
-      agent_quality_metrics: mergedTotals.agent_quality_metrics,
+      failure_prediction_stats: finalTotals.failure_prediction_stats,
+      total_agents: finalTotals.total_agents,
+      agent_runs_completed: finalTotals.agent_runs_completed,
+      ml_training_examples: finalTotals.ml_training_examples,
+      agent_quality_metrics: finalTotals.agent_quality_metrics,
     },
   };
   await env.DB.prepare(
@@ -3256,7 +3274,16 @@ async function route(request, env) {
   if (request.method === "GET" && url.pathname === "/v1/admin/visitors") return handleVisitorStats(env, request);
   if (request.method === "GET" && url.pathname === "/v1/admin/users") return handleAdminUsers(env, request);
   if (request.method === "POST" && url.pathname === "/v1/admin/users/cleanup") return handleAdminUsersCleanup(env, request);
-  if (request.method === "GET" && url.pathname === "/v1/proof") return handleProof(env);
+  if (request.method === "GET" && url.pathname === "/v1/proof") {
+    return new Response(null, {
+      status: 308,
+      headers: {
+        Location: "https://marketingstudios.in/robots.txt",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
+  }
+  if (request.method === "GET" && url.pathname === "/v1/proof-v2") return handleProof(env);
   if (request.method === "POST" && url.pathname === "/v1/github-auth/start") return handleGithubAuthStart(env, request);
   if (request.method === "GET" && url.pathname === "/v1/github-auth/status") return handleGithubAuthStatus(env, request, url);
   if (request.method === "GET" && url.pathname === "/auth/github/callback") return handleGithubAuthCallback(env, url);

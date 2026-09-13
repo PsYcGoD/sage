@@ -507,10 +507,31 @@ def test_after_run_sync_schedules_snapshot_without_foreground_network(
     assert t.maybe_sync_after_run(20)["snapshot_due"] is True
 
     assert calls.count("snapshot") == 0
-    assert calls.count("sender") == 4
+    assert calls.count("sender") == 1
 
 
-def test_background_sender_publishes_snapshot_before_batch(monkeypatch):
+def test_after_run_sync_allows_one_sender_per_day(isolated_telemetry, monkeypatch):
+    t = isolated_telemetry
+    calls = []
+    times = iter([
+        "2026-09-09T00:00:00+00:00",
+        "2026-09-09T23:59:59+00:00",
+        "2026-09-10T00:00:00+00:00",
+    ])
+
+    monkeypatch.setattr(t, "_now", lambda: next(times))
+    monkeypatch.setattr(
+        "sage.telemetry_sender.spawn_background_sender",
+        lambda: calls.append("sender") or True,
+    )
+
+    assert t.maybe_sync_after_run(1, snapshot_every=9999)["sync_due"] is True
+    assert t.maybe_sync_after_run(2, snapshot_every=9999)["sync_due"] is False
+    assert t.maybe_sync_after_run(3, snapshot_every=9999)["sync_due"] is True
+    assert calls == ["sender", "sender"]
+
+
+def test_background_sender_publishes_snapshot_without_per_run_upload(monkeypatch):
     from pathlib import Path
     import tempfile
 
@@ -524,13 +545,13 @@ def test_background_sender_publishes_snapshot_before_batch(monkeypatch):
         "api_key": "key",
     })
     monkeypatch.setattr(telemetry, "send_proof_snapshot", lambda: calls.append("snapshot") or {"ok": True})
-    monkeypatch.setattr(telemetry, "send_queued", lambda *, dry_run, limit: calls.append(("send", dry_run, limit)) or {"sent": 1, "queued": 0})
+    monkeypatch.setattr(telemetry, "queue_status", lambda: {"queued": 123})
+    monkeypatch.setattr(telemetry, "send_queued", lambda **kwargs: calls.append(("unexpected-send", kwargs)))
     monkeypatch.setattr(telemetry, "data_dir", lambda: Path(tempfile.gettempdir()))
 
     telemetry_sender.send_batch_background(limit=123)
 
-    assert calls[:2] == ["snapshot", ("send", False, 123)]
-    assert calls[-1] == "snapshot"
+    assert calls == ["snapshot"]
 
 
 def test_api_key_storage_uses_keyring(monkeypatch):

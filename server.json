@@ -7,12 +7,12 @@
     "url": "https://github.com/PsYcGoD/sage",
     "source": "github"
   },
-  "version": "2.6.1",
+  "version": "2.6.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "psycgod-sage",
-      "version": "2.6.1",
+      "version": "2.6.2",
       "transport": {
         "type": "stdio"
       }
@@ -20,7 +20,7 @@
     {
       "registryType": "npm",
       "identifier": "psycgod-sage",
-      "version": "2.6.1",
+      "version": "2.6.2",
       "transport": {
         "type": "stdio"
       }

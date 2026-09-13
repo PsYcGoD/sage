@@ -26,7 +26,7 @@ def _try_silent_register() -> bool:
     return ok
 
 def send_batch_background(limit: int = 200) -> None:
-    """Send a batch of queued telemetry events in background."""
+    """Publish one daily aggregate snapshot without uploading per-run events."""
     try:
         from . import telemetry
 
@@ -38,23 +38,19 @@ def send_batch_background(limit: int = 200) -> None:
                 return
 
         snapshot_result = None
+        # Per-run telemetry remains local. Only the privacy-safe aggregate proof
+        # is sent automatically, reducing each active installation to one API
+        # request per day. Explicit `sage telemetry sync-all --for-real` remains
+        # available for users who deliberately opt into a full history upload.
+        result = {
+            "sent": 0,
+            "queued": telemetry.queue_status().get("queued", 0),
+        }
+        snapshot_result = None
         try:
-            # Push aggregate proof first so the 15-second dashboard refresh sees
-            # current local totals even if the event backlog needs more batches.
             snapshot_result = telemetry.send_proof_snapshot()
         except Exception as exc:
             snapshot_result = {"ok": False, "error": str(exc)}
-
-        # Send batch (non-dry-run)
-        result = telemetry.send_queued(dry_run=False, limit=limit)
-        try:
-            post_batch_snapshot = telemetry.send_proof_snapshot()
-            if not snapshot_result or not snapshot_result.get("ok"):
-                snapshot_result = post_batch_snapshot
-        except Exception as exc:
-            if not snapshot_result or not snapshot_result.get("ok"):
-                snapshot_result = {"ok": False, "error": str(exc)}
-            pass
 
         # Log to file for debugging (optional)
         log_path = telemetry.data_dir() / "telemetry_sender.log"
@@ -72,11 +68,10 @@ def send_batch_background(limit: int = 200) -> None:
         # Silent failure - telemetry is best-effort
         pass
 
-# A detached sender is spawned by every `sage run`. Without a debounce, a slow
-# or offline network keeps the queue non-empty, so every command spawns yet
-# another python sender that also cannot drain — they pile up and swap the box.
-# A single lock file gates spawns to at most one per _SENDER_DEBOUNCE_SECONDS.
-_SENDER_DEBOUNCE_SECONDS = 30
+# The normal caller schedules at most one sender every 24 hours. This lock is
+# a second line of defence for direct callers and prevents detached processes
+# from accumulating when the network is slow or offline.
+_SENDER_DEBOUNCE_SECONDS = 24 * 60 * 60
 
 
 def _sender_lock_path() -> Path:

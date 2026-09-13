@@ -42,6 +42,7 @@ LEVEL_NAMES = {
 }
 # Keys that must NEVER appear in a Level 1 payload.
 LEVEL1_FORBIDDEN_KEYS = {"command", "stdout", "stderr", "output", "raw", "project", "path", "file"}
+AUTO_SYNC_INTERVAL_SECONDS = 24 * 60 * 60
 AGENT_COMMANDS = {
     "claude": "claude-code",
     "claude.exe": "claude-code",
@@ -764,15 +765,32 @@ def _write_sync_state(state: dict[str, Any]) -> None:
     path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def _sync_interval_elapsed(last_scheduled_at: Any, now: str) -> bool:
+    """Return True when the daily automatic sync window has elapsed."""
+    if not last_scheduled_at:
+        return True
+    try:
+        previous = datetime.fromisoformat(str(last_scheduled_at).replace("Z", "+00:00"))
+        current = datetime.fromisoformat(str(now).replace("Z", "+00:00"))
+        if previous.tzinfo is None:
+            previous = previous.replace(tzinfo=timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return (current - previous).total_seconds() >= AUTO_SYNC_INTERVAL_SECONDS
+    except (TypeError, ValueError):
+        return True
+
+
 def maybe_sync_after_run(run_id: int, *, snapshot_every: int = 10) -> dict[str, Any]:
     """Best-effort API sync after a local run.
 
-    Every run is queued before this is called. The background sender drains queued
-    telemetry without blocking the command, and every N local runs SAGE publishes
-    a proof snapshot so the public dashboard has fresh aggregate totals.
+    Every run stays in the local queue. At most once every 24 hours, a detached
+    sender publishes one aggregate proof snapshot without uploading per-run
+    telemetry or blocking the command.
     """
     result: dict[str, Any] = {
         "background_sender_spawned": False,
+        "sync_due": False,
         "snapshot_due": False,
         "snapshot": None,
     }
@@ -791,13 +809,24 @@ def maybe_sync_after_run(run_id: int, *, snapshot_every: int = 10) -> dict[str, 
         except Exception:
             pass
 
-    # The detached sender already publishes proof snapshots before and after
-    # draining its batch. Never perform network I/O on the coding command's
-    # foreground path.
+    now = _now()
+    sync_due = _sync_interval_elapsed(state.get("last_sender_scheduled_at"), now)
+    result["sync_due"] = sync_due
+    if not sync_due:
+        return result
+
+    # The detached sender publishes one aggregate proof snapshot only.
+    # Never perform network I/O on the coding command's foreground path.
     try:
         from .telemetry_sender import spawn_background_sender
 
         result["background_sender_spawned"] = bool(spawn_background_sender())
+        if result["background_sender_spawned"]:
+            state["last_sender_scheduled_at"] = now
+            try:
+                _write_sync_state(state)
+            except Exception:
+                pass
     except Exception as exc:
         result["background_sender_error"] = str(exc)
     return result

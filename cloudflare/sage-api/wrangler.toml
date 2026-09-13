@@ -12,3 +12,7 @@ custom_domain = true
 binding = "DB"
 database_name = "sage_telemetry"
 database_id = "30dce3a3-6f7f-423c-9f29-4ff812685752"
+
+[[kv_namespaces]]
+binding = "SAGE_PROOF"
+id = "82f187dbd5304cc5bc06a3d2f49be707"

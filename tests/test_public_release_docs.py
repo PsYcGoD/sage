@@ -118,5 +118,7 @@ def test_public_proof_uses_cached_daily_snapshot():
     assert "function publicProofJson" in worker
     assert "s-maxage=43200" in worker
     assert "return publicProofJson(parsed);" in worker
+    assert 'display_name: "PsYc+GoD AI & ML"' in worker
+    assert "sanitizeSavingsByModel(finalTotals.savings_by_model" in worker
     assert "if (!seen.has(row.model)) sanitized.push(row);" in worker
     assert "if (!seen.has(row.agent)) sanitized.push(row);" in worker

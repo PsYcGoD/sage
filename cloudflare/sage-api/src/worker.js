@@ -3092,7 +3092,7 @@ async function handleProofSnapshot(env, request) {
   // published, never on public dashboard reads.
   const aggregateTotals = await getAggregateRunTotals(env);
   const finalTotals = mergeSnapshotWithAggregateTotals(mergedTotals, aggregateTotals);
-  const mergedSavingsByModel = sanitizeSavingsByModel(totals.savings_by_model, finalTotals.tokens_saved);
+  const mergedSavingsByModel = sanitizeSavingsByModel(finalTotals.savings_by_model, finalTotals.tokens_saved);
   const snapshotNow = nowIso();
   const userCounts = await env.DB.prepare(
     `SELECT
@@ -3107,8 +3107,8 @@ async function handleProofSnapshot(env, request) {
     generated_at: snapshotNow,
     source: "authenticated_local_snapshot",
     owner: {
-      display_name: textValue(body.owner?.display_name || body.display_name || "PsYc+GoD AI & ML", 120),
-      username: textValue(body.owner?.username || body.username || "PsYcGoD", 80),
+      display_name: "PsYc+GoD AI & ML",
+      username: "PsYcGoD",
     },
     public_fields: [
       "total_runs",
@@ -3141,7 +3141,7 @@ async function handleProofSnapshot(env, request) {
       tokens_saved: finalTotals.tokens_saved,
       estimated_savings_usd: totalModelSavings(mergedSavingsByModel),
       savings_by_model: mergedSavingsByModel,
-      savings_by_agent: savingsByAgent,
+      savings_by_agent: finalTotals.savings_by_agent,
       compression_percent: finalTotals.tokens_processed
         ? Number(((finalTotals.tokens_saved / finalTotals.tokens_processed) * 100).toFixed(2))
         : 0,

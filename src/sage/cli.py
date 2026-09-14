@@ -326,7 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     api_sub.add_parser("logout", help="Disconnect local SAGE API credentials.")
 
     # Primary connect command (optional public proof sync)
-    connect_parser = sub.add_parser("connect", help="Connect SAGE for optional public proof sync.")
+    connect_parser = sub.add_parser("connect", help="Connect to an optional custom self-hosted API.")
     connect_parser.add_argument("--display-name", help="Optional display name (defaults to GitHub name).")
     connect_parser.add_argument("--public-profile", action="store_true", help="Show your name on public proof.")
     connect_parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
@@ -474,7 +474,7 @@ def _add_login_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--public-profile", action="store_true", help="Show this profile on public proof leaderboards.")
     parser.add_argument("--privacy-max", type=int, default=1, choices=[0, 1, 2, 3, 4], help="Maximum telemetry level allowed for this key.")
     parser.add_argument("--scope", default="personal", help="API key scope label.")
-    parser.add_argument("--endpoint", default="", help="SAGE API base URL. Defaults to sage.api.marketingstudios.in.")
+    parser.add_argument("--endpoint", default="", help="Optional custom SAGE API base URL. Hosted SAGE services are retired.")
     parser.add_argument("--expiry-days", type=int, choices=[30, 60, 90], help="API key expiration in days.")
 
 def _ensure_system_enforcement(command_name: str | None) -> bool:
@@ -589,21 +589,7 @@ def setup_command(force: bool = False) -> int:
 
     cloud_connected = False
     print()
-    print("Cloud connection: connecting automatically. If cloud is unreachable, SAGE stays local and retries later.")
-    print()
-    try:
-        from . import telemetry
-
-        config = telemetry.load_config()
-        if config.get("api_key_id"):
-            connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="", auto_only=True)
-            cloud_connected = connect_command(connect_args) == 0
-        else:
-            connect_args = argparse.Namespace(expiry_days=30, display_name=display_name, endpoint="", auto_only=True)
-            cloud_connected = connect_command(connect_args) == 0
-    except Exception as exc:
-        print(f"Cloud connection skipped: {exc}")
-        print("Queued telemetry will send later after automatic setup reconnects.")
+    print("Hosted connection: retired. SAGE remains local-only.")
 
     if not _ensure_system_enforcement("run"):
         print("Warning: AI-agent enforcement was not fully installed. Run `sage install` later.")
@@ -687,7 +673,7 @@ def _ensure_first_run_setup(command_name: str | None) -> int:
     `pip install` cannot reliably run post-install onboarding across modern pip,
     venv, pipx, CI, and locked-down systems. The product promise is therefore:
     one install command, then the first `sage`/`sage run -- ...` command
-    automatically connects and installs enforcement without a separate login step.
+    automatically configures local enforcement without a separate login step.
     """
     if os.environ.get("SAGE_SKIP_SETUP") == "1":
         return 0
@@ -742,14 +728,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command_name == "demo":
         return demo_command()
 
-    REQUIRES_API = {"github-bot"}
+    # Hosted Sage services are retired. Commands that can work from local data,
+    # including GitHub bot output generation, must not require a remote API.
+    REQUIRES_API: set[str] = set()
     if args.command_name in REQUIRES_API:
         from . import telemetry
         status = telemetry.api_status()
         if not status.get("connected"):
-            print("This SAGE command requires connected mode.")
-            print("SAGE normally connects automatically on first use.")
-            print("Repair now with: sage setup --force")
+            print("This SAGE command requires a custom self-hosted API endpoint.")
             return 1
 
     if args.command_name == "run":
@@ -2445,9 +2431,9 @@ def _activation_doctor() -> int:
     print()
     print("Safe activation model:")
     print("  - pip/npm install stays passive for package-policy safety.")
-    print("  - first explicit `sage` command runs setup/connect.")
-    print("  - each `sage run -- ...` queues telemetry locally and syncs when connected.")
-    print("  - proof snapshots sync every 10th command.")
+    print("  - first explicit `sage` command runs local setup.")
+    print("  - each `sage run -- ...` keeps telemetry and proof metrics local.")
+    print("  - no background sender or hosted proof synchronization runs.")
 
     ok = bool(setup_state.get("completed")) and enforced
     if status.get("connected") and not api_verified:
@@ -3521,9 +3507,9 @@ def _wait_for_enter_if_interactive(message: str) -> None:
 
 
 def install_command(*, force: bool = False, project: bool = True, wait: bool = True) -> int:
-    """One-command onboarding: setup API identity and install agent enforcement."""
+    """One-command onboarding for local agent enforcement."""
     print("SAGE install")
-    print("This connects this machine, installs/repairs AI-agent instructions, and enables SAGE hooks.")
+    print("This activates SAGE locally, installs/repairs AI-agent instructions, and enables SAGE hooks.")
     print()
 
     rc = activate_command(force=force, project=project)

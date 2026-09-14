@@ -18,7 +18,6 @@ def test_public_release_docs_and_assets_exist():
         "docs/assets/demo-sage-run.gif",
         "docs/assets/demo-sage-savings.gif",
         "docs/assets/demo-github-bot.gif",
-        "docs/assets/sage-live-dashboard.png",
     ]
 
     for path in required:
@@ -44,81 +43,3 @@ def test_readme_public_positioning():
     assert hidden_team_endpoint not in readme
     removed_command = "sage " + "pric" + "ing"
     assert removed_command not in readme
-
-
-def test_public_worker_dashboard_exposes_aggregate_savings():
-    worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
-    wrangler = Path("cloudflare/sage-api/wrangler.toml").read_text(encoding="utf-8")
-    api_readme = Path("cloudflare/sage-api/README.md").read_text(encoding="utf-8")
-
-    assert "Estimated Savings" in worker
-    assert "Estimated savings by model and AI agent" in worker
-    assert 'url.pathname === "/" || url.pathname === "/dashboard"' in worker
-    assert 'url.pathname === "/health"' in worker
-    assert "workers_dev = false" in wrangler
-    assert "Workers.dev fallback | Disabled" in api_readme
-    assert "sage-api.pascoaldsouza28.workers.dev" not in worker
-    assert "sage-api.pascoaldsouza28.workers.dev" not in api_readme
-    assert "Money Saved by each AI Agent" not in worker
-    assert "agent-savings" not in worker
-    assert "renderAgentSavings" not in worker
-    assert "Number(row.estimated_savings_usd || 0) >= 0.005" in worker
-    assert "compressionSavingsRows" in worker
-    assert "Codex" in worker
-    assert "SAGE" in worker
-    assert "Claude Code" in worker
-    assert "OpenCode" in worker
-    assert "Cursor" in worker
-    assert "estimated_savings_usd" in worker
-    assert "savings_by_model" in worker
-    assert "savings_by_agent" in worker
-    assert "total_agents" in worker
-    assert "agent_runs_completed" in worker
-    assert "ml_training_examples" in worker
-    assert "agent_quality_metrics" in worker
-    assert "agent_count_sum" in worker
-    assert "telemetry_events" in worker
-    assert "model_provider" in worker
-    assert "Claude Opus" in worker
-    assert "sanitizeSavingsByAgent" in worker
-    assert "mergeSavingsByAgent" in worker
-    assert "json_extract(payload_json, '$.agent_client')" in worker
-    assert "/v1/dashboard-click" in worker
-    assert "dashboard_clicks" in worker
-    assert "new_installs_today" in worker
-    assert "live_installs_15m" in worker
-    assert "live_api_users_15m" in worker
-    assert "clicks_today" in worker
-
-
-def test_admin_users_endpoint_defaults_to_sanitized_rows():
-    worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
-
-    assert 'params.get("raw") === "1"' in worker
-    assert 'params.get("include_junk") === "1"' in worker
-    assert "junkIdentitySql" in worker
-    assert "excluded_junk_identities" in worker
-    assert "junk_identities_excluded" in worker
-    assert "cleanIdentityText" in worker
-    assert "Machine-${String(fingerprint).slice(0, 8)}" in worker
-    assert "looksLikeHash" in worker
-    assert "firstUsefulText" in worker
-    assert "machine_ids" in worker
-    assert "NULLIF(k.display_name, '')" in worker
-    assert "NULLIF(k.username, '')" in worker
-    assert worker.index("NULLIF(k.display_name, '')") < worker.index("NULLIF(k.username, '')")
-    assert "NULLIF(display_name, '')" in worker
-    assert "if (!raw) return base;" in worker
-
-
-def test_public_proof_uses_cached_daily_snapshot():
-    worker = Path("cloudflare/sage-api/src/worker.js").read_text(encoding="utf-8")
-
-    assert "async function getAggregateRunTotals" in worker
-    assert "function publicProofJson" in worker
-    assert "s-maxage=43200" in worker
-    assert "return publicProofJson(parsed);" in worker
-    assert 'display_name: "PsYc+GoD AI & ML"' in worker
-    assert "sanitizeSavingsByModel(finalTotals.savings_by_model" in worker
-    assert "if (!seen.has(row.model)) sanitized.push(row);" in worker
-    assert "if (!seen.has(row.agent)) sanitized.push(row);" in worker

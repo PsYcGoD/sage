@@ -29,8 +29,8 @@ from .security import redact_text
 from .store import connect, data_dir
 
 SCHEMA_VERSION = "1.0"
-DEFAULT_API_BASE_URL = "https://sage.api.marketingstudios.in"
-FALLBACK_API_BASE_URL = "https://sage-api.pascoaldsouza28.workers.dev"
+DEFAULT_API_BASE_URL = ""
+FALLBACK_API_BASE_URL = ""
 KEYRING_SERVICE = "psycgod-sage"
 
 LEVEL_NAMES = {
@@ -141,6 +141,8 @@ def api_machine_login(*, expiry_days: int = 30, display_name: str = "", base_url
         "expiry_days": max(1, min(365, int(expiry_days))),
     }
     base = base_url or DEFAULT_API_BASE_URL
+    if not base:
+        raise RuntimeError("The hosted SAGE API has been retired. Configure a custom endpoint to connect.")
     for candidate in _endpoint_candidates(base):
         try:
             data = json.dumps(payload).encode("utf-8")
@@ -212,6 +214,8 @@ def api_github_login(
 
     config = load_config()
     base = base_url or config.get("api_base_url") or DEFAULT_API_BASE_URL
+    if not base:
+        raise RuntimeError("The hosted SAGE API has been retired. Configure a custom endpoint to connect.")
 
     result = github_oauth_flow(
         api_base=base,
@@ -275,6 +279,8 @@ def auto_register_silent() -> bool:
     telemetry level to 1, and unlocks the dashboard funnel. If it fails
     (offline, server down, already registered) it's a silent no-op.
     """
+    if not DEFAULT_API_BASE_URL:
+        return False
     try:
         cfg = load_config()
         if cfg.get("api_endpoint") and resolve_api_key(cfg):
@@ -433,6 +439,13 @@ def load_config() -> dict[str, Any]:
     config.setdefault("api_profile", {})
     config.setdefault("accounts", {})
     config.setdefault("active_account", "")
+    # The hosted SAGE service has been retired. Clear saved connections so
+    # upgraded clients stop all automatic remote requests and remain local-only.
+    if config.get("api_endpoint") or config.get("api_base_url"):
+        config["api_endpoint"] = ""
+        config["api_base_url"] = ""
+        config["telemetry_level"] = 0
+        changed = True
     if changed:
         save_config(config)
     return config

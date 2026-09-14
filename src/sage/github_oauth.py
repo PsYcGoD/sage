@@ -4,7 +4,7 @@ The client:
 1. POSTs to /v1/github-auth/start → gets a session_id + authorize_url
 2. Opens the browser to GitHub's authorize page
 3. User authenticates on GitHub
-4. GitHub redirects to api.marketingstudios.in/auth/github/callback
+4. GitHub redirects to the configured API callback
 5. API exchanges code for token, creates SAGE API key, stores in session
 6. CLI polls /v1/github-auth/status?session=<id> until completed
 """
@@ -19,7 +19,7 @@ import urllib.error
 import webbrowser
 from typing import Any
 
-DEFAULT_API_BASE = "https://sage.api.marketingstudios.in"
+DEFAULT_API_BASE = ""
 
 
 def github_oauth_flow(
@@ -32,6 +32,8 @@ def github_oauth_flow(
     timeout: int = 300,
 ) -> dict[str, Any]:
     """Run GitHub OAuth with server-side callback and return the SAGE API key info."""
+    if not api_base:
+        raise RuntimeError("The hosted SAGE API has been retired. Configure a custom API endpoint to use OAuth.")
     print("Starting GitHub authentication...")
     print(f"API:  {api_base}")
 

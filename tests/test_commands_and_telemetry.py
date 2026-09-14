@@ -37,7 +37,7 @@ def test_classify_never_raises():
     assert classify_command("some-unknown-tool --flag").kind == "run"
 
 
-def test_setup_is_zero_prompt_and_auto_cloud_only(monkeypatch, tmp_path, capsys):
+def test_setup_is_zero_prompt_and_local_only(monkeypatch, tmp_path, capsys):
     from sage import cli
 
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
@@ -45,21 +45,16 @@ def test_setup_is_zero_prompt_and_auto_cloud_only(monkeypatch, tmp_path, capsys)
     monkeypatch.setattr(builtins, "input", lambda *args, **kwargs: pytest.fail("setup prompted for input"))
     monkeypatch.setattr(cli, "_ensure_system_enforcement", lambda command_name: True)
 
-    seen = {}
-
     def fake_connect(args):
-        seen["display_name"] = args.display_name
-        seen["auto_only"] = args.auto_only
-        return 0
+        pytest.fail("local-only setup attempted a hosted connection")
 
     monkeypatch.setattr(cli, "connect_command", fake_connect)
 
     assert cli.setup_command(force=True) == 0
     out = capsys.readouterr().out
 
-    assert seen["display_name"]
-    assert seen["auto_only"] is True
     assert "Identity:" in out
+    assert "SAGE remains local-only" in out
     assert "What should SAGE call you" not in out
     assert "Select ML mode" not in out
 

@@ -65,10 +65,6 @@ sage = "sage.cli:main"
 Homepage = "https://github.com/PsYcGoD/sage"
 Repository = "https://github.com/PsYcGoD/sage"
 Issues = "https://github.com/PsYcGoD/sage/issues"
-Dashboard = "https://sage.api.marketingstudios.in/dashboard"
-
-# The published package is the command wrapper only. The hosted dashboard is
-# maintained separately and is not bundled into PyPI/npm.
 [tool.setuptools.packages.find]
 where = ["src"]
 exclude = [

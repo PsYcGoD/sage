@@ -12,7 +12,7 @@ npm install -g psycgod-sage
 npx -y psycgod-sage install
 ```
 
-`install` is the explicit one-command onboarding step before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically. It connects this machine, writes/repairs local AI-agent memory files and supported shell-wrapper hooks, then prints a verification report. It does **not** auto-enable SAGE MCP. Restart open AI-agent sessions after install.
+`install` is the explicit one-command onboarding step before you expect Claude, Codex, Cursor, Windsurf, OpenCode, Cline, or other AI agents to use SAGE automatically. It activates this machine locally, writes/repairs local AI-agent memory files and supported shell-wrapper hooks, then prints a verification report. It does **not** auto-enable SAGE MCP. Restart open AI-agent sessions after install.
 
 One-shot npx usage:
 
@@ -65,5 +65,4 @@ Links:
 
 - Python: https://pypi.org/project/psycgod-sage/
 - Repo: https://github.com/PsYcGoD/sage
-- Dashboard: https://sage.api.marketingstudios.in/
 - License: MIT

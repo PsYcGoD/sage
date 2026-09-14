@@ -14,7 +14,7 @@ Use it with Claude Code, Codex, Cursor, Windsurf, OpenCode, Cline, custom agents
 
 ## Start Here: Install SAGE, Use once sage run -- python -m pytest, Then Use Any AI Agent
 
-Package installation is passive for package-registry safety. After installing, run `sage install` once to connect this machine and activate SAGE for supported local AI agents.
+Package installation is passive for package-registry safety. After installing, run `sage install` once to activate SAGE for supported local AI agents.
 
 ### PyPI / pip
 
@@ -62,15 +62,15 @@ sage run -- git status
 
 | Step | Result |
 |---|---|
-| `sage install` | Connects the machine, repairs global/project agent instructions, and verifies activation |
+| `sage install` | Activates the machine locally, repairs global/project agent instructions, and verifies activation |
 | `sage run -- <command>` | Runs the command, stores raw output locally, and returns a compact useful summary |
 | Agent memory/hooks | Tell supported AI agents to use SAGE for noisy terminal work |
 | Local database | Keeps command history, compression proof, and retry context on the user's machine |
-| Optional cloud proof | Sends aggregate metrics only when connected proof mode is enabled |
+| Local proof | Keeps command and compression metrics on the user's machine |
 
 SAGE does not auto-enable MCP. MCP is optional and manual for users who want it.
 
-## Live Proof
+## Recorded Local Metrics
 
 Latest pulled stats as of 2026-08-01:
 
@@ -85,11 +85,6 @@ Latest pulled stats as of 2026-08-01:
 | PyPI downloads, last 7 days | 632 |
 | npm downloads, last 7 days | 362 |
 | GitHub clones, last 14 days | 574 |
-
-Live dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
-Install page: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
-
-![SAGE public proof dashboard](docs/assets/sage-live-dashboard.png)
 
 ## Why It Helps
 
@@ -141,7 +136,6 @@ sage dashboard start               # Local dashboard
 | Mode | Requires login? | Sends data? | What leaves the machine? |
 |---|---:|---:|---|
 | Local-only | No | No | Nothing |
-| Connected proof | Machine auth | Yes | Aggregate counters and proof metrics |
 | Debug telemetry | Optional | Opt-in only | Redacted diagnostic summaries |
 
 SAGE is designed to keep prompts, source code, credentials, raw command output, and project files local unless the user deliberately enables a feature that requires sending data.
@@ -168,9 +162,6 @@ SAGE is designed to keep prompts, source code, credentials, raw command output, 
 
 ## Links
 
-- Landing: [sage.api.marketingstudios.in](https://sage.api.marketingstudios.in/)
-- Dashboard: [sage.api.marketingstudios.in/dashboard](https://sage.api.marketingstudios.in/dashboard)
-- Install guide: [sage.api.marketingstudios.in/install](https://sage.api.marketingstudios.in/install)
 - PyPI: [pypi.org/project/psycgod-sage](https://pypi.org/project/psycgod-sage/)
 - npm: [npmjs.com/package/psycgod-sage](https://www.npmjs.com/package/psycgod-sage)
 

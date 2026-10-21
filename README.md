@@ -7,6 +7,7 @@
 [![PyPI](https://img.shields.io/pypi/v/psycgod-sage.svg)](https://pypi.org/project/psycgod-sage/)
 [![npm](https://img.shields.io/npm/v/psycgod-sage.svg)](https://www.npmjs.com/package/psycgod-sage)
 [![License](https://img.shields.io/github/license/PsYcGoD/sage.svg)](https://github.com/PsYcGoD/sage/blob/main/LICENSE)
+[![SAGE Wrapper MCP server](https://mcprush.com/badge/sage-wrapper-mcp/card.svg)](https://mcprush.com/to/sage-wrapper-mcp?ref=badge)
 
 SAGE is a local-first command wrapper for AI coding agents. It keeps full terminal output on your machine, sends agents a clean compressed summary, and tracks proof metrics without uploading your raw logs.
 
